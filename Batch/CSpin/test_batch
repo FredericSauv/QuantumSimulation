@@ -1,12 +1,12 @@
 #!/bin/bash
+#PBS -l walltime=00:15:00,select=1:ncpus=1:mem=2gb
 
-#PBS -l walltime=00:15:00,select=1:ncpus=1:mem=1gb
 
-cp $HOME/Testing/script.py .
+cp -r $HOME/Testing/QuantumSimulation/ .
+module load anaconda3/personal
 source activate py36q
+cd QuantumSimulation/Batch/CSpin
 python test_batch.py
 
-mkdir $WORK/Res/Test_batch
-cp output $WORK/res
-
-
+mkdir -p $WORK/Res/TestBatch
+cp -r Output/TestBatchLight/ $WORK/Res/TestBatch
