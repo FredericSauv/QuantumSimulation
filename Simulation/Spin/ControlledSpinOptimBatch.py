@@ -41,7 +41,7 @@ class ControlledSpinOptimBatch(batch.Batch):
         _ = optim.Run(writeLogs = True)
         
         #Extract the results
-        pdb.set_trace()
+        #pdb.set_trace()
         res={}
         res['optim'] = dict(optim.resOptim)
         if(configTesting is not None):
