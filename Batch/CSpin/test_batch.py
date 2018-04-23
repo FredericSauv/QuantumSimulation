@@ -13,8 +13,8 @@ from  QuantumSimulation.Simulation.Spin.ControlledSpinOptimBatch import Controll
 #==============================================================================
 # SETUP 1 T
 #==============================================================================
-batch = OptBatch('Input/test_batch.txt')
+batch = OptBatch('Input/test_batch_extralight.txt')
 batch.run_procedures(saveFreq = 1, splitRes = True, printInfo = False)
 
-res = OptBatch.read_res(folderName = 'Output/TestBatch', allPrefix ='')
+#res = OptBatch.read_res(folderName = 'Output/TestBatch', allPrefix ='')
 
