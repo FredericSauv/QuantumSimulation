@@ -170,7 +170,7 @@ def file_to_dico(file, nested = False, delimiter = ' ', na_character = [''], evf
                 if (line[0] not in na_character):
                     nbline += 1
                     assert (len(line)>=1), 'batch input file: not enough args in l.' + str(nbline)                
-                    dicoRes[line[0]] = [ev(el) for el in line[1:]]
+                    dicoRes[line[0]] = [evfunc(el) for el in line[1:]]
         else:
             line = reader.__next__()
             assert (len(line)==1), 'not the right format/size' 
@@ -910,6 +910,73 @@ def gram_schmidt(vecs, trunc = False):
 
     return result
 
+#==============================================================================
+#                   TS: 
+# TS are understood as arrays of Nx2 float where 1st column is a list of indices
+# 
+#==============================================================================
+def sort_TS(TS):
+    """ sort a Nx2 array according to its first column
+    """
+    if(is_list(TS)):
+        return [sort_TS(el) for el in TS]
+    
+    elif(len(TS.shape) == 2):
+        TS_out = np.array(TS)
+        sort_ind = np.argsort(TS[:,0])
+        return TS_out[sort_ind,:]
+    else:
+        raise NotImplementedError()
+
+def merge_TS(listTS):
+    """take a list of TS compute the union of their indices and extend each TS 
+    such that 
+    """
+    list_index = [el[:,0] for el in listTS]
+    unique_index = np.unique([el for l in list_index for el in l])
+    res = [[ind, np.array([find_from_index_TS(ind, ts) for ts in listTS])] for ind in unique_index]
+    return res
+
+def merge_and_stats_TS(listTS, dico=True):
+    """
+    """
+    merged_TS = merge_TS(listTS)
+    stats = np.array([np.concatenate(([ind], get_stats(ts))) for ind, ts in merged_TS])
+    if(dico):
+        res = {'index':stats[:,0], 'avg': stats[:,1],'min':stats[:,2], 'max': stats[:,3]
+        ,'std':stats[:,4], 'avg_pstd': stats[:,5],'avg_mstd':stats[:,6]}
+    else:
+        res = stats
+    return res
+
+def get_stats(list_val):
+    """
+    """
+    avg = np.average(list_val)
+    mini = np.min(list_val)
+    maxi = np.max(list_val)
+    std = np.std(list_val)
+    avg_pstd = avg + std
+    avg_mstd = avg - std
+    return [avg, mini, maxi, std, avg_pstd, avg_mstd]
+    
+    
+def find_from_index_TS(index, TS, rule='lower'):
+    if(is_iter(index)):
+        return [find_from_index_TS(ind, TS, rule) for ind in index]    
+    else:
+        if(rule == 'lower'):
+            flag = np.diff(index < TS[:,0])
+            if(index<TS[0,0]):
+                flag[0] = True
+            if (np.sum(flag) == 0):
+                mask = np.concatenate((flag, [True]))
+            else:
+                mask = np.concatenate((flag, [False]))
+        else:
+            raise NotImplementedError()
+        return TS[mask,1][0]
+    
 
 #==============================================================================
 #                   is_XXX functions
@@ -949,3 +1016,21 @@ def vectorise_method(f):
     return vectorized_method
 
 #TODO: Decorator debug
+    
+
+
+#==============================================================================
+#                   Decorators
+#==============================================================================
+if __name__ == '__main__':
+    TS1 = np.array([[2,10],[1,5],[4,42],[7,56],[13,2]])
+    TS2 = np.array([[14,10],[2,7],[6,42],[8,56],[15,2]])
+    
+    TS1 = sort_TS(TS1)
+    TS2 = sort_TS(TS2)
+
+    print(find_from_index_TS(3, TS1))
+    mergets = merge_TS([TS1, TS2])
+    stats = merge_and_stats_TS([TS1, TS2])
+
+
