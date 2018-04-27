@@ -9,16 +9,19 @@ import os
 import pathlib
 import pdb
 from ast import literal_eval as ev
+from sklearn.gaussian_process.kernels import Matern, WhiteKernel, RBF, ConstantKernel
+
 
 if __name__ == '__main__':
     import sys
     sys.path.append("../../")
     from Utility import Helper as ut
     from Utility.Optim import RandomGenerator as rdgen
-    
+    from Utility.Optim.ParametrizedFunctionFactory import *    
 else:
     from .. import Helper as ut
     from . import RandomGenerator as rdgen
+    from .ParametrizedFunctionFactory import * 
     
 import importlib as ilib
 ilib.reload(ut)
@@ -306,7 +309,7 @@ class Batch:
                     else look for the files starting by prefix in folderName}
         """
         listFileName = ut.findFile(nameFile, allPrefix, folderName)
-        results = [ut.file_to_dico(f) for f in listFileName]        
+        results = [ut.file_to_dico(f, evfunc = (lambda x: eval(x)) ) for f in listFileName]        
         return results
 
     @classmethod
