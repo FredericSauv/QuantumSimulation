@@ -331,14 +331,24 @@ def merge_N_dico(conflict = 0, *args):
 
 
 
-def filter_dico(dico, keys_filter):
+def filter_dico(dico, keys_filter, keep = True):
+    """ Create a new dico based on an initial dico and a list of a keys
+    to keep or remove depending on parameters keep
     """
-    Purpose:
-        Extend update_dico to work with an arbitrary number of dictionnaries
-    """
-    dico_final = {k: v for k, v in dico.items() if k in keys_filter}
+    if(keep):
+        dico_final = {k: v for k, v in dico.items() if k in keys_filter}
+    else:
+        dico_final = {k: v for k, v in dico.items() if k not in keys_filter}
     return dico_final    
-    
+
+def filter_dico_first_char(dico, keys_first_char, keep = True):
+    """ Create a new dico based on an initial dico and a first char value for the keys
+    """
+    if(keep):
+        dico_final = {k: v for k, v in dico.items() if k[0] == keys_first_char}
+    else:
+        dico_final = {k: v for k, v in dico.items() if k[0] != keys_first_char}
+    return dico_final      
 
 def find_duplicates(array, decimals=None):
     """ find duplicates (up to some rounding)
