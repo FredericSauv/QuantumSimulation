@@ -25,6 +25,7 @@ else:
     
 import importlib as ilib
 ilib.reload(ut)
+
 #==============================================================================
 #                   BATCH CLASS
 # Generate a batch of simulations based on a text file containing the configurations
@@ -40,7 +41,7 @@ ilib.reload(ut)
 #    - Rdmruns / start to prepare to accomodate for different input type
 #    -
 # ThinkAbout:
-#  -
+#  - Management of random generator state
 #  -
 #==============================================================================
 class Batch:
@@ -52,28 +53,43 @@ class Batch:
     """
     EMPTY_LINE = [[], None]
     LEX_NA = list(['(*', ''])
-    DEF_RES_NAME = "default"
+    _DEF_RES_NAME = "res_default"
     
-    # METAPARAMETERS INFO {'Name':(def_value, type)}.
-    # bool is not used atm
+    # METAPARAMETERS OF THE BATCH
+    # INFO {'Name':(def_value, type)}.
+    # type is not used atm
+    METAPARAMS_FIRST_CHAR = "_"
     METAPARAMS_INFO = {'_RDM_RUNS': (1, 'int'), '_RDM_FIXSEED': (False, 'bool'),
                       '_OUT_PREFIX': ('res_','str'),'_OUT_FOLDER': (None, 'str'),
                       '_OUT_COUNTER': (None, 'int'), '_OUT_NAME': (None, 'list'),
                       '_OUT_STORE_CONFIG': (True, 'bool')}
-    
     METAPARAMS_NAME = METAPARAMS_INFO.keys()
     
-    
-    def __init__(self, inputFile = None, rdm_object = None, procToRun = None, debug = False):
+    def __init__(self, config_object = None, rdm_object = None, procToRun = None, debug = False):
+        """ Init the batch with a config(dico, list of dicos, file or list of files containing
+        the configs )
+        """
         if(debug):
             pdb.set_trace()
-        self._RDMGEN = rdgen.RandomGenerator.init_random_generator(rdm_object)        
-        self.listConfigs = self._parse_input(inputFile) #Generate the different configurations
+        self._RDMGEN = rdgen.RandomGenerator.init_random_generator(rdm_object) # not used atm
+        self.listConfigs = self._read_configs(config_object) 
         self._init_proc_to_run(procToRun)
 
+
     @classmethod
-    def init_with_dispatch(cls, inputFile = None, rdm_object = None, procToRun = None):
-        """ To think about goal is to init with some extra rules on low to deal
+    def from_meta_config(cls, metaFile = None, rdm_object = None, procToRun = None, debug = False):
+        """ init the config with a meta_configuration (instead of configs)
+        """
+        if(debug):
+            pdb.set_trace()
+        list_configs = cls.parse_meta_config(metaFile)
+        obj = cls.__init__(list_configs, rdm_object, procToRun)
+        obj.listConfigs = [obj._dispatch_configs(conf) for conf in obj.listConfigs]
+        return obj
+
+    @classmethod
+    def from_meta_with_dispatch(cls, inputFile = None, rdm_object = None, procToRun = None):
+        """ To think about goal is to init with some extra rules on how to deal
         with the dispatching of the input files configurations
         """
         obj = cls.__init__(inputFile, rdm_object, procToRun)
@@ -87,10 +103,10 @@ class Batch:
 
 # ---------------------------
 # MAIN FUNCTIONS
-#   -run_procedures
+#   - run_procedures
 #   - save_res
 # ---------------------------
-    def run_procedures(self, saveFreq = 0, splitRes = False, printInfo = False):
+    def run_procedures(self, config = None, saveFreq = 0, splitRes = False, printInfo = False):
         """ For each element of listConfigs run procedures (procToRun) and save reults
         Arguments:
         saveFreq:
@@ -100,23 +116,27 @@ class Batch:
              (False) only one file /(True):generate a file for each simulations 
              TODO: add gather all the runs for the same setup
         """
-        self.listRes = []
-        listResTmp = []
-        if(self._out['store_config']):
-            listConfTmp = []
+        pdb.set_trace()
+        if(config is None):
+            list_configs = self.listConfigs
         else:
-            listConfTmp = None
+            list_configs = self._read_configs(config)
+
+        self.listRes = []
+        listConfTmp = []
+        listResTmp = []
         i_config = 0
 
-        for conf in self.listConfigs:
+        for conf in list_configs:
+            #conf_filt = ut.filter_dico_first_char(conf, self.METAPARAMS_FIRST_CHAR, keep = False)
             tmp = self.run_one_procedure(conf) # run the simulation for one config
             i_config +=1
             if(printInfo):
                 print(i_config)
-            self.listRes.append(tmp)
+            #self.listRes.append(tmp)
             listResTmp.append(tmp)
-            if(self._out['store_config']):
-                listConfTmp.append(conf)
+            #if(conf['_OUT_STORE_CONFIG']): 
+            listConfTmp.append(conf)
             
             if ((saveFreq > 0) and (i_config%saveFreq == 0)):
                 self.save_res(listResTmp, listConfTmp, splitRes)
@@ -128,7 +148,7 @@ class Batch:
             self.save_res(listResTmp, listConfTmp, splitRes)
   
     
-    def save_res(self, resToStore = None, confToStore=None, split = False, prefix = None, folder = None):
+    def save_res(self, resToStore = None, confToStore=None, split = False):
         """ Store res/configs as a (several) text files
         Arguments:
             + resRoStore - a LIST[dicoRes] where dicoRes is a dictionnary containing the results
@@ -146,22 +166,19 @@ class Batch:
         if(resToStore is None):
             resToStore = self.listRes 
         if(confToStore is None):
-            confToStore = self.listConfigs
-        if(prefix is None):
-            prefix = self._out['prefix']
-        if(folder is None):
-            folder = self._out['folder']            
+            confToStore = self.listConfigs         
             
         if(split):
              for i in range(len(resToStore)):
                  oneRes = resToStore[i]
-                 if(confToStore is None):
-                     oneConf = None
+                 if(confToStore in [None, []]):
+                     raise NotImplementedError()
                  else:
                      oneConf = confToStore[i]
+                     folder = oneConf.get('_OUT_FOLDER', None)
+                     name_tmp = oneConf.get('_RES_NAME')
                  oneRes['config'] = oneConf 
-                 name_tmp= self._gen_name_res(oneConf)
-                 self.write_one_res(oneRes, name_tmp, prefix=prefix, folder=folder)
+                 self.write_one_res(oneRes, name_tmp, folder=folder)
 
         else:
             resAll = ut.concat_dico(resToStore)
@@ -171,30 +188,52 @@ class Batch:
                 confAll = None
             name_tmp = self._gen_name_res(confAll)
             
-            self.write_one_res(resAll, name_tmp, prefix, folder)
-            self.write_one_res(confAll, 'configs_' + name_tmp, prefix, folder)
+            self.write_one_res(resAll, name_tmp, folder)
+            self.write_one_res(confAll, 'configs_' + name_tmp, folder)
                 
 # ---------------------------
-#   PARSING
+# Dealing with the generation of configs and reading config_object
 # ---------------------------
-    def _parse_input(self, input_object):
-        """ Allow for different type of input (and different behavior associated)
-        (use a decorator??)        
+    @classmethod
+    def _read_configs(cls, config_object, list_output = True):
+        """ Allow for different type of config input (dico, list of dicos, fileName, 
+        list of file Names)
         """
-        if(ut.is_dico(input_object)):
-            list_configs = self._parse_input_dico()
-        
-        elif(ut.is_list(input_object)):
-            list_configs = self._parse_input_list()
+        if(ut.is_dico(config_object)):
+            if(list_output):
+                configs = [config_object]
+            else:
+                configs = config_object
 
-        else:
-            list_configs = self._parse_input_file(input_object)            
+        elif(ut.is_list(config_object)):
+            configs = [cls._read_configs(conf) for conf in config_object]
+
+        elif(ut.is_str(config_object)):
+            configs = ut.file_to_dico(config_object)
+            if(list_output):
+                configs = [configs]
         
-        return list_configs
-                
-    def _parse_input_file(self, inputFile = 'inputfile'):
+        else:
+            raise NotImplementedError()
+
+        return configs
+    
+    @classmethod
+    def parse_and_save_meta_config(cls, input_file = 'inputfile.txt', output_folder = 'Config'):
+        """ parse an input file generate teh configs and write a file for each of them
+        """
+        list_configs = cls.parse_meta_config(input_file)
+        for conf in list_configs:
+            name_conf = 'config_' + conf['_RES_NAME']
+            if(not(output_folder is None)):
+                pathlib.Path(output_folder).mkdir(parents=True, exist_ok=True) 
+                name_conf = os.path.join(output_folder, name_conf)
+            ut.dico_to_text_rep(conf, fileName = name_conf, typeWrite = 'w')
+
+    @classmethod
+    def parse_meta_config(cls, inputFile = 'inputfile.txt'):
         """Parse an input file and generate a list[dicoConfigs] where dicoConfigs are 
-            dictionaries containing a configuration
+        dictionaries containing a configuration which can be directly used to run the proc
         """
         with open(inputFile, 'r') as csvfile:
             reader = csv.reader(csvfile, delimiter = ' ')
@@ -205,9 +244,9 @@ class Batch:
 
             for line in reader:
                 nbline += 1
-                if(line in self.EMPTY_LINE) or (line[0] in self.LEX_NA):
+                if(line in cls.EMPTY_LINE) or (line[0] in cls.LEX_NA):
                     pass
-                elif(line[0] in self.METAPARAMS_NAME):
+                elif(line[0] in cls.METAPARAMS_NAME):
                     assert (len(line) == 2), 'batch input file: 1 arg expected in l.' + str(nbline)+ ' (' +str(line[0]) + ')'
                     dico_METAPARAMS[line[0]] = ev(line[1])                                    
                 else:
@@ -216,26 +255,22 @@ class Batch:
                     ev_tmp = [ev(line[i]) for i in range(1,len(line))]
                     list_values = ut.cartesianProduct(list_values, ev_tmp, ut.appendList) 
 
-            listConfigs = [ut.lists2dico(list_keys, l) for l in list_values]            
-            listConfigs = self.apply_metaparams(listConfigs, dico_METAPARAMS)
+            list_configs = [ut.lists2dico(list_keys, l) for l in list_values]           
+            list_configs = cls._apply_metaparams(list_configs, dico_METAPARAMS)
 
-        return listConfigs
+        return list_configs
 
-    def _parse_input_dico(self, input_dico):
-        raise NotImplementedError()
 
-    def _parse_input_list(self, input_dico):
-        raise NotImplementedError()
-        
-    def apply_metaparams(self, list_configs, dico_meta):
+    @classmethod        
+    def _apply_metaparams(cls, list_configs, dico_meta):
         """ deal with randomness (start with _RDM) // management of the output
         (start with OUT)
         """
-        #Parse Metaparameters cast them to the right tye and use def value
-        dico_meta_parsed = self.parse_metaparams(dico_meta)
-        
-        #RANDOM RUNS
-        nb_rdm_run, fix_seed = dico_meta_parsed['_RDM_RUNS'], dico_meta_parsed['_RDM_FIXSEED']
+        #Parse Metaparameters cast them to the right type and use def value
+        dico_meta_filled = cls._parse_metaparams(dico_meta)
+                     
+        #MANAGEMENT OF RANDOM RUNS
+        nb_rdm_run, fix_seed = dico_meta_filled['_RDM_RUNS'], dico_meta_filled['_RDM_FIXSEED']
         if(nb_rdm_run > 1):
             nb_run = range(nb_rdm_run)
             if(fix_seed):
@@ -247,46 +282,76 @@ class Batch:
                 conf['_ID_DET'] = rdgen.RandomGenerator.gen_seed()
             list_configs = ut.cartesianProduct(list_configs, random_bits, ut.add_dico)
         
-        #OUTPUT METAPARAMS
-        output_keys = ['_OUT_PREFIX', '_OUT_FOLDER', '_OUT_COUNTER', '_OUT_NAME', '_OUT_STORE_CONFIG']
-        pref, fold, counter, name , store = [dico_meta_parsed[k] for k in output_keys]
-        self._out = {'prefix':pref, 'folder': fold, 'counter': counter, 
-                     'name': name, 'store_config':store}
-        
+        #GENERATE RESULTS NAME AND INCLUDE THEM IN CONFIGS DICO
+        name_res_list = []
+        for conf in list_configs:
+            name_res_tmp, dico_meta_filled = cls._gen_name_res(conf, dico_meta_filled)
+            conf['_RES_NAME'] = name_res_tmp
+            assert (name_res_tmp not in name_res_list), 'conflicts in the name res'
+            name_res_list.append(name_res_tmp)
+            conf['_OUT_FOLDER'] = dico_meta_filled['_OUT_FOLDER']
+            conf['_OUT_STORE_CONFIG'] = dico_meta_filled['_OUT_STORE_CONFIG']
+
         return list_configs
     
-    def parse_metaparams(self, dico):
-        """ Either to move to helper or add more rules (if needed)
+    @classmethod
+    def _parse_metaparams(cls, dico):
+        """ fill the dico with default values if key is not found
+        Either to move to helper or add more rules (if needed)
         """
         dico_parsed = {}
-        for k, v in self.METAPARAMS_INFO.items():
+        for k, v in cls.METAPARAMS_INFO.items():
             def_val, _ = v
             val_tmp = dico.get(k, def_val)
             dico_parsed[k] = val_tmp
         return dico_parsed
             
 
+    @classmethod
+    def _gen_name_res(cls, configs, metadico = {}, type_output = '.txt'):
+        """ Generate the name of the simulation for saving purposes
+        Ad-hoc can be changed reimplemented etc...
+        Should be carefull as results will be overwritten
+        """
+        res_name = ''
+        if(metadico.get('_OUT_NAME') is not None):
+            name = metadico['_OUT_NAME']
+            bits = [str(name[i])+"="+str(configs.get(name[i])) for i in range(len(name))]    
+            res_name += ut.concat2String(bits)
+            
+        if(metadico.get('_OUT_COUNTER') is not None):
+            res_name += str(metadico['_OUT_COUNTER'])
+            metadico['_OUT_COUNTER'] +=1
+        
+        if(res_name == ''):
+            #just in case it will generate a long random number
+            res_name = str(rdgen.RandomGenerator.gen_seed()) 
+        
+        prefix = metadico.get('_OUT_PREFIX', '')
+        res_name = prefix + res_name + type_output
+
+        return res_name, metadico
+        
 # ---------------------------
 #   WRITTING RESULTS
 # ---------------------------
-    def write_one_res(self, resToWrite, forceName = None, prefix = "res_", folder = None):
+    @classmethod
+    def write_one_res(cls, resToWrite, forceName = None, folder = None):
         """ Write a res as a text file
         Parameters:
             + resToWrite - a dictionnary
-            + confToWrite - a dictionnary
-            + prefix - to prepend to the name of the file
             + folder - in which folder to write the results
             + forceName - Force the name given to the file (if None look for 
                          a key name in the results, if none use default name)
         """
         #Create name of the file
         if(forceName is None):
-            if("name" in resToWrite):
-                name = prefix + resToWrite["name"] + ".txt"
+            if("_RES_NAME" in resToWrite):
+                name = resToWrite['_RES_NAME']
             else:
-                name = prefix + self.DEF_RES_NAME + ".txt" 
+                name = cls._DEF_RES_NAME
         else:
-            name = prefix + forceName + ".txt"
+            name = forceName
 
         if(not(folder is None)):
             pathlib.Path(folder).mkdir(parents=True, exist_ok=True) 
@@ -354,26 +419,7 @@ class Batch:
         """
         self._procToRun = proc
         
-    def _gen_name_res(self, configs):
-        """ Generate the name of the simulation for saving purposes
-        Ad-hoc can be changed reimplemented etc...
-        Should be carefull as results will be overwritten
-        """
-        res_name = ''
-        if(self._out.get('name') is not None):
-            name = self._out.get('name')
-            bits = [str(name[i])+"="+str(configs.get(name[i])) for i in range(len(name))]    
-            res_name += ut.concat2String(bits)
-            
-        if(self._out.get('counter') is not None):
-            res_name += str(self._out['counter'])
-            self._out['counter'] +=1
-        
-        if(res_name == ''):
-            #just in case it will generate a long random number
-            res_name = str(rdgen.RandomGenerator.gen_seed()) 
-        
-        return res_name
+
 
 
 #==============================================================================
@@ -382,13 +428,23 @@ class Batch:
 #==============================================================================
 if __name__ == "__main__": 
     import numpy.random as rdm
-    batchTest = Batch('test_batch.txt')
-    def funcDummy(x):
-        rdstate = rdm.RandomState(x.get('_RDM_SEED'))
-        return {'res': rdstate.uniform(size=10)}
-    batchTest.attach_proc(funcDummy)
-    batchTest.run_procedures(1, True, False)
+    test1 = False
+    test2 = True
+    
+    if(test1):
+        batchTest = Batch.from_meta_config('test_batch.txt')
+        def funcDummy(x):
+            rdstate = rdm.RandomState(x.get('_RDM_SEED'))
+            return {'res': rdstate.uniform(size=10)}
+        batchTest.attach_proc(funcDummy)
+        batchTest.run_procedures(1, True, False)
 
-
-
+    if(test2):
+        Batch.parse_and_save_meta_config('test_batch.txt')
+        batchTest = Batch('Config/config_res_11.txt')
+        def funcDummy(x):
+            rdstate = rdm.RandomState(x.get('_RDM_SEED'))
+            return {'res': rdstate.uniform(size=10)}
+        batchTest.attach_proc(funcDummy)
+        batchTest.run_procedures(saveFreq = 1, splitRes = True)
     
