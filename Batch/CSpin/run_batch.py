@@ -23,9 +23,9 @@ else:
     file_input = sys.argv[2]
     if(type_task == "gen_configs"):
         if(len(sys.argv) == 4):
-	    output_f = str(sys.argv[3])
-	else:
-	    output_f = 'Config'
+            output_f = str(sys.argv[3])
+        else:
+            output_f = 'Config'
         OptBatch.parse_and_save_meta_config(file_input, output_folder = output_f)
 
     elif(type_task == "run_one_config"):
