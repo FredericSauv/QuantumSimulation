@@ -16,14 +16,17 @@ from  QuantumSimulation.Simulation.Spin.ControlledSpinOptimBatch import Controll
 #   + "run_one_config" run cspinoptim based on a config file
 #   + "run_meta_config" run cspinoptim based on a metaconfigfile
 #==============================================================================
-if(len(sys.argv) > 3):
+if(len(sys.argv) > 4):
     print("Wrong number of args", file = sys.stderr)
 else:
     type_task = sys.argv[1]
     file_input = sys.argv[2]
     if(type_task == "gen_configs"):
-        # put them in Config/ XXX
-        OptBatch.parse_and_save_meta_config(file_input, output_folder = 'Config')
+        if(len(sys.argv) == 4):
+	    output_f = str(sys.argv[3])
+	else:
+	    output_f = 'Config'
+        OptBatch.parse_and_save_meta_config(file_input, output_folder = output_f)
 
     elif(type_task == "run_one_config"):
         batch = OptBatch(file_input)
