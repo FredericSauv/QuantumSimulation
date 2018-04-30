@@ -2,3 +2,5 @@ __pycache__
 TestBatch/
 *.o*
 *.e*
+Utility/Optim/TestConfig/
+Utility/Optim/TestRes/
