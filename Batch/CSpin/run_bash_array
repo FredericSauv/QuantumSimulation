@@ -1,0 +1,41 @@
+#!/bin/bash
+
+#relative path of the file to the bash script
+input_file=$1
+# Just name of folder
+output_folder=$2
+
+output_path="$WORK/Res/""${output_folder}"
+output_python_path="Output/${output_folder}" #relative path used by python to store res
+input_store_file="$output_path"/"input_bash"
+
+
+# Create output folder
+mkdir -p "$output_path"
+
+# Change the output folder such that it points to the right place
+sed "s@^_OUT_FOLDER.*\$@_OUT_FOLDER '${output_python_path}'@" "${input_file}" >"${input_store_file}"
+
+# Generate file for each config 
+
+# Create Array job
+cat >to_qsub <<ScriptEnd
+#!/bin/bash
+#PBS -l walltime=24:00:00,select=1:ncpus=8:mem=64gb
+
+cp -r \$HOME/Testing/QuantumSimulation/ .
+module load anaconda3/personal
+source activate py36q
+cd QuantumSimulation/Batch/CSpin
+pbsexec python run_batch.py "${input_store_file}"
+
+cp -r "${output_python_path}" "${output_path}"
+ScriptEnd
+
+# Submit
+qsub to_qsub
+
+# Copy back to WORK directory
+cp to_qsub "${output_path}"/
+rm to_qsub
+
