@@ -41,7 +41,7 @@ ilib.reload(ut)
 #    - Rdmruns / start to prepare to accomodate for different input type
 #    -
 # ThinkAbout:
-#  - Management of random generator state
+#  - Management of random generator state // seeds number are gen but not used 
 #  -
 #==============================================================================
 class Batch:
@@ -78,21 +78,23 @@ class Batch:
 
     @classmethod
     def from_meta_config(cls, metaFile = None, rdm_object = None, procToRun = None, debug = False):
-        """ init the config with a meta_configuration (instead of configs)
+        """ init the config with a meta_configuration (instead of directly a
+        /several configs). metaconfig is a file on which can be generated 
+        list of configs
         """
         if(debug):
             pdb.set_trace()
         list_configs = cls.parse_meta_config(metaFile)
-        obj = cls.__init__(list_configs, rdm_object, procToRun)
-        obj.listConfigs = [obj._dispatch_configs(conf) for conf in obj.listConfigs]
+        obj = Batch(list_configs, rdm_object, procToRun)
         return obj
 
     @classmethod
-    def from_meta_with_dispatch(cls, inputFile = None, rdm_object = None, procToRun = None):
-        """ To think about goal is to init with some extra rules on how to deal
-        with the dispatching of the input files configurations
+    def from_meta_with_dispatch(cls, inputFile = None, rdm_object = None, procToRun = None, debug = False):
+        """ Init the Batch object from a meta-config file and some extra processing
+        of the file (._dispatch_configs), it should be implemented in the subclass
+        or add a mechanism to hook it up
         """
-        obj = cls.__init__(inputFile, rdm_object, procToRun)
+        obj = cls.from_meta_config(inputFile, rdm_object, procToRun, debug)
         obj.listConfigs = [obj._dispatch_configs(conf) for conf in obj.listConfigs]
         return obj
 
@@ -116,7 +118,7 @@ class Batch:
              (False) only one file /(True):generate a file for each simulations 
              TODO: add gather all the runs for the same setup
         """
-        pdb.set_trace()
+        #pdb.set_trace()
         if(config is None):
             list_configs = self.listConfigs
         else:
@@ -206,7 +208,7 @@ class Batch:
                 configs = config_object
 
         elif(ut.is_list(config_object)):
-            configs = [cls._read_configs(conf) for conf in config_object]
+            configs = [cls._read_configs(conf, list_output = False) for conf in config_object]
 
         elif(ut.is_str(config_object)):
             configs = ut.file_to_dico(config_object)
@@ -428,20 +430,20 @@ class Batch:
 #==============================================================================
 if __name__ == "__main__": 
     import numpy.random as rdm
-    test1 = False
+    test1 = True
     test2 = True
     
     if(test1):
-        batchTest = Batch.from_meta_config('test_batch.txt')
+        batchTest = Batch.from_meta_config('test_batch.txt', debug = True)
         def funcDummy(x):
             rdstate = rdm.RandomState(x.get('_RDM_SEED'))
             return {'res': rdstate.uniform(size=10)}
         batchTest.attach_proc(funcDummy)
-        batchTest.run_procedures(1, True, False)
-
+        batchTest.run_procedures(config = None, saveFreq = 1, splitRes = True, printInfo = False)
+        
     if(test2):
-        Batch.parse_and_save_meta_config('test_batch.txt')
-        batchTest = Batch('Config/config_res_11.txt')
+        Batch.parse_and_save_meta_config('test_batch.txt', output_folder = 'TestConfig')
+        batchTest = Batch('TestConfig/config_res_11.txt')
         def funcDummy(x):
             rdstate = rdm.RandomState(x.get('_RDM_SEED'))
             return {'res': rdstate.uniform(size=10)}
