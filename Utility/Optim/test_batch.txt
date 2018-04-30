@@ -6,7 +6,7 @@ algo 'de' 'nm'
 _RDM_RUNS 3
 _RDM_FIXSEED True
 _OUT_PREFIX 'res_'
-_OUT_FOLDER 'test'
+_OUT_FOLDER 'TestRes'
 _OUT_COUNTER 0
 _OUT_NAME None
 _OUT_STORE_CONFIG True
