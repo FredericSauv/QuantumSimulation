@@ -9,10 +9,11 @@ from .helpers import (UtilityFunction, PrintLog, acq_max, ensure_rng)
 from .target_space import TargetSpace
 #import time as time
 import pdb
+import multiprocessing as mp
 
 class BayesianOptimization(object):
 
-    def __init__(self, f, pbounds, random_state=None, verbose=1, **kwargs):
+    def __init__(self, f, pbounds, random_state=None, verbose=1, flagMP = False, **kwargs):
         """
         :param f:
             Function to be maximized.
@@ -25,6 +26,9 @@ class BayesianOptimization(object):
             Whether or not to print progress.
 
         """
+        #NEWFS used only for acq_max
+        self._init_mp_pool(flagMP)
+        
         # Store the original dictionary
         self.pbounds = pbounds
 
@@ -410,3 +414,19 @@ class BayesianOptimization(object):
     def dim(self):
         warnings.warn("use self.space.dim instead", DeprecationWarning)
         return self.space.dim
+
+    def _init_mp_pool(self, flagMP = False):
+        if(flagMP):
+            self._nb_cpus = mp.cpu_count()
+            self._nb_workers = max(1, self._nb_cpus -1)
+            self._Pool = mp.Pool(self._nb_workers)
+            self._flag_MP = True
+        else:
+            self._nb_cpus = 1
+            self._nb_workers = 1
+            self._Pool = None
+            self._flag_MP = False
+    
+    def close_mp_pool(self):
+        if(self._Pool is not None):
+            self._Pool.close()

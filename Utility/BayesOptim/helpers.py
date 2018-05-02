@@ -120,6 +120,47 @@ def acq_max(ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter=30):
     return np.clip(x_max, bounds[:, 0], bounds[:, 1])
 
 
+#### CUSTOM
+from multiprocessing import Pool
+def acq_max_mp(ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter=50):
+    """
+        Start to gen the new guess without spending too much time
+        TODO: store the best n_xmax and use them next round
+        TODO: climbing hill algo
+    """
+    #FORCE
+    # pdb.set_trace()
+    # Warm up with random points
+    x_tries = random_state.uniform(bounds[:, 0], bounds[:, 1],
+                                   size=(n_warmup, bounds.shape[0]))
+    ys = ac(x_tries, gp=gp, y_max=y_max)
+    x_max = x_tries[ys.argmax()]
+    max_acq = ys.max()
+
+    # NEW
+    index_best = ys.argsort()[::-1][:n_iter]
+    x_seeds = x_tries[index_best]
+    
+    max_nfev = 0
+    for x_try in x_seeds:
+        # Find the minimum of minus the acquisition function
+        res = minimize(lambda x: -ac(x.reshape(1, -1), gp=gp, y_max=y_max),
+                       x_try.reshape(1, -1),
+                       bounds=bounds,
+                       method="L-BFGS-B") #NewFS, tol = 1e-09
+        
+        max_nfev = max(max_nfev, res.nfev)
+        # Store it if better than previous minimum(maximum).
+        if max_acq is None or -res.fun[0] >= max_acq:
+            x_max = res.x
+            max_acq = -res.fun[0]
+    
+    print(max_nfev)
+    # Clip output to make sure it lies within the bounds. Due to floating
+    # point technicalities this is not always the case.
+    return np.clip(x_max, bounds[:, 0], bounds[:, 1])
+
+
 class UtilityFunction(object):
     """
     An object to compute the acquisition functions.

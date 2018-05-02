@@ -44,6 +44,7 @@ class AbstractOptimML(optim.AbstractOptim):
 #   run
 #   save     
 # ------------------------------------------------------
+    _FLAG_MP = False
     def __init__(self, paramsOptim = None, paramsSimulation = None, paramsSimulationTest = None):
         optim.AbstractOptim.__init__(self, paramsOptim, paramsSimulation, paramsSimulationTest)
         self.ALGO_AVAILABLE['DE'] = self.runDE
@@ -153,7 +154,7 @@ class AbstractOptimML(optim.AbstractOptim):
         cost = ut.ArrayToDicoInputWrapper(arg2costFun)
         
         #Create the optimizer
-        bo = BayesianOptimization(cost, boundsDico, verbose = verbose, **dico_gp)
+        bo = BayesianOptimization(cost, boundsDico, verbose = verbose, flagMP = self._FLAG_MP, **dico_gp)
         
         # Custom Init
         if (init_type is None):
