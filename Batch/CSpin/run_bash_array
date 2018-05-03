@@ -9,7 +9,6 @@ output_folder=$2
 
 # Where the final results are going to be stored
 output_path="$WORK/Res/""${output_folder}"
-echo "${output_path}"
 mkdir -p "$output_path"
 
 # amend (such that it points to the right output place) and store the meta 
@@ -17,8 +16,8 @@ mkdir -p "$output_path"
 output_python_path="Output/${output_folder}" #relative path used by python to store res
 input_store_file="$output_path"/"input_bash"
 prefix_res=$(grep '^_OUT_PREFIX' "${input_file}" | sed "s/.*'\(.*\)'/\\1/")
-echo "$prefix_res"
 sed "s@^_OUT_FOLDER.*\$@_OUT_FOLDER '${output_python_path}'@" "${input_file}" >"${input_store_file}"
+
 
 # generate the configs (from the input file) and store them in a subfolder of
 # the output file. Then assign to the variable N the number of configs found
@@ -26,24 +25,22 @@ sed "s@^_OUT_FOLDER.*\$@_OUT_FOLDER '${output_python_path}'@" "${input_file}" >"
 module load anaconda3/personal  
 source activate py36q
 config_store_folder="$output_path"/"Config"
-config_store_name="${config_store_folder}/""config_res_"
-echo "${input_store_file}"
-echo "${config_store_folder}"
+config_store_name="${config_store_folder}/""config_""${prefix_res}"
 python run_batch.py "gen_configs" "${input_store_file}" "${config_store_folder}"
 N=$(ls "${config_store_folder}" | wc -l)
-echo $N
-
+M=$((N-1))
 
 # Create Array job
 cat >to_qsub <<ScriptEnd
 #!/bin/bash
-#PBS -J 1-"${N}" walltime=24:00:00,select=1:ncpus=8:mem=64gb
+#PBS -J 0-${M} 
+#PBS -l walltime=24:00:00,select=1:ncpus=8:mem=64gb
 
 cp -r \$HOME/Testing/QuantumSimulation/ .
 module load anaconda3/personal
 source activate py36q
 cd QuantumSimulation/Batch/CSpin
-pbsexec python run_batch.py "run_one_config" "${config_store_name}${PBS_ARRAY_INDEX}.txt"
+pbsexec python run_batch.py "run_one_config" "${config_store_name}\${PBS_ARRAY_INDEX}.txt"
 
 cp -r "${output_python_path}" "${output_path}"
 ScriptEnd

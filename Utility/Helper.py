@@ -1014,8 +1014,9 @@ def is_list(obj):
 
 #==============================================================================
 #                   Decorators
+# Build generators with arguments
 #==============================================================================
-#TODO: more general decorator e.g. could return array/list 
+#TODO: more general decorator e.g. vectorize f(x_ND) -> f(x_(N+1)D) = np.array([x[i]_ND ... ]
 def vectorise_method(f):
     @wraps(f)
     def vectorized_method(self, arg, **kwargs):
@@ -1026,8 +1027,32 @@ def vectorise_method(f):
     return vectorized_method
 
 #TODO: Decorator debug
-    
+def vectorise_method_2D(f):
+    @wraps(f)
+    def vectorized_method(self, arg, **kwargs):
+        if len(np.array(arg).shape)==2:
+            return np.array([f(self, x, **kwargs) for x in arg ])
+        elif len(np.array(arg).shape)==1:
+            return f(self, arg, **kwargs)
+        else:
+            raise NotImplementedError()
+    return vectorized_method
 
+def vectorise_method_ndim(n_dim):
+    """ for a method taking an np.array with dim d return a vectorized
+    version accepting d+1 dim input
+    """
+    def vectorize_impl(f):
+        @wraps(f)
+        def vectorized_method(self, args, **kwargs):
+            if len(np.array(arg).shape) == n_dim:
+                return f(self, arg, **kwargs)
+            elif len(np.array(arg).shape) == n_dim:
+                return np.array([f(self, x, **kwargs) for x in arg ])
+            else:
+                raise NotImplementedError()
+        return vectorized_method
+    return vectorize_impl
 
 #==============================================================================
 #                   Decorators

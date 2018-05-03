@@ -78,6 +78,12 @@ class FiniteHilbertSpace:
         """
         return np.sqrt(FiniteHilbertSpace.ip(ket1,ket1))
     
+    @staticmethod
+    def is_unit_norm(ket1):
+        """ verif ||ket1|| = 1
+        """
+        return np.allclose(FiniteHilbertSpace.norm(ket1), 1.0)
+
     @staticmethod    
     def measurement(ket1, nb = 1, measur_basis = None, num_precis = 1e-6):        
         """Projective measurement in the basis in which the ket is represented 
@@ -523,7 +529,6 @@ class OneQbit(QuBits):
         self._Y = self._Gen1QbitOperator('Y', 0) 
         self._Z = self._Gen1QbitOperator('Z', 0) 
         self._I = self._Gen1QbitOperator('I', 0)
-
         
 
     def GetPauliByName(self, name):
@@ -534,6 +539,26 @@ class OneQbit(QuBits):
             
         return pauli
 
+    @staticmethod
+    @vectorise_method_ndim
+    def _get_bs_coordinates(ket):
+        """ get cartesian position on the bloch sphere representation
+        """        
+        theta, phi = _get_bs_angles()
+        x, y, z = np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)
+
+
+
+    @staticmethod
+    @vectorise_method_ndim(1)
+    def _get_bs_angles(ket1):
+        """ get theta and phi involved in the Bloch Sphere representation
+        """
+        assert (len(ket1) == 2), "should be a 2 elements array"
+        assert self.is_unit_norm(ket1), "should be a unit norm vector"
+        theta = 2 * np.arcos(np.abs(ket1[0]))
+        phi = np.angle(ket1[1]) - np.angle(ket1[0])
+        return theta, phi
 #==============================================================================
 #                   TwoQbits class
 #  Representation of 2 qbits (2-levels system):
