@@ -4,7 +4,11 @@ import numpy as np
 from datetime import datetime
 from scipy.stats import norm
 from scipy.optimize import minimize
-#import pdb as pdb
+from functools import partial
+import pdb as pdb
+import os
+from time import gmtime, strftime
+
 
 def acq_max_old(ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter=250):
     """
@@ -80,15 +84,21 @@ def acq_max_old(ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter=250
     return np.clip(x_max, bounds[:, 0], bounds[:, 1])
 
 #### CUSTOM
-def acq_max(ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter=30):
+def acq_max(ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter=50, pool=None):
+    """if a pool is passed use its capability if not sequential
     """
-        Start to gen the new guess without spending too much time
-        TODO: store the best n_xmax and use them next round
-        TODO: climbing hill algo
+    if(pool is not None):
+        xmax = acq_max_multi(ac, gp, y_max, bounds, random_state, pool, n_warmup, n_iter)
+    else:
+        xmax = acq_max_mono(ac, gp, y_max, bounds, random_state, n_warmup, n_iter)
+    
+    return xmax
+        
+def acq_max_mono(ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter=250):
+    """ TODO: find a climbing hill algo
     """
-    #FORCE
-    n_iter = 50
-    # pdb.set_trace()
+    # print("start acq_max_mono at %s" % (strftime("%Y-%m-%d %H:%M:%S", gmtime())))
+    # FORCE
     # Warm up with random points
     x_tries = random_state.uniform(bounds[:, 0], bounds[:, 1],
                                    size=(n_warmup, bounds.shape[0]))
@@ -114,34 +124,95 @@ def acq_max(ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter=30):
             x_max = res.x
             max_acq = -res.fun[0]
     
-    print(max_nfev)
+    # print(max_nfev)
     # Clip output to make sure it lies within the bounds. Due to floating
     # point technicalities this is not always the case.
     return np.clip(x_max, bounds[:, 0], bounds[:, 1])
 
+
+def acq_max_multi(ac, gp, y_max, bounds, random_state, pool, n_warmup=100000, n_iter=50):
+    """Parallelization only deal with the minimization part
+    """
+    # print("start acq_max_multi at %s" % (strftime("%Y-%m-%d %H:%M:%S", gmtime())))
+
+    x_tries = random_state.uniform(bounds[:, 0], bounds[:, 1],
+                                   size=(n_warmup, bounds.shape[0]))
+    ys = ac(x_tries, gp=gp, y_max=y_max)
+    x_max = x_tries[ys.argmax()]
+    max_acq = ys.max()
+
+    # NEW
+    index_best = ys.argsort()[::-1][:n_iter]
+    x_seeds = x_tries[index_best]
+    
+    func_map = partial(minim_atom, ac = ac, gp=gp, y_max=y_max, bounds = bounds)
+    # print("minim step in acq_max_multi at %s" % (strftime("%Y-%m-%d %H:%M:%S", gmtime())))
+    res = pool.map(func_map, x_seeds)
+    
+    for r in res:
+        if max_acq is None or -r.fun[0] >= max_acq:
+            x_max = r.x
+            max_acq = -r.fun[0]        
+    
+    # Clip output to make sure it lies within the bounds. Due to floating
+    # point technicalities this is not always the case.
+    return np.clip(x_max, bounds[:, 0], bounds[:, 1])
+
+def minim_atom(x_try, ac, gp, y_max, bounds):
+    # print("start minim_atom at %s" % (strftime("%Y-%m-%d %H:%M:%S", gmtime())))
+    res = minimize(lambda x: -ac(x.reshape(1, -1), gp=gp, y_max=y_max),
+                       x_try.reshape(1, -1),
+                       bounds=bounds,
+                       method="L-BFGS-B") #NewFS, tol = 1e-09
+    # print("end acq_max_mono at %s" % (strftime("%Y-%m-%d %H:%M:%S", gmtime())))
+    return res
 
 #### CUSTOM
-from multiprocessing import Pool
-def acq_max_mp(ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter=50):
+def acq_max_multi_old(ac, gp, y_max, bounds, random_state, pool, n_warmup=100000, n_iter=50, printInfo = False):
+    """Trying to // everything but not necessary only the min part take time
+    """
+    #FORCE
+    # Warm up with random points
+    nb_cpus = len(pool._pool)
+    n_warmup_chunk = int(np.ceil(n_warmup / nb_cpus))
+    n_iter_chunk = max(1, int(np.ceil(n_iter/nb_cpus*1.3)))
+    x_tries_chunk = [random_state.uniform(bounds[:, 0], bounds[:, 1],
+            size=(n_warmup_chunk, bounds.shape[0])) for _ in range(nb_cpus)]
+
+    #MAP
+    # print("start acq_atom with processor %s at %s" % (os.getpid(), strftime("%Y-%m-%d %H:%M:%S", gmtime())))
+    func_map = partial(acq_atom_old, ac = ac, gp=gp, y_max=y_max, bounds = bounds, 
+            random_state=random_state, n_warmup = n_warmup_chunk, n_iter=n_iter_chunk)
+    res = pool.map(func_map, x_tries_chunk)
+
+    #Reduce
+    y_max = -1000
+    for r in res:
+        if(r[1] > y_max):
+            y_max = r[1]
+            x_max = r[0]
+    return x_max
+    
+
+
+def acq_atom_old(x_tries, ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter = 50):
     """
         Start to gen the new guess without spending too much time
         TODO: store the best n_xmax and use them next round
         TODO: climbing hill algo
     """
     #FORCE
-    # pdb.set_trace()
-    # Warm up with random points
-    x_tries = random_state.uniform(bounds[:, 0], bounds[:, 1],
-                                   size=(n_warmup, bounds.shape[0]))
+    # print("start acq_atom with processor %s at %s" % (os.getpid(), strftime("%Y-%m-%d %H:%M:%S", gmtime())))
     ys = ac(x_tries, gp=gp, y_max=y_max)
     x_max = x_tries[ys.argmax()]
     max_acq = ys.max()
 
-    # NEW
+    #NEW
     index_best = ys.argsort()[::-1][:n_iter]
     x_seeds = x_tries[index_best]
     
-    max_nfev = 0
+    #max_nfev = 0
+    # print("start minimization over with processor %s at %s" % (os.getpid(), strftime("%Y-%m-%d %H:%M:%S", gmtime())))
     for x_try in x_seeds:
         # Find the minimum of minus the acquisition function
         res = minimize(lambda x: -ac(x.reshape(1, -1), gp=gp, y_max=y_max),
@@ -149,16 +220,14 @@ def acq_max_mp(ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter=50):
                        bounds=bounds,
                        method="L-BFGS-B") #NewFS, tol = 1e-09
         
-        max_nfev = max(max_nfev, res.nfev)
+        #max_nfev = max(max_nfev, res.nfev)
         # Store it if better than previous minimum(maximum).
         if max_acq is None or -res.fun[0] >= max_acq:
             x_max = res.x
             max_acq = -res.fun[0]
-    
-    print(max_nfev)
-    # Clip output to make sure it lies within the bounds. Due to floating
-    # point technicalities this is not always the case.
-    return np.clip(x_max, bounds[:, 0], bounds[:, 1])
+    # print("Done processor %s at %s" % (os.getpid(), strftime("%Y-%m-%d %H:%M:%S", gmtime())))
+    # print(max_nfev)
+    return (np.clip(x_max, bounds[:, 0], bounds[:, 1]), max_acq)
 
 
 class UtilityFunction(object):
