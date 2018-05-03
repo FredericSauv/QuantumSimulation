@@ -540,22 +540,22 @@ class OneQbit(QuBits):
         return pauli
 
     @staticmethod
-    @vectorise_method_ndim
+    @ut.vectorise_method_ndim(1)
     def _get_bs_coordinates(ket):
         """ get cartesian position on the bloch sphere representation
         """        
-        theta, phi = _get_bs_angles()
+        theta, phi = OneQbit._get_bs_angles()
         x, y, z = np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)
-
+        return x, y, z
 
 
     @staticmethod
-    @vectorise_method_ndim(1)
+    @ut.vectorise_method_ndim(1)
     def _get_bs_angles(ket1):
         """ get theta and phi involved in the Bloch Sphere representation
         """
         assert (len(ket1) == 2), "should be a 2 elements array"
-        assert self.is_unit_norm(ket1), "should be a unit norm vector"
+        assert OneQbit.is_unit_norm(ket1), "should be a unit norm vector"
         theta = 2 * np.arcos(np.abs(ket1[0]))
         phi = np.angle(ket1[1]) - np.angle(ket1[0])
         return theta, phi
