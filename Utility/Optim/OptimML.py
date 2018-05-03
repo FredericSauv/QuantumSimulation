@@ -44,7 +44,7 @@ class AbstractOptimML(optim.AbstractOptim):
 #   run
 #   save     
 # ------------------------------------------------------
-    _FLAG_MP = False
+    
     def __init__(self, paramsOptim = None, paramsSimulation = None, paramsSimulationTest = None):
         optim.AbstractOptim.__init__(self, paramsOptim, paramsSimulation, paramsSimulationTest)
         self.ALGO_AVAILABLE['DE'] = self.runDE
@@ -84,7 +84,6 @@ class AbstractOptimML(optim.AbstractOptim):
             (https://github.com/fmfn/BayesianOptimization) built on 
             
         Comment:
-        #TODO: dynamic kappa
         #TODO: tuning of the kernel in particular implement ARD
         #TODO: Transfert Learning
         #TODO: REMBO
@@ -97,8 +96,13 @@ class AbstractOptimML(optim.AbstractOptim):
         bo, bo_args, name_params, nb_points_init = self.InitializeGP(argsOptim, arg2costFun)
         bo.maximize(init_points=0, **bo_args)
 
+        # Exploitation phase
         bo_args_Maximize = {'n_iter':15, 'acq': 'ucb', 'kappa':0.0001} 
         bo.maximize(init_points=0, **bo_args_Maximize)
+        
+        # Close pool of processors used (if it exists)
+        nb_workers_used = bo._nb_workers
+        bo.close_mp_pool()
 
         #Plot if 1D
         if(self._nb_params == 1):
@@ -120,6 +124,7 @@ class AbstractOptimML(optim.AbstractOptim):
         resultTest['gp_kernel_init'] = str(bo.gp.kernel)
         resultTest['gp_kernel_optim'] = str(bo.gp.kernel_)
         resultTest['gp'] = bo.gp.kernel_
+        resultTest['nb_processes'] = nb_workers_used
         return resultTest
 
 
@@ -127,6 +132,9 @@ class AbstractOptimML(optim.AbstractOptim):
 # Support function
 # ------------------------------------------------------
     def InitializeGP(self, argsGP, arg2costFun):
+        """ Create the GP model with 
+        """
+        pdb.set_trace()
         acq = argsGP.get('gp_acq') #acquisition function
         niter = argsGP.get('gp_maxiter') # Number of data to get
         kappa = argsGP.get('gp_kappa')
@@ -135,8 +143,9 @@ class AbstractOptimML(optim.AbstractOptim):
         kernel = argsGP.get('gp_kernel')
         white_noise = argsGP.get('gp_wnoise')
         scaling_ker = argsGP.get('gp_scaling')
+        flag_MP = argsGP.get('flag_MP', False)
         
-        dico_gp = {'kernel': kernel, 'whiteNoise':white_noise, 'scalingKer':scaling_ker}
+        dico_gp = {'kernel': kernel, 'whiteNoise':white_noise, 'scalingKer':scaling_ker, 'flag_MP': flag_MP}
         
         #static kappa (parameters)
         if(isinstance(kappa, float)):
@@ -154,7 +163,7 @@ class AbstractOptimML(optim.AbstractOptim):
         cost = ut.ArrayToDicoInputWrapper(arg2costFun)
         
         #Create the optimizer
-        bo = BayesianOptimization(cost, boundsDico, verbose = verbose, flagMP = self._FLAG_MP, **dico_gp)
+        bo = BayesianOptimization(cost, boundsDico, verbose = verbose, **dico_gp)
         
         # Custom Init
         if (init_type is None):
@@ -173,7 +182,7 @@ class AbstractOptimML(optim.AbstractOptim):
             to_explore = {name_params[i]: [init_matrix[j][i] for j in nb_points_provided] for i in range(self._nb_params)}
             bo.explore(to_explore)
             nb_points_still_needed = max(0, self._nb_params *2 - nb_points_provided)
-            bo.maximize(init_points = nb_points_still_needed, n_iter = niter, acq = acq, kappa = 0)
+            bo.maximize(init_points = nb_points_still_needed, n_iter = 0, acq = acq, kappa = 0)
             nb_points_init = nb_points_provided + nb_points_still_needed
                     
         else:
@@ -193,7 +202,8 @@ class AbstractOptimML(optim.AbstractOptim):
             to_explore = {name_params[i]: [init_matrix[j][i] for j in range(nb_points_provided)] for i in range(self._nb_params)}
             bo.explore(to_explore)
             nb_points_still_needed = max(0, self._nb_params *2 - nb_points_provided)
-            bo.maximize(init_points = nb_points_still_needed, n_iter = niter, acq = acq, kappa = 0)
+            if(nb_points_still_needed > 0):
+                bo.maximize(init_points = nb_points_still_needed, n_iter = 0, acq = acq, kappa = 0)
             nb_points_init = nb_points_provided + nb_points_still_needed
             
         bo_args = {'n_iter':niter, 'acq': acq, 'kappa':kappa}    
