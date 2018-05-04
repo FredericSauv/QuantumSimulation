@@ -134,7 +134,7 @@ class AbstractOptimML(optim.AbstractOptim):
     def InitializeGP(self, argsGP, arg2costFun):
         """ Create the GP model with 
         """
-        pdb.set_trace()
+        #pdb.set_trace()
         acq = argsGP.get('gp_acq') #acquisition function
         niter = argsGP.get('gp_maxiter') # Number of data to get
         kappa = argsGP.get('gp_kappa')
