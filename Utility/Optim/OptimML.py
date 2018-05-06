@@ -102,6 +102,7 @@ class AbstractOptimML(optim.AbstractOptim):
         
         # Close pool of processors used (if it exists)
         nb_workers_used = bo._nb_workers
+        nb_cpus_seen = bo._nb_cpus
         bo.close_mp_pool()
 
         #Plot if 1D
@@ -110,7 +111,6 @@ class AbstractOptimML(optim.AbstractOptim):
             xmax = argsOptim.get('params_bound')[0][1]
             x = np.linspace(xmin, xmax, 1000).reshape(-1, 1)
             y = np.zeros_like(x)
-            
             plot_gp(bo, x, y)
 
        
@@ -125,6 +125,7 @@ class AbstractOptimML(optim.AbstractOptim):
         resultTest['gp_kernel_optim'] = str(bo.gp.kernel_)
         resultTest['gp'] = bo.gp.kernel_
         resultTest['nb_processes'] = nb_workers_used
+        resultTest['nb_cpus'] = nb_cpus_seen
         return resultTest
 
 
