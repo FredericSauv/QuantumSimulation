@@ -422,17 +422,18 @@ class BayesianOptimization(object):
     def _init_mp_pool(self, flagMP = False):
         """ NewFS create a pool if flagMP is True
         """
-        if(isinstance(flagMP, int)):
-            self._nb_cpus = mp.cpu_count()
-            self._nb_workers = flagMP
-            self._Pool = mp.Pool(self._nb_workers)
-            self._flag_MP = True
-            
-        elif(flagMP):
+        if(isinstance(flagMP, bool) and flagMP):           
             self._nb_cpus = mp.cpu_count()
             self._nb_workers = max(1, self._nb_cpus -1)
             self._Pool = mp.Pool(self._nb_workers)
             self._flag_MP = True
+
+        elif(isinstance(flagMP, int)):
+            self._nb_cpus = mp.cpu_count()
+            self._nb_workers = int(flagMP)
+            self._Pool = mp.Pool(self._nb_workers)
+            self._flag_MP = True
+        
         else:
             self._nb_cpus = 1
             self._nb_workers = 1
