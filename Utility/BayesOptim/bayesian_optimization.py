@@ -99,9 +99,16 @@ class BayesianOptimization(object):
                            'max_params': None}
         self.res['all'] = {'values': [], 'params': []}
 
-        # non-public config for maximizing the aquisition function
+        # NOW public config for maximizing the aquisition function
         # (used to speedup tests, but generally leave these as is)
-        self._acqkw = {'n_warmup': 100000, 'n_iter': 250}
+        #self._acqkw = {'n_warmup': 100000, 'n_iter': 250}
+        
+        n_warmup, n_acq_iter = kwargs.get('gp_warmup'), kwargs.get('gp_acq_iter')
+        if(n_warmup is None):
+            n_warmup = 100000
+        if(n_acq_iter is None):
+            n_acq_iter = 100000
+        self._acqkw = {'n_warmup': n_warmup, 'n_iter': n_acq_iter}
 
         # Verbose
         self.verbose = verbose
