@@ -53,7 +53,7 @@ paramsSim = {'setup' : setup, 'target_state_name' : state_target, 'init_state_na
 paramsOptim = {'algo': 'GP', 'name_res': None, 'nb_params' :  nb_parameters, 
                'params_init':'uniform_0_1', 'params_bound':'range_0_1', 
                'gp_verbose': False, 'gp_init': 2*20, 'gp_acq':'ei', 'gp_kernel': None,
-               'gp_maxiter':15, 'flag_MP':True}
+               'gp_maxiter':15, 'flag_MP':True, 'gp_acq_iter':50}
 
 
 bestRes = None
