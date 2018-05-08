@@ -3,7 +3,7 @@ paramsSim {'setup':'1Q1','target_state_name':'minus','init_state_name':'zero','o
 
 paramsTesting {'setup':'1Q1','target_state_name':'minus','init_state_name':'zero','overall':{'bounds':[0,1]},'guess':None,'control':{'func':'step','name_rdm':None},'dt':0.01,'T':1.5,'fom_name':['last:f2t2:neg_fluenceNorm:0.0001_smooth:0.0005','last:f2t2'],'noise':None}
 
-paramsOptim {'algo':'GP','name_res':None,'nb_params':30,'params_init':'uniform_0_1','params_bound':'range_0_1','gp_init’:60,’gp_acq':'ei','gp_kernel':None,'gp_wnoise':0.01,'gp_maxiter':500,'flag_MP':7}
+paramsOptim {'algo':'GP','name_res':None,'nb_params':30,'params_init':'uniform_0_1','params_bound':'range_0_1','gp_init’:60,’gp_acq':'ei','gp_kernel':None,'gp_wnoise':0.01,'gp_maxiter':500,'flag_MP':8,'gp_acq_iter':30}
 
 _RDM_RUNS 10
 _RDM_FIXSEED False

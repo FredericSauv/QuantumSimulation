@@ -145,8 +145,11 @@ class AbstractOptimML(optim.AbstractOptim):
         white_noise = argsGP.get('gp_wnoise')
         scaling_ker = argsGP.get('gp_scaling')
         flag_MP = argsGP.get('flag_MP', False)
+        gp_acq_iter = argsGP.get('gp_acq_iter')
+        gp_n_warmup = argsGP.get('gp_n_warmup')
         
-        dico_gp = {'kernel': kernel, 'whiteNoise':white_noise, 'scalingKer':scaling_ker, 'flag_MP': flag_MP}
+        dico_gp = {'kernel': kernel, 'whiteNoise':white_noise, 'scalingKer':scaling_ker, 
+                   'flag_MP': flag_MP, 'gp_acq_iter': gp_acq_iter, 'gp_n_warmup': gp_n_warmup}
         
         #static kappa (parameters)
         if(isinstance(kappa, float)):
