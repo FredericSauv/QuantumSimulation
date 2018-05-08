@@ -107,7 +107,7 @@ class BayesianOptimization(object):
         if(n_warmup is None):
             n_warmup = 100000
         if(n_acq_iter is None):
-            n_acq_iter = 100000
+            n_acq_iter = 250
         self._acqkw = {'n_warmup': n_warmup, 'n_iter': n_acq_iter}
 
         # Verbose
