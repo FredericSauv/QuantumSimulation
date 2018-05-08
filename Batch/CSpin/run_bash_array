@@ -46,7 +46,7 @@ cp -r "${output_python_path}" "${output_path}"
 ScriptEnd
 
 # Submit
-# qsub to_qsub
+qsub to_qsub
 
 # Copy back to WORK directory
 cp to_qsub "${output_path}"/

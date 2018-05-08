@@ -188,6 +188,7 @@ class Batch:
                 confAll = ut.concat_dico(confToStore)
             else:
                 confAll = None
+            #TODO: Probably to think about
             name_tmp = self._gen_name_res(confAll)
             
             self.write_one_res(resAll, name_tmp, folder)
@@ -310,18 +311,25 @@ class Batch:
             
 
     @classmethod
-    def _gen_name_res(cls, configs, metadico = {}, type_output = '.txt'):
+    def _gen_name_res(cls, config, metadico = {}, type_output = '.txt'):
         """ Generate the name of the simulation for saving purposes
         Ad-hoc can be changed reimplemented etc...
         Should be carefull as results will be overwritten
         """
         res_name = ''
         if(metadico.get('_OUT_NAME') is not None):
-            name = metadico['_OUT_NAME']
-            bits = [str(name[i])+"="+str(configs.get(name[i])) for i in range(len(name))]    
-            res_name += ut.concat2String(bits)
+            name_rules = metadico['_OUT_NAME']
+            if(ut.is_dico(name_rules)):
+                for k, v in name_rules.items():
+                    res_name += (k + "_" + config[k][v])
+            else:
+                raise NotImplementedError()
+                
+            if((config.get("_RDM_RUN", None) is not None)):
+                res_name += "_" 
+                res_name += str(config["_RDM_RUN"])
             
-        if(metadico.get('_OUT_COUNTER') is not None):
+        elif(metadico.get('_OUT_COUNTER') is not None):
             res_name += str(metadico['_OUT_COUNTER'])
             metadico['_OUT_COUNTER'] +=1
         
@@ -430,11 +438,11 @@ class Batch:
 #==============================================================================
 if __name__ == "__main__": 
     import numpy.random as rdm
-    test1 = True
+    test1 = True #
     test2 = True
     
     if(test1):
-        batchTest = Batch.from_meta_config('test_batch.txt', debug = True)
+        batchTest = Batch.from_meta_config('test_batch_1.txt', debug = True)
         def funcDummy(x):
             rdstate = rdm.RandomState(x.get('_RDM_SEED'))
             return {'res': rdstate.uniform(size=10)}
@@ -442,8 +450,8 @@ if __name__ == "__main__":
         batchTest.run_procedures(config = None, saveFreq = 1, splitRes = True, printInfo = False)
         
     if(test2):
-        Batch.parse_and_save_meta_config('test_batch.txt', output_folder = 'TestConfig')
-        batchTest = Batch('TestConfig/config_res_11.txt')
+        Batch.parse_and_save_meta_config('test_batch_1.txt', output_folder = 'TestConfig')
+        batchTest = Batch('TestConfig/config_res_algo_den_mot_a3_2.txt')
         def funcDummy(x):
             rdstate = rdm.RandomState(x.get('_RDM_SEED'))
             return {'res': rdstate.uniform(size=10)}
