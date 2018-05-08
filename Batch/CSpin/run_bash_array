@@ -30,6 +30,8 @@ python run_batch.py "gen_configs" "${input_store_file}" "${config_store_folder}"
 N=$(ls "${config_store_folder}" | wc -l)
 M=$((N-1))
 
+
+cd "${output_path}"
 # Create Array job
 cat >to_qsub <<ScriptEnd
 #!/bin/bash
@@ -47,7 +49,3 @@ ScriptEnd
 
 # Submit
 qsub to_qsub
-
-# Copy back to WORK directory
-cp to_qsub "${output_path}"/
-rm to_qsub
