@@ -8,17 +8,23 @@ Created on Fri Apr 20 16:04:21 2018
 import numpy as np
 import importlib as ilib
 import pdb
-
+from functools import partial
 
 if __name__ == "__main__":
     import sys
     sys.path.append("../../../")
     import QuantumSimulation.Simulation.Spin.ControlledSpinOptim as cspinopt
+    import QuantumSimulation.ToyModels.ControlledSpin as cs
     import QuantumSimulation.Utility.Optim.Batch as batch
+    import QuantumSimulation.Utility.Helper as ut
+    from QuantumSimulation.Utility.Optim.ParametrizedFunctionFactory import ParametrizedFunctionFactory as pf
 
 else:
     from ...Simulation.Spin import ControlledSpinOptim as cspinopt
     from ...Utility.Optim import Batch as batch
+    from ...Utility import Helper as ut
+    from ...Utility.Optim.ParametrizedFunctionFactory import ParametrizedFunctionFactory as pf
+    from  ...ToyModels import ControlledSpin as cs
 
 ilib.reload(batch)
 ilib.reload(cspinopt)
@@ -144,6 +150,128 @@ class ControlledSpinOptimBatch(batch.Batch):
         'noise': noise}
     
         return dico_sims
+
+# ---------------------------
+#   COLLECTING  / PACKAGING RESULTS
+# Ad-hoc functions
+# ---------------------------
+    
+    @classmethod
+    def process_list_res(cls, listRes, name_listRes = None, printing = False):
+        """ Take a list of res and extract interesting informations packaged as
+        a dico:
+            + evol_fom_stats x
+            + evol_ideal_fom_stats x
+            + 
+            + optimal_function_stats 
+            + optimal_fom_stats x
+            + optimal_fun1_stats x
+        """
+        #Path (in the nested structure of the res)
+        path_optim_fev_fom = ['optim', 'fev_fom']
+        path_optim_func_fom = ['optim', 'func_fom']
+        path_test_fom = ['best_fom']
+        path_test_fun0 = ['testing', 'fun', 0]
+        path_test_fun1 = ['testing', 'fun', 1]
+        # path_test_namefom = ['config', 'paramsTesting', 'fom_name']
+        path_test_t = ['config', 'paramsTesting', 'T']
+
+        # evol of fom (measured) over number of func evaluation
+        optim_fev_fom = [np.array(ut.extract_from_nested(run, path_optim_fev_fom)) for run in listRes]
+        evol_fom_stats = ut.merge_and_stats_TS(optim_fev_fom)
+        
+        # evol of fom (ideal: testing environment) over number of func evaluation
+        ideal_fev_foms = ideal_learning_from_list_res(listRes)
+        evol_ideal_fom = ideal_fev_foms[0]
+        evol_ideal_fom_stats = ut.merge_and_stats_TS(evol_ideal_fom)
+        evol_ideal_fom_1 = ideal_fev_foms[1]
+        evol_ideal_fom_1_stats = ut.merge_and_stats_TS(evol_ideal_fom_1)
+
+
+        # pdb.set_trace()
+        #stats on the optimal function
+        list_T = [ut.extract_from_nested(run, path_test_t) for run in listRes]
+        list_array_T = [np.arange(0, T, T/100) for T in list_T]
+        list_optim_func = [pf.Repr2Fun(ut.extract_from_nested(run, path_optim_func_fom)[-1][0]) for run in listRes]
+        list_optim_func_TS = [np.c_[list_array_T[n], func(list_array_T[n])] for n, func in enumerate(list_optim_func)]
+        optimal_function_stats = ut.merge_and_stats_TS(list_optim_func_TS)
+
+        # Based on the final optimal control found get stats for the FoM
+        # avg, mini, maxi, std, avg_pstd, avg_mstd
+        res_test_fom = [np.array(ut.extract_from_nested(run, path_test_fom)) for run in listRes]
+        res_test_fun0 = [np.array(ut.extract_from_nested(run, path_test_fun0)) for run in listRes]
+        res_test_fun1 = [np.array(ut.extract_from_nested(run, path_test_fun1)) for run in listRes]
+        opt_fom_stats = ut.get_stats(res_test_fom)
+        opt_fun0_stats = ut.get_stats(res_test_fun0)
+        opt_fun1_stats = ut.get_stats(res_test_fun1)
+
+        if(printing):
+            print('TESTED RES:FOM (avg, min, max)')
+            print(opt_fom_stats[:3])
+            print('TESTED RES:FUN0 (avg, min, max)')
+            print(opt_fun0_stats[:3])
+            print('TESTED RES:FUN1 (avg, min, max)')
+            print(opt_fun1_stats[:3])
+
+        dico_res = {}
+        dico_res['evol_fom'] = evol_fom_stats
+        dico_res['evol_ideal_fom'] = evol_ideal_fom_stats
+        dico_res['evol_ideal_fidelity'] = evol_ideal_fom_1_stats
+        dico_res['opt_control'] = optimal_function_stats
+        dico_res['best_fom'] = opt_fom_stats
+        dico_res['test_fom'] = opt_fun0_stats
+        dico_res['test_fidelity'] = opt_fun1_stats 
+
+        return dico_res
+# ---------------------------
+# Re-run simulations based on control functions
+# ---------------------------
+def runSimul(dicoArgs, control):
+    """ from a dico containing the parameters of the simulations and a control 
+        function get the results of the simulation
+    """
+    setup = dicoArgs['setup']
+    init = dicoArgs['init_state_name']
+    final = dicoArgs['target_state_name']
+    T = dicoArgs['T']
+    dt = dicoArgs['dt']
+    noise = dicoArgs['noise']
+    method = dicoArgs['method_simul']
+    fom = dicoArgs['fom_name']
+    if(ut.is_str(control)):
+        control = pf.Repr2Fun(control)
+    
+    sim_tmp = cs.ControlledSpin(setup = setup, state_init = init ,controlFun = control,  
+                state_target = final ,T = T, dt = dt, noise = noise)
+    res = sim_tmp.Simulate(method = method, fom = fom)   
+    return res
+
+def ideal_learning_from_res(run):
+    """ Compute the fom (under testing conditions) for the different functions 
+    found along optimization
+    """
+    dico_testing = ut.extract_from_nested(run, ['config', 'paramsTesting'])
+    func_fom = ut.extract_from_nested(run, ['optim', 'func_fom'])
+    fev_fom = ut.extract_from_nested(run, ['optim', 'fev_fom'])
+    nb_fom = len(dico_testing['fom_name'])
+    run = partial(runSimul, dicoArgs = dico_testing)
+    tmp = np.array([[fev_fom[nb][0]] + run(control = item[0]) for nb, item in enumerate(func_fom)])
+    res = [tmp[:,[0, n + 1]] for n in range(nb_fom)]
+    return res
+    
+
+def ideal_learning_from_list_res(simul):
+    tmp = [ideal_learning_from_res(run) for run in simul]
+    nb_run = len(simul)
+    nb_res = len(tmp[0])
+    res = [[tmp[r][n] for r in range(nb_run)] for n in range(nb_res)]
+    return res
+
+
+
+
+        
+        
 
 if __name__ == "__main__":
     pass
