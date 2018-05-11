@@ -47,5 +47,20 @@ subsystem=[i for i in range(L//2)] # sites contained in subsystem
 Sent=basis.ent_entropy(V[:,0],sub_sys_A=subsystem)['Sent_A']/L
 print("GS entanglement per site is %0.3f" %(Sent))
 
+no_checks = dict(check_herm=False,check_symm=False,check_pcon=False)
 
+#---------------------------#
+# Try to deal with operators
+#---------------------------#
+n_list = [hamiltonian([["n",[[1.0,i]]]],[],basis=basis,dtype=np.float64,**no_checks) for i in range(L)]
+n_fluctu_list = [n.quant_fluctu for n in n_list]
+
+op_test = n_list[0]
+op_test.quant_fluct(V_GS)
+
+HV = op_test.dot(V_GS)
+VH = op_test.rdot(V_GS)
+VHHV = op_test._expt_value_core(V, HV)
+
+VHV2 = op_test.expt_value(V)**2
 
