@@ -1004,8 +1004,17 @@ def find_from_index_TS(index, TS, rule='lower'):
         return TS[mask,1][0]
     
     
-def plot_from_stats(stats, component = 'avg', ax_plt = None, dico_plot = {}, func_wrap = None):
+def plot_from_stats(stats, component = 'avg', ax_plt = None, dico_plot = {}, func_wrap = None, plotReturn = False):
     """ from a stats create some plots
+    r'$\alpha > \beta$'
+    add inset
+    left, bottom, width, height = [0.25, 0.6, 0.2, 0.2]
+    ax2 = fig.add_axes([left, bottom, width, height])
+    ax1.plot(range(10), color='red')
+    ax2.plot(range(6)[::-1], color='green')
+    
+    ax.errorbar(x, y, yerr=[yerr_lower, 2*yerr], xerr=xerr,
+            fmt='o', ecolor='g', capthick=2)
     """
     # stats = [[index, avg, mini, maxi, std, avg_pstd, avg_mstd],...]
     
@@ -1034,7 +1043,7 @@ def plot_from_stats(stats, component = 'avg', ax_plt = None, dico_plot = {}, fun
         ax_plt.plot(indices, ymax, color = color)
         ax_plt.fill_between(indices, ymin, ymax,alpha=0.2, color = color)
     
-    if(component  == 'avgminmax'):
+    elif(component  == 'avgminmax'):
         ymin = func_wrap(stats['min'])
         ymax = func_wrap(stats['max'])
         yavg = func_wrap(stats['avg'])
@@ -1046,6 +1055,27 @@ def plot_from_stats(stats, component = 'avg', ax_plt = None, dico_plot = {}, fun
         ax_plt.plot(indices, ymax, color = color)
         ax_plt.fill_between(indices, ymin, ymax,alpha=0.2, color = color)
         ax_plt.plot(indices, yavg, dashes=[6, 2], color = color)
+        
+    elif(component  == 'avgminmaxextra'):
+        ymin = func_wrap(stats['min'])
+        ymax = func_wrap(stats['max'])
+        yavg = func_wrap(stats['avg'])
+        if(dico_plot.get('color')):
+            color = dico_plot.get('color')
+        else:
+            color = 'b'
+        ax_plt.plot(indices, ymin, color = color, label=legend)
+        ax_plt.plot(indices, ymax, color = color)
+        ax_plt.fill_between(indices, ymin, ymax,alpha=0.2, color = color)
+        ax_plt.plot(indices, yavg, dashes=[6, 2], color = color)  
+        
+        extra = min(yavg)
+        if(dico_plot.get('shape') is not None):
+            shape = dico_plot.get('shape')
+        else:
+            shape = "o"
+        ax_plt.plot(5, extra, shape, markersize=7, markeredgewidth=1, markeredgecolor=color)
+        
         
     elif(component == 'pm1sd'):
         m = func_wrap(stats['avg_mstd'])
@@ -1080,6 +1110,8 @@ def plot_from_stats(stats, component = 'avg', ax_plt = None, dico_plot = {}, fun
     if(xlabel is not None):
         ax_plt.set_xlabel(xlabel)
 
+    if(plotReturn):
+        return fig, ax_plt
 
 
     
@@ -1087,6 +1119,7 @@ def plot_from_stats(stats, component = 'avg', ax_plt = None, dico_plot = {}, fun
 def plot_from_list_stats(list_stats, component = 'avg', dico_plot = {}, func_wrap = None):
     # stats = [[index, avg, mini, maxi, std, avg_pstd, avg_mstd],...]
     listColors = ['orange', 'g', 'r', 'b']
+    listShapes = ['o', 's', 'v', '8', 'p']
     fig, ax_plt = plt.subplots()
     
     legend = dico_plot.get('legend')
@@ -1100,6 +1133,7 @@ def plot_from_list_stats(list_stats, component = 'avg', dico_plot = {}, func_wra
     
     for n, stats in enumerate(list_stats):
         dico_plot['color'] = listColors.pop()
+        dico_plot['shape'] = listShapes.pop()
         if (legend is not None):
             dico_plot['legend'] = legend[n]
         plot_from_stats(stats, component, ax_plt = ax_plt, dico_plot = dico_plot, func_wrap = func_wrap)

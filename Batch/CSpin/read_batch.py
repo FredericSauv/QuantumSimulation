@@ -13,6 +13,8 @@ import pdb
 import numpy as np
 import matplotlib.pylab as plt
 
+break
+
 def extract_fom_nev(res):
     return [np.array(run['optim']['fev_fom']) for run in res]
 
@@ -20,7 +22,10 @@ def extract_res_test(res):
     return [run['best_fom'] for run in res]     
 
 def extract_res_test_index(res, index = 0):
-    return [run['testing'][index] for run in res]     
+    return [run['testing']['fun'][index] for run in res]
+
+def extract_optim_func(res, index = 0):
+    repr_func = [run['optim']['fun'][index] for run in res]
 
 
 def plot_from_stats(stats, component = 'avg', ax_plt = None, dico_plot = {}):
@@ -97,6 +102,7 @@ all_fom_test = [extract_res_test(res) for res in all_res]
 # avg, mini, maxi, std, avg_pstd, avg_mstd
 all_stats_learning = [ut.merge_and_stats_TS(extract_fom_nev(res)) for res in all_res]
 all_tested_res = np.array([ut.get_stats(extract_res_test(res)) for res in all_res])
+print('NORMAL')
 print('TESTED RES:avg')
 print(all_tested_res[:,0])
 print('TESTED RES:min')
@@ -134,6 +140,70 @@ all_fom_test = [extract_res_test(res) for res in all_res]
 # avg, mini, maxi, std, avg_pstd, avg_mstd
 all_stats_learning = [ut.merge_and_stats_TS(extract_fom_nev(res)) for res in all_res]
 all_tested_res = np.array([ut.get_stats(extract_res_test(res)) for res in all_res])
+print('NORMAL')
+print('TESTED RES:avg')
+print(all_tested_res[:,0])
+print('TESTED RES:min')
+print(all_tested_res[:,1])
+print('TESTED RES:max')
+print(all_tested_res[:,2])
+
+x_lim = 350
+#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
+plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim]})
+
+x_lim = 12000
+#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
+plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim]})
+
+#==============================================================================
+# SETUP 1 T Noise Proj 10
+# TODO: 
+# TODO: 
+#==============================================================================
+all_name = ['Batch0proj10_NM', 'Batch0proj10_DE', 'Batch0proj10_GP']
+all_res = [OptBatch.read_res(allPrefix = 'res', folderName = name + '/' + name) for name in all_name]
+
+all_fom_nev = [extract_fom_nev(res) for res in all_res]
+all_fom_test = [extract_res_test(res) for res in all_res]
+
+# avg, mini, maxi, std, avg_pstd, avg_mstd
+all_stats_learning = [ut.merge_and_stats_TS(extract_fom_nev(res)) for res in all_res]
+all_tested_res = np.array([ut.get_stats(extract_res_test(res)) for res in all_res])
+print('Proj10')
+print('TESTED RES:avg')
+print(all_tested_res[:,0])
+print('TESTED RES:min')
+print(all_tested_res[:,1])
+print('TESTED RES:max')
+print(all_tested_res[:,2])
+
+x_lim = 350
+#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
+plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim]})
+
+x_lim = 12000
+#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
+plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim]})
+
+
+
+
+#==============================================================================
+# SETUP 1 T Noise Proj 100
+# TODO: 
+# TODO: 
+#==============================================================================
+all_name = ['Batch0proj100_NM', 'Batch0proj100_DE', 'Batch0proj100_GP']
+all_res = [OptBatch.read_res(allPrefix = 'res', folderName = name + '/' + name) for name in all_name]
+
+all_fom_nev = [extract_fom_nev(res) for res in all_res]
+all_fom_test = [extract_res_test(res) for res in all_res]
+
+# avg, mini, maxi, std, avg_pstd, avg_mstd
+all_stats_learning = [ut.merge_and_stats_TS(extract_fom_nev(res)) for res in all_res]
+all_tested_res = np.array([ut.get_stats(extract_res_test(res)) for res in all_res])
+print('Proj100')
 print('TESTED RES:avg')
 print(all_tested_res[:,0])
 print('TESTED RES:min')
@@ -150,10 +220,87 @@ x_lim = 12000
 plot_from_list_stats(all_stats, 'minmax', dico_plot = {'xlim':[0, x_lim]})
 
 
+
+
+
+
 #==============================================================================
-# SETUP 2 T NoConstraint
+# SETUP 1 T NoConstraint
 #==============================================================================
 all_name = ['Batch0nc_NM', 'Batch0nc_DE', 'Batch0nc_GP']
+all_res = [OptBatch.read_res(allPrefix = 'res', folderName = name + '/' + name) for name in all_name]
+
+all_fom_nev = [extract_fom_nev(res) for res in all_res]
+all_fom_test = [extract_res_test_index(res,1) for res in all_res]
+
+# avg, mini, maxi, std, avg_pstd, avg_mstd
+all_stats_learning = [ut.merge_and_stats_TS(extract_fom_nev(res)) for res in all_res]
+all_tested_res = np.array([ut.get_stats(extract_res_test(res)) for res in all_res])
+print('NC')
+print('TESTED RES:avg')
+print(all_tested_res[:,0])
+print('TESTED RES:min')
+print(all_tested_res[:,1])
+print('TESTED RES:max')
+print(all_tested_res[:,2])
+
+
+
+# Res -> Run -> Config
+#            -> Optim -> fev_fom
+#            -> Testing
+#
+
+x_lim = 350
+#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
+plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim]})
+
+x_lim = 12000
+#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
+plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim], 'ylim':[0,0.1]})
+
+
+
+#==============================================================================
+# Look at res MP
+#==============================================================================
+all_name = ['MP_Batch0_GP', 'Batch0_GP']
+all_res = [OptBatch.read_res(allPrefix = 'res', folderName = name + '/' + name) for name in all_name]
+
+all_fom_nev = [extract_fom_nev(res) for res in all_res]
+all_fom_test = [extract_res_test_index(res,1) for res in all_res]
+
+# avg, mini, maxi, std, avg_pstd, avg_mstd
+all_stats_learning = [ut.merge_and_stats_TS(extract_fom_nev(res)) for res in all_res]
+all_tested_res = np.array([ut.get_stats(extract_res_test(res)) for res in all_res])
+print('NC')
+print('TESTED RES:avg')
+print(all_tested_res[:,0])
+print('TESTED RES:min')
+print(all_tested_res[:,1])
+print('TESTED RES:max')
+print(all_tested_res[:,2])
+
+
+
+# Res -> Run -> Config
+#            -> Optim -> fev_fom
+#            -> Testing
+#
+
+x_lim = 350
+#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
+plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim]})
+
+x_lim = 12000
+#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
+plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim], 'ylim':[0,0.1]})
+
+
+#==============================================================================
+# SETUP T 30
+#==============================================================================
+all_name = ['Batch0_T30b']
 all_res = [OptBatch.read_res(allPrefix = 'res', folderName = name + '/' + name) for name in all_name]
 
 all_fom_nev = [extract_fom_nev(res) for res in all_res]
@@ -162,6 +309,7 @@ all_fom_test = [extract_res_test(res) for res in all_res]
 # avg, mini, maxi, std, avg_pstd, avg_mstd
 all_stats_learning = [ut.merge_and_stats_TS(extract_fom_nev(res)) for res in all_res]
 all_tested_res = np.array([ut.get_stats(extract_res_test(res)) for res in all_res])
+print('NORMAL')
 print('TESTED RES:avg')
 print(all_tested_res[:,0])
 print('TESTED RES:min')
@@ -183,6 +331,5 @@ plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim
 x_lim = 12000
 #plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
 plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim]})
-
 
 
