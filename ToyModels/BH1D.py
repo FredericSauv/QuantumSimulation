@@ -47,7 +47,9 @@ ilib.reload(fun)
 #
 #==============================================================================
 class BH1D(mod.Models):
-    MODEL_PARAMS_DEF = {'T':1, 'J':
+    MODEL_PARAMS_DEF = ('T', 'setup', 'L')
+    _LIST_FOM_WORST = {'fidelityToTarget':0}
+
     def __init__(self, controlFun = (lambda t: 0), model_params = {}):
         """ Initialize the simulations of the driven BH
         """
@@ -56,17 +58,8 @@ class BH1D(mod.Models):
         self.SetUpSystem(controlFun, model_params)
         self.UpdateStateInit(state_init)
         self.UpdateStateTarget(state_target)
-        self.T = T
-        self.dt = dt
-        self._LIST_FOM_WORST = {'fidelityToTarget':0}
         
-
         #Functions used to compose FigureOfMerit (used in GetFOM)
-        def avg_var_occup(V):
-            n_var_sites = [variance(op, V) for op in n_sites]
-            avg_var_occup = np.average(n_var_sites)
-            return avg_var_occup
-
         self._fom_func = {'max': np.max, 'min': np.min, 'avg': np.average}
         self._fom_func['last'] = getLast
         self._fom_func['neg'] = linear
@@ -82,17 +75,18 @@ class BH1D(mod.Models):
         self._fom_func['proj10'] = (lambda x: fhs.measurement(x, nb =10, measur_basis = self.state_tgt))
         self._fom_func['proj100'] = (lambda x: fhs.measurement(x, nb =100, measur_basis = self.state_tgt))
         self._fom_func['proj1000'] = (lambda x: fhs.measurement(x, nb =1000, measur_basis = self.state_tgt))
+
 # --------------------------------------------------------------------------- #
 #   SET UP CONTROL
 # --------------------------------------------------------------------------- #
     def SetUpSystem(self, controlFun, model_params):
         """  
         """ 
-        L = model_params['L']
+        self.L = model_params['L']
         self.T = model_params['T']
         self.dt = model_params.get('dt')
         mu = model_params.get('mu', 0)
-        setup = params.get('setup', 1)
+        setup = params['setup']
 
         if(setup == "1"):
             # L sites cyclical boundary conditions and 1 filling simulated using  QuSpin
@@ -116,33 +110,18 @@ class BH1D(mod.Models):
 
             self._n_sites = [hamiltonian([['n',[[1.0, i]]]], [], basis=basis,dtype=np.float64) for i in range(L)]
 
+        def avg_var_occup(V):
+            n_var_sites = [variance(op, V) for op in n_sites]
+            avg_var_occup = np.average(n_var_sites)
+            return avg_var_occup
 
-
-E_SF, V_SF = H.eigsh(time = 0.0, k=1, which='SA',maxiter=1E10) # only GS
-E_MI, V_MI = H.eigsh(time = T, k=1, which='SA',maxiter=1E10) # only GS
-print(E_SF)
-print(E_MI)
-
-avg_var_occup(V_SF)
-avg_var_occup(V_MI)
-
-
-        self._ss = None
-        self.state_init = None
-        self.state_tgt = None
-        self.state_t = None
-        self.pop_t = None
-        self.setup = None
-        self.time_array = None
+        self._avg_var_occup = avg_var_occup
 
             
             
     def UpdateControlParameters(self, params, indexFun = 0, indexControlFun = None,  **args):
-        """  
-        Purpose:
-            Update the parameters of the control Function
-        TRICKY
-        NEED TO CHANGE WAY PARAMETRIC FUNCTIONS ARE DEALT WITH
+        """ Update the parameters of the control Function
+        TODO: NEED TO CHANGE WAY PARAMETRIC FUNCTIONS ARE DEALT WITH
         """
         if(indexControlFun is None):
             if(self._nb_control_func > 1):
@@ -172,7 +151,7 @@ avg_var_occup(V_MI)
         if debug:
             pdb.set_trace()
         
-        res = self.Evolution(T, state_init, time_step, method, store)
+        res = self.H(T, state_init, time_step, method, store)
         
         if (fom is not None):
             res = self.ComputeFOM(res, fom)
