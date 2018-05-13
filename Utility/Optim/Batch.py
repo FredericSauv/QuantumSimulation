@@ -376,9 +376,8 @@ class Batch:
     
     @classmethod
     def read_res(cls, nameFile = None, allPrefix = 'res_', folderName = None):
-        """
-        What it does:
-            Extract results stored in a txt file and transform them in a (list) of dictionnaries
+        """ Extract result(s) stored in a(several) txt file and return them  
+        in a (list) of eval(text)
         Arguments:
             nameFile {None, string} = {just look for the file fileName, 
                     else look for the files starting by prefix in folderName}
@@ -388,20 +387,18 @@ class Batch:
         return results
 
     @classmethod
-    def collect_res(cls, requRes = [], params= {}, filters = {}, nameFile = None, allPrefix = 'res_', folderName = None):
-        """Extract results stored in a txt files and rearange them as 
-        Arguments:
-            nameFile {None, string} = {just look for the file fileName, 
-                    else look for the files starting by prefix in folderName}
+    def collect_res(cls, keys = [], nameFile = None, allPrefix = 'res_', folderName = None):
+        """Extract results stored in a txt files and group them according to some 
+        keys (where keys is a path)
         Output:
-            a dictionary where each key is an entry in reqRes
-            each value is requested Results for the parameters in
+            a dictionary where key is the concatenation of the keys and value 
+            is a list of all res matching this key
         """
-        raise NotImplementedError()
-        #listRes = cls.read_res(nameFile = None, allPrefix = 'res_', folderName = None)
-        #listResProcessed = [ for k in resKeys]
-        results = {}
-        return results 
+        listRes = cls.read_res(nameFile, allPrefix, folderName)
+        res_keys = [tuple([ut.extract_from_nested(res, k) for k in keys]) for res in listRes]
+        res_keys_unique = list(set(res_keys))
+        res = {ut.concat2String(*k_u):[listRes[n] for n, r in enumerate(res_keys) if r == k_u] for k_u in res_keys_unique}
+        return res
 
     def extractFromDico(dico, listRes = [], listParams = [], dicoConstraints = {}):
         raise NotImplementedError()

@@ -35,10 +35,7 @@ ilib.reload(rdm)
 #==============================================================================
 class Models:
     def __init__(self, **args):
-        """  
-        Purpose:
-            Store params of the toymodel
-            generate a StateSpace associated
+        """Store params of the toymodel
         """
         self._ss = None
         self.state_init = None
@@ -94,7 +91,6 @@ class Models:
 # --------------------------------------------------------------------------- #
     def UpdateStateInit(self, init = None):
         self.state_init = self.GetState(init)
-
 
     def UpdateStateTarget(self, tgt = None):
         self.state_tgt = self.GetState(tgt)
