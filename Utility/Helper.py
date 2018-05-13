@@ -1004,56 +1004,54 @@ def find_from_index_TS(index, TS, rule='lower'):
         return TS[mask,1][0]
     
     
-def plot_from_stats(stats, component = 'avg', ax_plt = None, dico_plot = {}, func_wrap = None):
+def plot_from_stats(stats, component = 'avg', ax_plt = None, dico_plot = {}, func_wrap = None, return_plot = False):
     """ from a stats create some plots
+    stats = [[index, avg, mini, maxi, std, avg_pstd, avg_mstd],...]
     """
-    # stats = [[index, avg, mini, maxi, std, avg_pstd, avg_mstd],...]
-    
-    indices = stats['index']
+    # Get attributes of the graph
     if(ax_plt is None):
         fig, ax_plt = plt.subplots()
-    
+    if(dico_plot.get('color')):
+        color = dico_plot.get('color')
+    else:
+        color = 'b'
+    if(dico_plot.get('shape')):
+        shape = dico_plot.get('shape')
+    else:
+        shape = 's'
     legend = dico_plot.get('legend')
-    ylim = dico_plot.get('ylim')
-    xlim = dico_plot.get('xlim')
-    suptitle = dico_plot.get('suptitle')
-    ylabel = dico_plot.get('ylabel')
-    xlabel = dico_plot.get('xlabel')
 
+    # Get data
+    indices = stats['index']
     if(func_wrap is None):
         func_wrap = idFun1V
+    ymin = func_wrap(stats['min'])
+    ymax = func_wrap(stats['max'])
+    yavg = func_wrap(stats['avg'])
 
+    # Different plot types
     if(component  == 'minmax'):
-        ymin = func_wrap(stats['min'])
-        ymax = func_wrap(stats['max'])
-        if(dico_plot.get('color')):
-            color = dico_plot.get('color')
-        else:
-            color = 'b'
         ax_plt.plot(indices, ymin, color = color, label=legend)
         ax_plt.plot(indices, ymax, color = color)
         ax_plt.fill_between(indices, ymin, ymax,alpha=0.2, color = color)
     
-    if(component  == 'avgminmax'):
-        ymin = func_wrap(stats['min'])
-        ymax = func_wrap(stats['max'])
-        yavg = func_wrap(stats['avg'])
-        if(dico_plot.get('color')):
-            color = dico_plot.get('color')
-        else:
-            color = 'b'
+    elif(component  == 'avgminmax'):
         ax_plt.plot(indices, ymin, color = color, label=legend)
         ax_plt.plot(indices, ymax, color = color)
         ax_plt.fill_between(indices, ymin, ymax,alpha=0.2, color = color)
         ax_plt.plot(indices, yavg, dashes=[6, 2], color = color)
+
+    elif(component == 'finalerror'):
+        err_minus = np.array([yavg[-1] - ymin[-1]])
+        err_plus = np.array([ymax[-1] - yavg[-1]])
+        yavg = np.array([yavg[-1]])
+        x = np.array([stats['label_nb']])
+        ax_plt.errorbar(x, yavg, yerr=[err_minus, err_plus], fmt=shape, color = color, ecolor=color, capthick=2, label = legend)
         
     elif(component == 'pm1sd'):
         m = func_wrap(stats['avg_mstd'])
         p = func_wrap(stats['avg_pstd'])
-        if(dico_plot.get('color')):
-            color = dico_plot.get('color')
-        else:
-            color = 'b'
+
         ax_plt.plot(indices, m, color = color, label=legend)
         ax_plt.plot(indices, p, color = color)
         ax_plt.fill_between(indices, m, p, color = color, alpha = 0.2)
@@ -1066,59 +1064,96 @@ def plot_from_stats(stats, component = 'avg', ax_plt = None, dico_plot = {}, fun
             else:
                 ax_plt.plot(indices, func_wrap(stats[c]))
 
-        
-    if(legend is not None):
-        ax_plt.legend()
-    if(ylim is not None):
-        ax_plt.set_ylim(ylim[0], ylim[1])
-    if(xlim is not None):
-        ax_plt.set_xlim(xlim[0], xlim[1])
-    if(suptitle is not None):
-        fig.suptitle(suptitle)
-    if(ylabel is not None):
-        ax_plt.set_ylabel(ylabel)
-    if(xlabel is not None):
-        ax_plt.set_xlabel(xlabel)
-
-
+    apply_dico_plot(None, ax_plt, dico_plot)
 
     
     
-def plot_from_list_stats(list_stats, component = 'avg', dico_plot = {}, func_wrap = None):
-    # stats = [[index, avg, mini, maxi, std, avg_pstd, avg_mstd],...]
-    listColors = ['orange', 'g', 'r', 'b']
-    fig, ax_plt = plt.subplots()
+def plot_from_list_stats(list_stats, component = 'avg', dico_plot = {}, func_wrap = None, component_inset = None,
+    dico_inset = {}):
+    """ from a LIST of stats create some custom plots
+    stats = [[index, avg, mini, maxi, std, avg_pstd, avg_mstd],...]
+    """
+    # Prepare graphs
+    if (dico_plot.get('colors') is not None):
+        listColors = dico_plot.get('colors')
+    else:
+        listColors = ['b', 'r', 'g', 'orange']
+    
+    if (dico_plot.get('shapes') is not None):
+        listShapes = dico_plot.get('shapes')
+    else:
+        listShapes = ['s', 'o', 'v', 'p']
     
     legend = dico_plot.get('legend')
+    
+    fig, ax_plt = plt.subplots()
+    if(component_inset is not None):
+        legend_inset = dico_inset.get('legend')
+        if(dico_inset.get('inset') is None):
+            # left, bottom, width, height
+            inset_pos = [0.4, 0.4, 0.46, 0.46]
+        else:
+            inset_pos = dico_inset.get('inset')
+        dico_inset['prop'] = {'size': 12}
+        ax_plt2 = fig.add_axes(inset_pos)
+        
+
+    dico_one_plot = {}
+
+    # plot the different stats series
+    for n, stats in enumerate(list_stats):
+        dico_one_plot['color'] = listColors[n]
+        dico_one_plot['shape'] = listShapes[n]
+        if (legend is not None):
+            if(n < len(legend)):
+               dico_one_plot['legend'] = legend[n]
+            else:
+                dico_one_plot['legend'] = None
+        stats['label_nb'] = n+1
+        #plot main
+        plot_from_stats(stats, component, ax_plt = ax_plt, dico_plot = dico_one_plot, func_wrap = func_wrap)
+        #plot inset
+        if(component_inset is not None):
+            dico_one_plot_inset = dico_one_plot.copy()
+            if (legend_inset is not None):
+                dico_one_plot_inset['legend'] = legend_inset[n]
+
+            plot_from_stats(stats, component_inset, ax_plt = ax_plt2, dico_plot = dico_one_plot_inset, func_wrap = func_wrap)
+    # Legend/axis/etc..
+    apply_dico_plot(fig, ax_plt, dico_plot)
+    if(component_inset is not None):
+        apply_dico_plot(fig, ax_plt2, dico_inset)
+
+def apply_dico_plot(fig, axis, dico_plot):
     ylim = dico_plot.get('ylim')
     xlim = dico_plot.get('xlim')
     suptitle = dico_plot.get('suptitle')
     ylabel = dico_plot.get('ylabel')
     xlabel = dico_plot.get('xlabel')
-    
-    dico_plot = {}
-    
-    for n, stats in enumerate(list_stats):
-        dico_plot['color'] = listColors.pop()
-        if (legend is not None):
-            dico_plot['legend'] = legend[n]
-        plot_from_stats(stats, component, ax_plt = ax_plt, dico_plot = dico_plot, func_wrap = func_wrap)
-    
-    
+    legend = dico_plot.get('legend')
+    legend_prop = dico_plot.get('prop')
+    xticks = dico_plot.get('xticks')
+    xtick_label = dico_plot.get('xtick_label')
+
     if(legend is not None):
-        ax_plt.legend()
+        if(legend_prop is None):
+            axis.legend()
+        else:
+            axis.legend(prop = legend_prop)
     if(ylim is not None):
-        ax_plt.set_ylim(ylim[0], ylim[1])
+        axis.set_ylim(ylim[0], ylim[1])
     if(xlim is not None):
-        ax_plt.set_xlim(xlim[0], xlim[1])
+        axis.set_xlim(xlim[0], xlim[1])
     if(suptitle is not None):
         fig.suptitle(suptitle)
     if(ylabel is not None):
-        ax_plt.set_ylabel(ylabel)
+        axis.set_ylabel(ylabel)
     if(xlabel is not None):
-        ax_plt.set_xlabel(xlabel)
-
-
+        axis.set_xlabel(xlabel)
+    if(xticks is not None):
+        axis.set_xticks(xticks)
+    if(xtick_label is not None):
+        axis.set_xticklabels(xtick_label)
 #==============================================================================
 #                   is_XXX functions
 #==============================================================================

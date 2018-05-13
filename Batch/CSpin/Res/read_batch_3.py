@@ -5,8 +5,9 @@ Created on Tue Jan 23 20:19:38 2018
 
 @author: fred
 """
+break
 import sys
-sys.path.append('../../')
+sys.path.append('../../../../')
 from  QuantumSimulation.Simulation.Spin.ControlledSpinOptimBatch import ControlledSpinOptimBatch as OptBatch
 from  QuantumSimulation.Utility import Helper as ut
 import numpy as np
@@ -17,6 +18,12 @@ import importlib as ilib
 ilib.reload(ut)
 
 
+
+pathRes = "/Users/frederic/Desktop/Res/"
+saveRes = False
+
+minlogFunc = (lambda x: np.log10(1-x))
+
 #==============================================================================
 # SETUP T 30
 #==============================================================================
@@ -26,9 +33,36 @@ ilib.reload(ut)
 all_name = 'Batch0_T30b'
 key1 = ['config', 'paramsSim', '_FLAG_NAME']
 key2 = ['config', 'paramsOptim', '_FLAG_NAME']
-all_collect = OptBatch.collect_res(keys = [key1, key2], allPrefix = 'res', folderName = all_name + '/' + all_name)
+all_collect = OptBatch.collect_res(keys = [key1, key2], allPrefix = 'res', folderName = pathRes + all_name + '/' + all_name)
 names = list(all_collect.keys())
 print(names)
+
+
+all_names = ['15pT30_NM', '15pT30__DE', '15pT30__GP', '15pT30_noiseall_NM', '15pT30_noiseall_DE',
+             '15pT30_noiseall_GP', '15pT30_proj10_NM', '15pT30_proj10_DE', '15pT30_proj10_GP',
+             '15pT30_proj100_NM', '15pT30_proj100_DE', '15pT30_proj100_GP']
+
+             
+all_resObjects = {name:OptBatch.process_list_res(all_collect[name], printing = True) 
+                    for n, name in enumerate(all_names)}
+             
+
+study = []
+study.append(['Batch0_NM','Batch0_DE', 'Batch0_GP'])
+study.append(['Batch0noise_NM', 'Batch0noise_DE','Batch0noise_GP'])
+study.append(['Batch0proj10_NM', 'Batch0proj10_DE', 'Batch0proj10_GP'])
+
+names_study = ['ideal', 'noise experimental', 'noise measurement']
+names_plot = ['NM', 'DE', 'GP']
+
+
+
+
+
+
+
+
+
 
 
 ### Look at one list_res in particular
