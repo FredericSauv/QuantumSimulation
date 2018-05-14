@@ -7,8 +7,7 @@ Created on Tue Jan 23 20:19:38 2018
 """
 break
 import sys
-sys.path.append('../../')
-
+sys.path.append('../../../../')
 from  QuantumSimulation.Simulation.Spin.ControlledSpinOptimBatch import ControlledSpinOptimBatch as OptBatch
 from  QuantumSimulation.Utility import Helper as ut
 import numpy as np
@@ -19,14 +18,46 @@ import importlib as ilib
 ilib.reload(ut)
 
 
+
+pathRes = "/Users/frederic/Desktop/Res/"
+saveRes = False
+
 minlogFunc = (lambda x: np.log10(1-x))
+
+
+#==============================================================================
+# Get all the results needed
+#==============================================================================
+all_names = ['Batch0_NM', 'Batch0_DE', 'Batch0_GP', 'Batch0noise_NM', 'Batch0noise_DE',
+             'Batch0noise_GP', 'Batch0proj10_NM', 'Batch0proj10_DE', 'Batch0proj10_GP',
+             'Batch0proj100_NM', 'Batch0proj100_DE', 'Batch0proj100_GP']
+all_res = [OptBatch.read_res(allPrefix = 'res', folderName = pathRes + name + '/' + name) 
+            for name in all_names]
+             
+all_resObjects = {name:OptBatch.process_list_res(all_res[n], printing = True) 
+                    for n, name in enumerate(all_names)}
+             
+
+names_study = []
+names_study.append(['Batch0_NM','Batch0_DE', 'Batch0_GP'])
+names_study.append(['Batch0noise_NM', 'Batch0noise_DE','Batch0noise_GP'])
+names_study.append(['Batch0proj10_NM', 'Batch0proj10_DE', 'Batch0proj10_GP'])
+
+
+dico_plot_fom_zoom
+dico_plot_fom
+
+
 #==============================================================================
 # SETUP 1 T Normal
 #==============================================================================
-#TODO: add little inset (box diagram)
+study = 0
+names_tmp = names_study[study]
+res_tmp = [all_resObjects[n] for n in names_tmp ]
+
+
 all_name = ['Batch0_NM', 'Batch0_DE', 'Batch0_GP']
-name = ['NM', 'DE', 'GP']
-all_res = [OptBatch.read_res(allPrefix = 'res', folderName = name + '/' + name) for name in all_name]
+all_res = [OptBatch.read_res(allPrefix = 'res', folderName = pathRes + name + '/' + name) for name in all_name]
 
 list_resObjects = [OptBatch.process_list_res(all_res[n], printing = True) for n, _ in enumerate(all_name)]
 
