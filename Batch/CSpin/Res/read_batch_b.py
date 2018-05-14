@@ -63,20 +63,20 @@ list_resObjects = [OptBatch.process_list_res(all_res[n], printing = True) for n,
 
 list_res_tmp = list_resObjects
 lookat = 'evol_fom'
-dico_plot = {'legend': all_name, 'xlim':[0, 1000], 'suptitle': lookat + '_zoom', 'xlabel':'nb evals', 'ylabel':'log10(FOM)'}
-ut.plot_from_list_stats([r[lookat] for r in list_res_tmp], component = 'avgminmax', dico_plot = dico_plot, func_wrap = np.log10)
+dico_plot = {'legend': name, 'xlim':[0, 1000], 'suptitle': 'learning(zoom)', 'xlabel':r"$\bar{x}$ (but not really)", 'ylabel':'log10(FOM)'}
+ut.plot_from_list_stats([r[lookat] for r in list_res_tmp], component = 'avgminmaxextra', dico_plot = dico_plot, func_wrap = np.log10)
 
 lookat = 'evol_fom'
-dico_plot = {'legend': all_name, 'xlim':[0, 10000], 'suptitle': lookat, 'xlabel':'nb evals', 'ylabel':'log10(FOM)'}
-ut.plot_from_list_stats([r[lookat] for r in list_res_tmp], component = 'avgminmax', dico_plot = dico_plot, func_wrap = np.log10)
+dico_plot = {'legend': all_name, 'xlim':[0, 10000], 'suptitle': 'learning', 'xlabel':'nb evals', 'ylabel':'log10(FOM)'}
+ut.plot_from_list_stats([r[lookat] for r in list_res_tmp], component = 'avgminmaxextra', dico_plot = dico_plot, func_wrap = np.log10)
 
 
 lookat = 'evol_ideal_fom'
-dico_plot = {'legend': all_name, 'xlim':[0, 1000], 'suptitle': lookat + 'zoom', 'xlabel':'nb evals', 'ylabel':'log10(FOM)'}
+dico_plot = {'legend': all_name, 'xlim':[0, 1000], 'suptitle': 'real(zoom)', 'xlabel':'nb evals', 'ylabel':'log10(FOM)'}
 ut.plot_from_list_stats([r[lookat] for r in list_res_tmp], component = 'avgminmax', dico_plot = dico_plot, func_wrap = np.log10)
 
 lookat = 'evol_ideal_fom'
-dico_plot = {'legend': all_name, 'xlim':[0, 10000], 'suptitle': lookat, 'xlabel':'nb evals', 'ylabel':'log10(FOM)'}
+dico_plot = {'legend': all_name, 'xlim':[0, 10000], 'suptitle': 'real', 'xlabel':'nb evals', 'ylabel':'log10(FOM)'}
 ut.plot_from_list_stats([r[lookat] for r in list_res_tmp], component = 'avgminmax', dico_plot = dico_plot, func_wrap = np.log10)
 
 
