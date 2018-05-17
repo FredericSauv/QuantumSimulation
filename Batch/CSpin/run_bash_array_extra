@@ -33,6 +33,8 @@ python run_batch.py "gen_configs" "${input_store_file}" "${config_store_folder}"
 N=$(ls "${config_store_folder}" | wc -l)
 M=$((N-1))
 
+cd "${output_path}"
+
 # Create Array job
 cat >to_qsub <<ScriptEnd
 #!/bin/bash
@@ -48,9 +50,11 @@ pbsexec python run_batch.py "run_one_config" "${config_store_name}\${PBS_ARRAY_I
 cp -r "${output_python_path}" "${output_path}"
 ScriptEnd
 
+
 # Submit
+
 qsub to_qsub
 
 # Copy back to WORK directory
-cp to_qsub "${output_path}"/
-rm to_qsub
+# cp to_qsub "${output_path}"/
+# rm to_qsub
