@@ -2,12 +2,12 @@ paramsSim {'setup':'1Q1','target_state_name':'minus','init_state_name':'zero','o
 
 paramsTesting {'setup':'1Q1','target_state_name':'minus','init_state_name':'zero','overall':{'bounds':[0,1]},'guess':None,'control':{'func':'step','name_rdm':None},'dt':0.01,'T':1.5,'fom_name':['last:f2t2:neg_fluenceNorm:0.0001_smooth:0.0005','last:f2t2'],'noise':None}
 
-paramsOptim {'algo':'DE','name_res':None,'nb_params':15,'params_init':'uniform_0_1','params_bound':'range_0_1','de_maxiter':100,'de_popsize':10,'_FLAG_NAME':'DE10'} {'algo':'DE','name_res':None,'nb_params':15,'params_init':'uniform_0_1','params_bound':'range_0_1','de_maxiter':200,'de_popsize':5,'_FLAG_NAME':'DE5'} {'algo':'DE','name_res':None,'nb_params':15,'params_init':'uniform_0_1','params_bound':'range_0_1','de_maxiter':250,'de_popsize':2,'_FLAG_NAME':'DE2'}
+paramsOptim {'algo':'DE','name_res':None,'nb_params':15,'params_init':'uniform_0_1','params_bound':'range_0_1','de_maxiter':300,'de_popsize':0.5,'_FLAG_NAME':'DE05'} {'algo':'DE','name_res':None,'nb_params':15,'params_init':'uniform_0_1','params_bound':'range_0_1','de_maxiter':200,'de_popsize':1,'_FLAG_NAME':'DE1'}
 
 _RDM_RUNS 10
 _RDM_FIXSEED False
 _OUT_PREFIX 'res'
 _OUT_FOLDER 'Output/Batch_T15_15pa_DE'
-_OUT_COUNTER 0
+_OUT_COUNTER 120
 _OUT_NAME None
 _OUT_STORE_CONFIG True
