@@ -16,24 +16,18 @@ import matplotlib.pylab as plt
 #
 
 ## ================================== ##
-## System meta-parameters
-## ================================== ##
-L, mu =5, 0.0 # system size
-
-
-#basis = boson_basis_1d(L,Nb=L, sps=3)
-basis = boson_basis_1d(L,Nb=L, sps=3, kblock=0, pblock=1)
-
-
-## ================================== ##
 ## Some ad-hoc functions
 ## ================================== ##
-def variance(O, V):
+def variance_op(O, V):
     OV = O.dot(V)
     VOOV = np.asscalar(O.matrix_ele(V, OV))
     VOV2 = O.expt_value(V) ** 2
     var = VOOV -VOV2
     return var
+
+def avg_variange_op(list_O, V):
+    list_var = [variance_op(O, V) for O in list_O]
+    return np.average(list_var)
 
 def gen_linear_ramp(v, T = 1, ymin=0, ymax=1):
     ramp = (lambda t: ymin + v * t)
@@ -46,55 +40,100 @@ def ip(V1, V2):
 def fid(V1, V2):
     return np.square(np.abs(ip(V1, V2)))
 
+
+def gen_ramped_h(basis, v = 1, L = 5, mu = 0.0):
+    U, T = gen_linear_ramp(v)
+    J = (lambda t: 1 - U(t))
+    args_U, args_J = [], []
+    hop = [[-1,i,(i+1)%L] for i in range(L)] #PBC
+    dynamic_hop = [['+-', hop, J, args_J],['-+',hop, J, args_J]]
+    inter_nn = [[0.5, i, i] for i in range(L)]
+    inter_n = [[-0.5, i] for i in range(L)]
+    dynamic_inter = [['nn', inter_nn, U, args_U], ['n', inter_n, U, args_U]]
+    dynamic = dynamic_inter + dynamic_hop
+    pot_n =  [[mu, i] for i in range(L)]
+    static = [['n', pot_n]]
+
+    H=hamiltonian(static, dynamic, basis=basis, dtype=np.float64)
+    return H, T
+
+
 ## ================================== ##
 ## Hamiltonian
 ## ================================== ##
-v = 0.1
-U, T = gen_linear_ramp(v)
-J = (lambda t: 1 - U(t))
-args_U, args_V = [], []
-args_J = []
+L, mu, v =5, 0.0, 0.1 # system size
+symH = {'kblock':0, 'pblock':1}
+no_check_sym = {"check_symm" : False}
 
-hop = [[-1,i,(i+1)%L] for i in range(L)] #PBC
-dynamic_hop = [['+-', hop, J, args_J],['-+',hop, J, args_J]]
+basis_sym = boson_basis_1d(L,Nb=L, sps=3,**symH)
+basis = boson_basis_1d(L,Nb=L, sps=3)
+
+H, T = gen_ramped_h(basis, v, L, mu)
+H_sym, T = gen_ramped_h(basis_sym, v, L, mu)
 
 
 
-inter_nn = [[0.5, i, i] for i in range(L)]
-inter_n = [[-0.5, i] for i in range(L)]
-dynamic_inter = [['nn', inter_nn, U, args_U], ['n', inter_n, U, args_U]]
-
-dynamic = dynamic_inter + dynamic_hop
-
-pot_n =  [[mu, i] for i in range(L)]
-static = [['n', pot_n]]
-
-H=hamiltonian(static, dynamic, basis=basis, dtype=np.float64)
 
 
 ## ================================== ##
-## Look at some instantaneous properties of the ESpectrun
+## Comparaison between sym/nosym
 ## Look at the GS at init, final
-## Can I build the Dispersion relation
+## Can I build the Dispersion relation??
+## 
 ## ================================== ##
-## Define operator we want to observe over time
-no_sym = {"check_symm" : False}
-n_sites = [hamiltonian([['n',[[1.0, i]]]], [], basis=basis, dtype=np.float64, **no_sym) for i in range(L)]
 
-# n_sites = [basis.Op('n', [i], 1.0, dtype=np.float64) for i in range(basis.N)]
-def avg_var_occup(V):
-    n_var_sites = [variance(op, V) for op in n_sites]
-    avg_var_occup = np.average(n_var_sites)
-    return avg_var_occup
+### Look at GS in SF and MI modes
+print('with sym:')
+Htmp = H_sym
+E_SF_sym, V_SF_sym = Htmp.eigsh(time = 0.0, k=1, which='SA',maxiter=1E10) # only GS
+E_MI_sym, V_MI_sym = Htmp.eigsh(time = T, k=1, which='SA',maxiter=1E10) # only GS
+print('E_SF with sym: ' + str(E_SF_sym))
+print('E_MI with sym: ' + str(E_MI_sym))
+
+var_n_MI_sym = avg_variange_op(n_sites_sym, V_MI_sym)
+var_n_SF_sym = avg_variange_op(n_sites_sym, V_SF_sym)
+print('varn SF with sym: ' + str(var_n_SF_sym))
+print('varn MI with sym: ' + str(var_n_MI_sym))
 
 
-E_SF, V_SF = H.eigsh(time = 0.0, k=1, which='SA',maxiter=1E10) # only GS
-E_MI, V_MI = H.eigsh(time = T, k=1, which='SA',maxiter=1E10) # only GS
-print(E_SF)
-print(E_MI)
 
-print(avg_var_occup(V_SF))
-print(avg_var_occup(V_MI))
+print('withOUT sym:')
+Htmp = H
+E_SF, V_SF = Htmp.eigsh(time = 0.0, k=1, which='SA',maxiter=1E10) # only GS
+E_MI, V_MI = Htmp.eigsh(time = T, k=1, which='SA',maxiter=1E10) # only GS
+print('E_SF without sym: ' + str(E_SF))
+print('E_MI without sym: ' + str(E_MI))
+
+var_n_MI = avg_variange_op(n_sites, V_MI)
+var_n_SF = avg_variange_op(n_sites, V_SF)
+print('varn SF without sym: ' + str(var_n_SF))
+print('varn MI without sym: ' + str(var_n_MI))
+
+
+
+
+## Change of basis
+#vector
+
+P = basis_sym.get_proj(np.float64, pcon=True)
+V_test_SF = np.sum(np.abs(P.dot(V_SF_sym) - V_SF))
+V_test_MI = np.sum(np.abs(P.dot(V_MI_sym) - V_MI))
+
+print('change of basis discrpancies vectors: ' + str(V_test_SF) + ' ' + str(V_test_MI))
+
+#operator
+basis_sym = boson_basis_1d(L,Nb=L, sps=3,**symH)
+basis = boson_basis_1d(L,Nb=L, sps=3)
+n_sites = [hamiltonian([['n',[[1.0, i]]]], [], basis=basis, dtype=np.float64, **no_check_sym) for i in range(L)]
+n_sites_sym = [hamiltonian([['n',[[1.0, i]]]], [], basis=basis_sym, dtype=np.float64, **no_check_sym) for i in range(L)]
+
+testOp = n_sites[0]
+testOp_sym = n_sites_sym[0]
+P = basis_sym.get_proj(np.float64, pcon=True)
+testOp_sym_back = testOp_sym.project_to(P.transpose()).todense()
+
+diff = testOp.todense() - testOp_sym_back
+np.sum(np.abs(testOp - testOp_sym_back))
 
 
 ## ================================== ##
@@ -130,4 +169,32 @@ V0_full = b_test.get_vec(V0, False)
 
 
 
+symH = {'kblock':0, 'pblock':1}
+basis_full = boson_basis_1d(L,Nb=L, sps=3)
+basis_reduced = boson_basis_1d(L,Nb=L, sps=3,**symH)
+P = basis_reduced.get_proj(np.float64, pcon=True)
 
+no_check_sym = {"check_symm" : False}
+n_full = hamiltonian([['n', [[1.0, 0]]]], [], basis = basis_full, **no_check_sym)
+n_reduced = hamiltonian([['n', [[1.0, 0]]]], [], basis = basis_reduced, **no_check_sym)
+
+
+H_reduced, T = gen_ramped_h(basis_reduced, v = 1, L = 5, mu = 0.0)
+_, V_reduced = H_reduced.eigsh(time=0.0, k = 1, which = 'SA', maxiter = 1E10)
+V_recover = P.dot(V_reduced)
+
+H_full, T = gen_ramped_h(basis_full, v = 1, L = 5, mu = 0.0)
+_, V_full = H_full.eigsh(time=0.0, k = 1, which = 'SA', maxiter = 1E10)
+
+ip(V_full, V_recover)
+
+n_reduced.expt_value(V_reduced)
+n_full.expt_value(V_full)
+
+
+
+
+n_recover = n_reduced.project_to(P)
+
+n_recover.todense()[0:2, 0:2]
+n_full.todense()[0:2, 0:2]
