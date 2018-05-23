@@ -16,6 +16,7 @@ mkdir -p "$output_path"
 output_python_path="Output/${output_folder}" #relative path used by python to store res
 input_store_file="$output_path"/"input_bash"
 prefix_res=$(grep '^_OUT_PREFIX' "${input_file}" | sed "s/.*'\(.*\)'/\\1/")
+Beg=$(grep '^_OUT_COUNTER' "${input_file}" | sed "s/_OUT_COUNTER //")
 sed "s@^_OUT_FOLDER.*\$@_OUT_FOLDER '${output_python_path}'@" "${input_file}" >"${input_store_file}"
 
 
@@ -28,14 +29,15 @@ config_store_folder="$output_path"/"Config"
 config_store_name="${config_store_folder}/""config_""${prefix_res}"
 python run_batch.py "gen_configs" "${input_store_file}" "${config_store_folder}"
 N=$(ls "${config_store_folder}" | wc -l)
-M=$((N-1))
+
+End=$((Beg+N-1))
 
 
 cd "${output_path}"
 # Create Array job
 cat >to_qsub <<ScriptEnd
 #!/bin/bash
-#PBS -J 0-${M} 
+#PBS -J ${Beg}-${End} 
 #PBS -l walltime=24:00:00,select=1:ncpus=8:mem=64gb
 
 cp -r \$HOME/Testing/QuantumSimulation/ .
