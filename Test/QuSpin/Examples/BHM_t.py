@@ -9,6 +9,7 @@ Created on Thu May 10 17:31:54 2018
 import sys
 sys.path.append('/home/fred/anaconda3/envs/py36q/lib/python3.6/site-packages')
 
+from quspin.tools import measurements
 from quspin.operators import hamiltonian # Hamiltonians and operators
 from quspin.basis import boson_basis_1d # Hilbert space boson basis
 import numpy as np # generic math functions
@@ -19,6 +20,7 @@ import matplotlib.pylab as plt
 ## Some ad-hoc functions
 ## ================================== ##
 def variance_op(O, V):
+    pdb.set_trace()
     OV = O.dot(V)
     VOOV = np.asscalar(O.matrix_ele(V, OV))
     VOV2 = O.expt_value(V) ** 2
@@ -81,6 +83,8 @@ H_sym, T = gen_ramped_h(basis_sym, v, L, mu)
 ## Can I build the Dispersion relation??
 ## 
 ## ================================== ##
+n_sites = [hamiltonian([['n',[[1.0, i]]]], [], basis=basis, dtype=np.float64, **no_check_sym) for i in range(L)]
+n_sites_sym = [hamiltonian([['n',[[1.0, i]]]], [], basis=basis_sym, dtype=np.float64, **no_check_sym) for i in range(L)]
 
 ### Look at GS in SF and MI modes
 print('with sym:')
@@ -114,26 +118,12 @@ print('varn MI without sym: ' + str(var_n_MI))
 
 ## Change of basis
 #vector
-
 P = basis_sym.get_proj(np.float64, pcon=True)
-V_test_SF = np.sum(np.abs(P.dot(V_SF_sym) - V_SF))
+V_test_SF = np.sum(np.abs(P.dot(V_SF_sym) + V_SF))
 V_test_MI = np.sum(np.abs(P.dot(V_MI_sym) - V_MI))
 
 print('change of basis discrpancies vectors: ' + str(V_test_SF) + ' ' + str(V_test_MI))
 
-#operator
-basis_sym = boson_basis_1d(L,Nb=L, sps=3,**symH)
-basis = boson_basis_1d(L,Nb=L, sps=3)
-n_sites = [hamiltonian([['n',[[1.0, i]]]], [], basis=basis, dtype=np.float64, **no_check_sym) for i in range(L)]
-n_sites_sym = [hamiltonian([['n',[[1.0, i]]]], [], basis=basis_sym, dtype=np.float64, **no_check_sym) for i in range(L)]
-
-testOp = n_sites[0]
-testOp_sym = n_sites_sym[0]
-P = basis_sym.get_proj(np.float64, pcon=True)
-testOp_sym_back = testOp_sym.project_to(P.transpose()).todense()
-
-diff = testOp.todense() - testOp_sym_back
-np.sum(np.abs(testOp - testOp_sym_back))
 
 
 ## ================================== ##
@@ -142,10 +132,10 @@ np.sum(np.abs(testOp - testOp_sym_back))
 psi_i = V_SF
 psi_f = H.evolve(psi_i, 0, T)
 
-I1 = avg_var_occup(psi_f)
+I1 = avg_variange_op(n_sites, psi_f)
 I2 = fid(V_MI, psi_f)
 
-print(I1)
+print(np.sqrt(I1))
 print(I2)
 
 
@@ -153,7 +143,7 @@ print(I2)
 ##  TESTING ZONE
 ## ================================== ##
 # Basis with sym
-b_test = boson_basis_1d(L,Nb=L,sps=3, kblock=0,pblock=1)
+b_test = boson_basis_1d(L,Nb=L,sps=3, kblock=0, pblock=1)
 
 # get_proj transfo matrix 
 P = b_test.get_proj(np.float64,pcon=False)

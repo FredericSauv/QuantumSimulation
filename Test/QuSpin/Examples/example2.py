@@ -95,7 +95,7 @@ Sent_args = {"basis":basis,"chain_subsys":[j for j in range(L//2)]}
 #meas = obs_vs_time((psi_i,EF,VF),t.vals,{"E_time":HF_02/L},Sent_args=Sent_args)
 #"""
 # alternative way by solving Schroedinger's eqn
-psi_t = H.evolve(psi_i,t.i,t.vals,iterate=True,rtol=1E-9,atol=1E-9)
+psi_t = H.evolve(psi_i,t.i,t.vals,rtol=1E-9,atol=1E-9)
 meas = obs_vs_time(psi_t,t.vals,{"E_time":HF_02/L},Sent_args=Sent_args)
 #"""
 # read off measurements
