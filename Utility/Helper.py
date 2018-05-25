@@ -1075,6 +1075,7 @@ def plot_from_list_stats(list_stats, dico_main, dico_inset = None, save = False)
     """ from a LIST of stats create some custom plots
     stats = [[index, avg, mini, maxi, std, avg_pstd, avg_mstd],...]
     """
+    # pdb.set_trace()
     # Prepare main graphs
     listColors = dico_main.get('colors', ['b', 'r', 'g', 'orange'])
     listShapes = dico_main.get('shapes', ['s', 'o', 'v', 'p'])
@@ -1094,7 +1095,9 @@ def plot_from_list_stats(list_stats, dico_main, dico_inset = None, save = False)
         component_inset = dico_inset['component']
         func_wrap_inset = dico_inset.get('func_wrap')
         dico_one_plot_inset = {'component': component_inset, 'func_wrap':func_wrap_inset}
-    
+        inset_flag = True
+    else:
+        inset_flag = False
 
     # plot the different stats series
     for n, stats in enumerate(list_stats):
@@ -1110,7 +1113,7 @@ def plot_from_list_stats(list_stats, dico_main, dico_inset = None, save = False)
         plot_from_stats(stats, plot = (fig,ax_plt), dico_plot = dico_one_plot)
         
         #plot inset
-        if(component_inset is not None):
+        if(inset_flag):
             dico_one_plot_inset['color'] = listColors[n]
             dico_one_plot_inset['shape'] = listShapes[n]
             if (legend_inset is not None):
@@ -1122,7 +1125,7 @@ def plot_from_list_stats(list_stats, dico_main, dico_inset = None, save = False)
         
     # Format / save
     apply_dico_plot(fig, ax_plt, dico_main)
-    if(component_inset is not None):
+    if(inset_flag):
         apply_dico_plot(fig, ax_plt2, dico_inset)
 
     save_plot(fig, save_plot)
