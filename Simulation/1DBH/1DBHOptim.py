@@ -340,7 +340,7 @@ class BH1DOptim(opt.AbstractOptimML):
                 T = args['T']
                 l = args['l']
                 dico_params = {'ampl':a, 'T':T, 'l':l}
-                res_func = pfunc.cFixedExpRamp()
+                res_func = pfunc.cFixedExpRamp(dico_params)
             
             # Fourier series type parametrization
             elif(name_function[:4] in ['four', 'sine']):
