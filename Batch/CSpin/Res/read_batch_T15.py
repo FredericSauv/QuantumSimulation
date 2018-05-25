@@ -12,10 +12,11 @@ sys.path.append('../../../../')
 from  QuantumSimulation.Simulation.Spin.ControlledSpinOptimBatch import ControlledSpinOptimBatch as OptBatch
 from  QuantumSimulation.Utility import Helper as ut
 import numpy as np
-from QuantumSimulation.Utility.Optim.ParametrizedFunctionFactory import ParametrizedFunctionFactory as pf
+from QuantumSimulation.Utility.Optim.ParametrizedFunctionFactory_old import ParametrizedFunctionFactory as pf
 import QuantumSimulation.ToyModels.ControlledSpin as cs
 from functools import partial
 import importlib as ilib
+import copy as cp
 ilib.reload(ut)
 
 pathRes = "/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/ResBatch/Res/"
@@ -37,7 +38,22 @@ all_res = [OptBatch.read_res(allPrefix = 'res', folderName = pathRes + name + '/
             for name in all_names]             
 all_resObjects = {name:OptBatch.process_list_res(all_res[n], printing = True) 
                     for n, name in enumerate(all_names)}
-             
+
+
+#Topup with new simulations
+name2 = 'Batch0_DE_testpopsize'
+key1 = ['config', 'paramsSim', '_FLAG_NAME']
+key2 = ['config', 'paramsOptim', '_FLAG_NAME']
+collect2 = OptBatch.collect_res(keys = [key1, key2], allPrefix = 'res', folderName = pathRes + name2 + '/' + name2)
+names2 = list(collect2.keys())
+print(names2)
+
+
+resObjects2 = {name:OptBatch.process_list_res(collect2[name], printing = True) 
+                    for n, name in enumerate(names2)}
+
+
+all_res = {**all_resObjects, **resObjects2}
 
 
 
@@ -45,51 +61,78 @@ all_resObjects = {name:OptBatch.process_list_res(all_res[n], printing = True)
 # Compare all final results
 #==============================================================================
 ilib.reload(ut)
-names_tmp = all_names
-names_plot = ['NM', 'DE', 'BO']
-res_tmp = [all_resObjects[n] for n in names_tmp]
-col = ['b', 'r', 'g', 'b', 'r', 'g', 'b', 'r', 'g', 'b', 'r', 'g']
-shp = ['p', 's', 'v', 'p', 's', 'v', 'p', 's', 'v', 'p', 's', 'v']
-tick = np.arange(2, 1 + len(names_tmp),3)
+list_study = [['Batch0_NM', 'NoNoise_DE1', 'NoNoise_DE2','NoNoise_DE5','NoNoise_DE10', 'Batch0_DE', 'Batch0_GP'], 
+             ['Batch0noise_NM', 'GaussianNoise_DE1', 'GaussianNoise_DE2', 'GaussianNoise_DE5', 'GaussianNoise_DE10', 'Batch0noise_DE', 'Batch0noise_GP'], 
+             ['Batch0proj10_NM','Proj10_DE1', 'Proj10_DE2','Proj10_DE5','Proj10_DE10','Batch0proj10_DE', 'Batch0proj10_GP'],
+             ['Batch0proj100_NM','Proj100_DE1', 'Proj100_DE2','Proj100_DE5','Proj100_DE10', 'Batch0proj100_DE', 'Batch0proj100_GP']]
+
+# flattening
+names_all_study = [n for l in list_study for n in l]
+
+pivot1 = ['NM', 'DE1', 'DE2', 'DE5', 'DE10', 'DE15', 'BO']
+pivot2 = ['No noise', 'Gausian noise', 'Noise 10 measurements', 'Noise 100 measurements']
+
+res_tmp = [all_res[n] for n in names_all_study]
+col_list = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
+shp_list = ['p', 's', 'v', 'D', 'P', '1', '2', '4']
+
+nb_per_bucket = 7
+col = np.tile(col_list[:nb_per_bucket], 4)
+shp = np.tile(shp_list[:nb_per_bucket], 4)
+tick = np.arange(2, 1 + len(names_all_study), nb_per_bucket)
 tick_label = ['no noise', 'Gaussian noise','10 meas.', '100 meas.']
-d_fom_error = {'suptitle': 'Optimal FoM, T=1.5', 'ylabel':r"$log_{10}(FoM)$", 'colors':col, 'xlim':[0,1 + len(names_tmp)], 
-            'shapes':shp, 'legend': names_plot, 'xticks': tick,'xtick_label': tick_label}
-d_fid_error = {'suptitle': 'Optimal fidelity, T = 1.5', 'ylabel':r"$log_{10}(1-F)$", 'colors':col, 'xlim':[0,1 + len(names_tmp)], 
-            'shapes':shp, 'legend': names_plot, 'xticks': tick,'xtick_label': tick_label}
+d_fom_error = {'component':'finalerror', 'func_wrap':np.log10, 'suptitle': 'Optimal FoM, T=1.5'
+               , 'ylabel':r"$log_{10}(FoM)$", 'colors':col, 'xlim':[0,1 + len(names_all_study)], 
+            'shapes':shp, 'legend': pivot1, 'xticks': tick,'xtick_label': tick_label}
+
+d_fid_error = {'component':'finalerror', 'func_wrap':minlogFunc, 'suptitle': 'Optimal fidelity, T = 1.5', 
+               'ylabel':r"$log_{10}(1-F)$", 'colors':col, 'xlim':[0,1 + len(names_all_study)], 
+            'shapes':shp, 'legend': pivot1, 'xticks': tick,'xtick_label': tick_label}
 
 
 
 look_at = 'evol_ideal_fom'
-ut.plot_from_list_stats([r[look_at] for r in res_tmp], component = 'finalerror', 
-                        dico_plot = d_fom_error,func_wrap = np.log10)
+ut.plot_from_list_stats([r[look_at] for r in res_tmp], dico_main = d_fom_error)
 
 look_at = 'evol_ideal_fidelity'
-ut.plot_from_list_stats([r[look_at] for r in res_tmp], component = 'finalerror', 
-                        dico_plot = d_fid_error,func_wrap = minlogFunc)
+ut.plot_from_list_stats([r[look_at] for r in res_tmp], dico_main = d_fid_error)
 
 
 #==============================================================================
 # Look at different studies
 #==============================================================================
 ilib.reload(ut)
-study = []
-study.append(['Batch0_NM','Batch0_DE', 'Batch0_GP'])
-study.append(['Batch0noise_NM', 'Batch0noise_DE','Batch0noise_GP'])
-study.append(['Batch0proj10_NM', 'Batch0proj10_DE', 'Batch0proj10_GP'])
-study.append(['Batch0proj100_NM', 'Batch0proj100_DE', 'Batch0proj100_GP'])
 
+xlim_zoom = 500
 
-names_study = ['No noise', 'Gausian noise', 'Noise 10 measurements', 'Noise 100 measurements']
 inset_fom =[[0.4, 0.4, 0.46, 0.46], [0.5, 0.5, 0.36, 0.36], [0.5, 0.5, 0.36, 0.36], [0.5, 0.5, 0.36, 0.36]]
 inset_size_fom = [8,8,8,8]
-
 inset_fid =[[0.5, 0.5, 0.35, 0.35], [0.5, 0.5, 0.36, 0.36], [0.5, 0.2, 0.4, 0.4], [0.5, 0.2, 0.36, 0.3]]
 inset_size_fid = [8,8,8,8]
 
-study_nb = 3
-# inset dicos                    
-d_fom_zoom = {'legend': names_plot, 'xlim':[0, 1000], 'inset_size':inset_size_fom[study_nb], 'inset': inset_fom[study_nb]}
-d_fom_nl = {'suptitle': names_study[study_nb]+', observed FoM', 'xlabel':'nb evals', 'ylabel':r"$log_{10}(FoM)$"}
+study_nb = 0
+name_subset_study = pivot2[study_nb]
+res_tmp = [all_res[n] for n in list_study[study_nb]]
+
+# OBS FOM
+d_fom = {'component':'avgminmax', 'func_wrap':np.log10, 'legend': pivot1,
+         'suptitle': name_subset_study+', observed FoM', 'xlabel':'nb evals', 
+         'ylabel':r"$log_{10}(FoM)$", 'colors':col_list, 'shapes': shp_list}
+
+d_fom_zoom = cp.copy(d_fom)
+d_fom_zoom['xlim'] = [0, xlim_zoom]
+
+d_fom_zoom_inset = cp.copy(d_fom_zoom)
+d_fom_zoom_inset['inset_size'] = inset_size_fom[study_nb]
+d_fom_zoom_inset['inset']: inset_fom[study_nb]
+
+# REAL FOM
+d_fom_real = cp.copy(d_fom)
+d_fom_real['suptitle'] = name_subset_study+', real FoM'
+d_fom_zoom_real = cp.copy(d_fom)
+d_fom_zoom_real['suptitle'] = name_subset_study+', real FoM'
+d_fom_zoom_real = cp.copy(d_fom_zoom)
+
 
 d_fom_r_nl = {'suptitle': names_study[study_nb] +', real FoM', 'xlabel':'nb evals', 'ylabel':r"$log_{10}(FoM)$"}
 
@@ -99,22 +142,28 @@ d_fid_nl = {'suptitle': names_study[study_nb] + ', real fidelity', 'xlabel':'nb 
 d_opt_control ={'suptitle': names_study[study_nb] +', optimal control function', 'xlim':[0, 1],'legend': names_plot, 'ylabel':r"$f(t)$", 'xlabel':r"$t$"}
 
 
-names_tmp = study[study_nb]
-res_tmp = [all_resObjects[n] for n in names_tmp]
+
+
 
 #ut.plot_from_list_stats([r['evol_fom'] for r in res_tmp], component = 'avgminmax',
 #                        dico_plot = dico_plot_fom_zoom, func_wrap = np.log10)
 
 look_at = 'evol_fom'
-ut.plot_from_list_stats([r[look_at] for r in res_tmp], component = 'avgminmax', 
-                        dico_plot = d_fom_nl, func_wrap = np.log10, 
-                        component_inset = 'avgminmax', dico_inset = d_fom_zoom)
+ut.plot_from_list_stats([r[look_at] for r in res_tmp], dico_main = d_fom)
+
+ut.plot_from_list_stats([r[look_at] for r in res_tmp], dico_main = d_fom_zoom)
+
+ut.plot_from_list_stats([r[look_at] for r in res_tmp], dico_main = d_fom, dico_inset = d_fom_zoom_inset)
+
+
 
 
 look_at = 'evol_ideal_fom'
-ut.plot_from_list_stats([r[look_at] for r in res_tmp], component = 'avgminmax', 
-                        dico_plot = d_fom_r_nl, func_wrap = np.log10, 
-                        component_inset = 'avgminmax', dico_inset = d_fom_zoom)
+ut.plot_from_list_stats([r[look_at] for r in res_tmp], dico_main = d_fom)
+
+ut.plot_from_list_stats([r[look_at] for r in res_tmp], dico_main = d_fom_zoom)
+
+ut.plot_from_list_stats([r[look_at] for r in res_tmp], dico_main = d_fom, dico_inset = d_fom_zoom_inset)
 
 
 look_at = 'evol_ideal_fidelity'
@@ -127,118 +176,5 @@ look_at = 'opt_control'
 ut.plot_from_list_stats([r[look_at] for r in res_tmp], component = 'avgminmax', 
                         dico_plot = d_opt_control)
 
-
-
-
-
-
-
-#==============================================================================
-# SETUP 1 T NoConstraint
-#==============================================================================
-all_name = ['Batch0nc_NM', 'Batch0nc_DE', 'Batch0nc_GP']
-all_res = [OptBatch.read_res(allPrefix = 'res', folderName = name + '/' + name) for name in all_name]
-
-all_fom_nev = [extract_fom_nev(res) for res in all_res]
-all_fom_test = [extract_res_test_index(res,1) for res in all_res]
-
-# avg, mini, maxi, std, avg_pstd, avg_mstd
-all_stats_learning = [ut.merge_and_stats_TS(extract_fom_nev(res)) for res in all_res]
-all_tested_res = np.array([ut.get_stats(extract_res_test(res)) for res in all_res])
-print('NC')
-print('TESTED RES:avg')
-print(all_tested_res[:,0])
-print('TESTED RES:min')
-print(all_tested_res[:,1])
-print('TESTED RES:max')
-print(all_tested_res[:,2])
-
-
-
-# Res -> Run -> Config
-#            -> Optim -> fev_fom
-#            -> Testing
-#
-
-x_lim = 350
-#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
-plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim]})
-
-x_lim = 12000
-#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
-plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim], 'ylim':[0,0.1]})
-
-
-
-#==============================================================================
-# Look at res MP
-#==============================================================================
-all_name = ['MP_Batch0_GP', 'Batch0_GP']
-all_res = [OptBatch.read_res(allPrefix = 'res', folderName = name + '/' + name) for name in all_name]
-
-all_fom_nev = [extract_fom_nev(res) for res in all_res]
-all_fom_test = [extract_res_test_index(res,1) for res in all_res]
-
-# avg, mini, maxi, std, avg_pstd, avg_mstd
-all_stats_learning = [ut.merge_and_stats_TS(extract_fom_nev(res)) for res in all_res]
-all_tested_res = np.array([ut.get_stats(extract_res_test(res)) for res in all_res])
-print('NC')
-print('TESTED RES:avg')
-print(all_tested_res[:,0])
-print('TESTED RES:min')
-print(all_tested_res[:,1])
-print('TESTED RES:max')
-print(all_tested_res[:,2])
-
-
-
-# Res -> Run -> Config
-#            -> Optim -> fev_fom
-#            -> Testing
-#
-
-x_lim = 350
-#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
-plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim]})
-
-x_lim = 12000
-#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
-plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim], 'ylim':[0,0.1]})
-
-
-#==============================================================================
-# SETUP T 30
-#==============================================================================
-all_name = ['Batch0_T30b']
-all_res = [OptBatch.read_res(allPrefix = 'res', folderName = name + '/' + name) for name in all_name]
-
-all_fom_nev = [extract_fom_nev(res) for res in all_res]
-all_fom_test = [extract_res_test(res) for res in all_res]
-
-# avg, mini, maxi, std, avg_pstd, avg_mstd
-all_stats_learning = [ut.merge_and_stats_TS(extract_fom_nev(res)) for res in all_res]
-all_tested_res = np.array([ut.get_stats(extract_res_test(res)) for res in all_res])
-print('NORMAL')
-print('TESTED RES:avg')
-print(all_tested_res[:,0])
-print('TESTED RES:min')
-print(all_tested_res[:,1])
-print('TESTED RES:max')
-print(all_tested_res[:,2])
-
-
-
-# Res -> Run -> Config
-#            -> Optim -> fev_fom
-#            -> Testing
-#
-
-x_lim = 350
-#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
-plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim]})
-
-x_lim = 12000
-#plot_from_list_stats(all_stats, 'avg', dico_plot = {'xlim':[0, x_lim]})
-plot_from_list_stats(all_stats_learning, 'minmax', dico_plot = {'xlim':[0, x_lim]})
 
 
