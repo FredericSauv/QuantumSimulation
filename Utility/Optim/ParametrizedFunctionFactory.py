@@ -33,25 +33,20 @@ import pdb
 # TODO: re-think the way they are implemented.. maybe use composition .. wabout the gradients
 #==============================================================================
 class ShiftedAndScaled():
-    """
-    Purpose:
-        Shift and scale a function wrt certain constraints 
-        (i.e. f(t0) = y0 and f(t1) = yT)
-        
-    + For 2 endpoints:
-        - typeSS = 'scale'
-        - typeSS = 'sin'
-        
-    + For 1 endpoint:
-        - typeSS = 'shift'
-        - typeSS = 'scale'
-        
+    """ Shift and scale a function according to certain 'constraints' and 'type'
     Meant to be inherited in concrete ParametrizedFunctions or collections
+    Starting with a function f create g s.t.
     
-    Example:
-        ShiftedAndScaled([[0,0], [1,5]])
-        ShiftedAndScaled([[0,0]], 'shift')
-        ShiftedAndScaled([[2,3]]) 
+    + g(x0) = y0 for 1 constraint (constarints = [[t0,y0]])
+             
+        + g(x) = f(x) + (y0 - f(x0)) for typeSS = 'shift'
+        + g(x) = f(x) * (y0 / f(x0)) for typeSS = 'scale'
+        
+    + g(x0) = y0, g(x1) = y1 for 2 constraints (constraints = [[x0,y0], [x1, y1]])
+        #they work only for y0 == y1, mostly use to fix f(x0)=0 f(x1)=0    
+        - g(x) = y0 + f(x) * sin(Pi (x-x0) / (x1 - x0)) for typeSS = 'sin'
+        - g(x) = y0 + f(x) * sin^2(Pi (x-x0) / (x1 - x0)) for typeSS = 'sin2'
+        
     """
     def __init__(self, constraints = None, typeSS = 'scale'):
         self.__SetSaS(constraints, typeSS)
@@ -59,11 +54,12 @@ class ShiftedAndScaled():
     def __SetSaS(self, constraints = None, typeSS = 'scale'):
         self._typeSS = typeSS
         self._constraints = constraints
-        self.UpdateSaS(self._constraints)
+        self.UpdateSaS()
 
     def UpdateSaS(self, constraints = None, typeSS = None):
         if (constraints is None):
             constraints = self._constraints
+            
         if (typeSS is None):
             typeSS = self._typeSS 
             
@@ -77,40 +73,38 @@ class ShiftedAndScaled():
             if(len(constraints) == 2):
                 x0, y0 = constraints[0]
                 x1, y1 = constraints[1]
-                f0, f1 = self.__call__(x0), self.__call__(x1)
+                #f0, f1 = self.__call__(x0), self.__call__(x1)
+                
                 if(typeSS == 'sin'):
-                    # f'(t) = shift + sin(Pi * (x1 - x0) * (t-x0)) * f(t)
                     assert (y0 == y1), "invalid constraints"
                     self._shift = y0
                     self._scale = lambda t: np.sin(np.pi / (x1 - x0) * (t - x0))
+                
                 elif(typeSS == 'sin2'):
-                    # f'(t) = shift + sin(Pi * (x1 - x0) * (t-x0)) * f(t)
                     assert (y0 == y1), "invalid constraints"
                     self._shift = y0
                     self._scale = lambda t: np.square(np.sin(np.pi * (x1 - x0) * (t - x0)))
                 
                 else:
-                    # f'(t) = shift + scale * f(t)
-                    if ((f1-f0)!=0):
-                        self._scale = (y1-y0) / (f1-f0)
-                    else:
-                        print('scale fixed to 1')
-                        self._scale=1
-                    self._shift = y0 - f0 * self._scale        
-            elif(typeSS == 'scale'):
-                x0, y0 = constraints[0]
-                f0 = self.__call__(x0)
+                    raise NotImplementedError()
 
-                if (f0 == 0):
-                    print('scale fixed to 1')
-                    self._scale = 1 
-                else:
-                    self._scale = y0/f0
-            
-            elif(typeSS == 'shift'):
-                x0, y0 = constraints[0]
-                f0 = self.__call__(x0)
-                self._shift = y0 - f0
+            elif(len(constraints == 1)):
+                if(typeSS == 'scale'):
+                    x0, y0 = constraints[0]
+                    f0 = self.__call__(x0)
+    
+                    if (f0 == 0):
+                        print('couldnot rescale: scale fixed to 1')
+                        self._scale = 1 
+                    else:
+                        self._scale = y0/f0
+                
+                elif(typeSS == 'shift'):
+                    x0, y0 = constraints[0]
+                    f0 = self.__call__(x0)
+                    self._shift = y0 - f0
+            else:
+                raise NotImplementedError()
                 
     @ut.vectorise_method
     def ShiftAndScale(self, value, t = None):
@@ -161,10 +155,8 @@ class Bounded():
         return res
 
 class Overwrite():
-    """
-    Purpose:
-        Overwrite 
-    
+    """ Overwrite f(x) for discrete values and (closed) intervals
+    ToDo: could manage open intervals too
     """
     def __init__(self, listX = None, listY=None):
         self._listX = None
@@ -178,23 +170,29 @@ class Overwrite():
             assert len(listX) == len(listY), "listX and listY should have the same length"
             self._listX = listX
             self._listY = listY
+            # open vs close interval
             self._list_is_interval = [isinstance(x, tuple) for x in self._listX]
-            self._nbPoints = len(listX)
+            self._nbOWPoints = len(listX)
+        else:
+            self._listX = None
+            self._listY = None
+            self._list_is_interval = []
+            self._nbOWPoints = 0
         
     def UpdateOW(self, listX, listY):
         self.__SetupOW(listX, listY)
     
     @ut.vectorise_method
     def OW(self, x):
-        res = [False, None]
-        for i in self._nbOWPoints:
+        res = (False, None)
+        for i in range(self._nbOWPoints):
             if(self._list_is_interval[i]):
                 check = (x>= self._listX[i][0]) * (x<= self._listX[i][1]) 
             else:
                 check = (x == self._listX[i])
 
             if(check):
-                res = [True, self._listY[i]]
+                res = (True, self._listY[i])
                 break
             
         return res
@@ -206,7 +204,7 @@ class Overwrite():
 # Implement Bounded and ShiftAndScaled behaviors
 #TODO: implement __add__ + - () ** etc.. based on collection of functions
 #==============================================================================
-class ParametrizedFunctionFactory(ShiftedAndScaled, Bounded):
+class ParametrizedFunctionFactory(ShiftedAndScaled, Bounded, Overwrite):
     """
     Purpose:
         Abstract class for parametrized functions
@@ -221,7 +219,7 @@ class ParametrizedFunctionFactory(ShiftedAndScaled, Bounded):
     
     """
     LIST_NAME_PARAMS = []
-    def __init__(self, params = None, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False):
+    def __init__(self, params = None, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False, listX = None, listY = None):
         self._params = None
         self._nbParams = None
         self._nbTotalParams = None
@@ -229,6 +227,7 @@ class ParametrizedFunctionFactory(ShiftedAndScaled, Bounded):
         self.SetUpParams(params)
         ShiftedAndScaled.__init__(self, constraints, typeSS)
         Bounded.__init__(self, boundaries)
+        Overwrite.__init__(self, listX, listY)
         if(fixedParams):
             self._nbTotalParams = 0
 
@@ -237,9 +236,14 @@ class ParametrizedFunctionFactory(ShiftedAndScaled, Bounded):
         """ Call the evaluation of the function. Then Scale, shift and bound it 
         if needed
         """
-        res = self._Evaluate(variable)
-        res = self.ShiftAndScale(res, t = variable)
-        res = self.Bound(res)
+        ow, ow_val = self.OW(variable)
+        if(ow):
+            res = ow_val
+        else:
+            res = self._Evaluate(variable)
+            res = self.ShiftAndScale(res, t = variable)
+            res = self.Bound(res)
+
         return res
 
 #-----------------------------------------------------------------------------#
@@ -436,12 +440,13 @@ class StepFunc(ParametrizedFunctionFactory):
     """
         params = {'F' = [f_1, .., f_N], 'Tstep' = [T_1, .., T_N], t0 = t0}
         f(t) = f_n with t in [t_(n-1), t_n[
-        f(t) = F_0
+        f(t<t_1) = F_0
+        f(t>=T_N) = f_N
     """        
     NAME_FUNC = "StepFunc"
     LIST_NAME_PARAMS = ['F', 'F0']
-    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False):
-        ParametrizedFunctionFactory.__init__(self, params, constraints, typeSS, boundaries, fixedParams)
+    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False, listX = None, listY = None):
+        ParametrizedFunctionFactory.__init__(self, params, constraints, typeSS, boundaries, fixedParams, listX, listY)
 
     def _ProcessInitParams(self, params):
         """
@@ -474,11 +479,11 @@ class StepFunc(ParametrizedFunctionFactory):
             if t < T_{N+1} but t >= t_{N} returns F_{N}
             if t < T_0 returns F0
         """
-        idx_t = self.GetParams('Tstep').searchsorted(t - 10e-10) - 1
-        
-        if (idx_t < 0):
+        Tstep = self.GetParams('Tstep')
+        if(t < Tstep[0]):
             res = self.GetParams('F0')
         else:
+            idx_t = self.GetParams('Tstep').searchsorted(t + 1e-15) - 1
             res = self.GetParams('F')[idx_t]
         return res
 
@@ -508,6 +513,78 @@ class StepFunc(ParametrizedFunctionFactory):
     def Smoothness(self, array_t = None):
         # use of lag1 autocoorelation??
         raise NotImplementedError()
+        
+# --------------------------------------------------------------------------- #
+#   Step Function
+# --------------------------------------------------------------------------- #
+class ExpRamp(ParametrizedFunctionFactory):
+    """ params = {'ampl' = ymax, 'T':T, 'l' = l}
+        f(t) = ampl * (1 - exp(t/ T * l)) / (1 - exp(l)) 
+        The higher r is the more convex it is
+    """        
+    NAME_FUNC = "ExpRamp"
+    LIST_NAME_PARAMS = ['ampl', 'T', 'l']
+    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False, listX = None, listY = None):
+        ParametrizedFunctionFactory.__init__(self, params, constraints, typeSS, boundaries, fixedParams, listX, listY)
+
+    def _ProcessInitParams(self, params):
+        """ if an array is passed (instead of a dictionnary) it should be ordered 
+        as ['ampl', 'T', 'ratioL'] with default value = [1, 1, 1]
+        """
+        if (ut.is_dico(params)):
+            a = params.get('ampl', 1)
+            T = params.get('T', 1)
+            l = params.get('l', 1)
+            params = {'ampl':a, 'T':T, 'l':l}
+            
+        elif(ut.is_iter(params)):
+            len_p = len(params)
+            if(len_p == 1):
+                params = {'ampl':params[0], 'T':1, 'l':1}
+            elif(len_p == 2):
+                params = {'ampl':params[0], 'T':params[1], 'l':l}
+            elif(len_p == 3):
+                params = {'ampl':params[0], 'T':params[1], 'l':params[2]}
+            else:
+                raise NotImplementedError()
+        else:
+            raise NotImplementedError()
+            
+        self._nbTotalParams = 3
+        return params            
+
+    def _Evaluate(self, t):
+        """ f(t) = ampl * (1 - exp(t/ T * l)) / (1 - exp(l)) 
+        """
+        a = self.GetParams('ampl')
+        T = self.GetParams('T')
+        l = self.GetParams('l')        
+        res = a * (1 - np.exp(t / T * l)) / (1 - np.exp(l)) 
+        return res
+
+
+    def Gradient(self, t = None, **args):
+        """
+        Purpose:
+             Compute gradient for all/ subset of parameters             
+        """            
+        raise NotImplementedError()
+
+    def _ProcessUpdateParams(self, params):
+        """
+        if the params to be updated is a dict filter it and pass it
+        if not assume it's an iterable and that it should be used to update F
+        """
+        if(ut.is_dico(params)):
+            dico_params = ut.filter_dico(params, self.LIST_NAME_PARAMS)
+        else:
+            assert len(params) == self._nbSteps, " params don't have the right size"
+            dico_params = {self.LIST_NAME_PARAMS[n]:p for n, p in params}            
+        return dico_params
+        
+    def _CustomUpdate(self, params):
+        pass
+    
 
 
 # --------------------------------------------------------------------------- #
@@ -519,8 +596,8 @@ class SquareExponential(ParametrizedFunctionFactory):
         TODO: Implement the multiDim + Kernel version // in eval and assert
     """
     LIST_NAME_PARAMS = ['sigma', 'mu', 'l'] 
-    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False):
-        ParametrizedFunctionFactory.__init__(self, params, constraints, typeSS, boundaries, fixedParams)
+    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False, listX = None, listY = None):
+        ParametrizedFunctionFactory.__init__(self, params, constraints, typeSS, boundaries, fixedParams, listX, listY)
 
     def  _Evaluate(self, t):        
         res =  np.exp(-np.square((t-self._params['mu'])/self._params['l']))
@@ -569,13 +646,8 @@ class SquareExponential(ParametrizedFunctionFactory):
         """
         if(not(isinstance(params, dict))):
             assert (len(params) <= 3), 'pb size params'
-            if(len(params) == 1):
-                params = {'sigma':params[0]}
-            elif(len(params) == 2):
-                params = {'sigma':params[0], 'mu': params[1]}
-            else:
-                params = {'sigma':params[0], 'mu': params[1], 'l': params[2]}
-        return params
+            return {self.LIST_NAME_PARAMS[n]:p for n, p in params}
+
     
     def _CustomUpdate(self, params):
         pass
@@ -593,8 +665,9 @@ class FourierFunc(ParametrizedFunctionFactory):
     
     """
     LIST_NAME_PARAMS = ['A', 'B', 'om', 'Phi', 'c0']
-    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False):
-        ParametrizedFunctionFactory.__init__(self, params, constraints, typeSS, boundaries, fixedParams)
+    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False,listX = None, listY = None):
+        pdb.set_trace()
+        ParametrizedFunctionFactory.__init__(self, params, constraints, typeSS, boundaries, fixedParams, listX, listY)
 
     def _ProcessInitParams(self, params):
         """
@@ -681,15 +754,15 @@ class FourierFunc(ParametrizedFunctionFactory):
 
 
 # --------------------------------------------------------------------------- #
-#   Linear Function
+#   Linear Function and Constant Function
 # --------------------------------------------------------------------------- #
 class LinearFunc(ParametrizedFunctionFactory):
     """
         [a, b] -> f(t) = at + b
     """
     LIST_NAME_PARAMS = ['a', 'b'] 
-    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False):
-        ParametrizedFunctionFactory.__init__(self, params, constraints, typeSS, boundaries, fixedParams)
+    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False, listX = None, listY = None):
+        ParametrizedFunctionFactory.__init__(self, params, constraints, typeSS, boundaries, fixedParams, listX, listY)
 
     def _Evaluate(self, t):        
         res = self._params['a'] * t + self._params['b']
@@ -717,26 +790,28 @@ class LinearFunc(ParametrizedFunctionFactory):
         return res
 
     def _ProcessUpdateParams(self, params):
-        """
-        Deal with the case where update params are an array
+        """ Deal with the case where update params are an array
         1st element assigned to 'a' (slope), 2nd (if provided) to 'b' (i.e. y(0))
         """
-        if(not(ut.is_dico(params))):
-            {self.LIST_NAME_PARAMS[i]:params[i] for i in range(len(params))}
-        return params
+        if(ut.is_dico(params)):
+            return params
+        else:
+            return {self.LIST_NAME_PARAMS[n]:p for n, p in params}
+         
     
     def _CustomUpdate(self, params):
         pass
     
     
 class ConstantFunc(LinearFunc):
+    """ Create a constant function
+        ConstantFunc(a) -> f(t) = a
+        ConstantFunc({'a':a}) -> f(t) = a
     """
-        [a, b] -> f(t) = at + b
-    """
-    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False):
+    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False, listX = None, listY = None):
         if(ut.is_dico(params)):
             b = params.get('b')
-            LinearFunc.__init__(self, {'a': 0, 'b':b}, constraints, typeSS, boundaries, fixedParams)
+            LinearFunc.__init__(self, {'a': 0, 'b':b}, constraints, typeSS, boundaries, fixedParams, listX, listY)
         else:
             LinearFunc.__init__(self, {'a': 0, 'b':params}, constraints, typeSS, boundaries, fixedParams)
 
@@ -757,8 +832,8 @@ class ChebyshevFun(ParametrizedFunctionFactory):
     
     """
     LIST_NAME_PARAMS = ['C', 'c0', 'domain', 'window']
-    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False):
-        ParametrizedFunctionFactory.__init__(self, params, constraints, typeSS, boundaries, fixedParams)
+    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False, listX = None, listY = None):
+        ParametrizedFunctionFactory.__init__(self, params, constraints, typeSS, boundaries, fixedParams, listX, listY)
 
     def _Evaluate(self, t):
         """
@@ -839,7 +914,7 @@ class ChebyshevFun(ParametrizedFunctionFactory):
 #   Abstract class
 # --------------------------------------------------------------------------- #
 #TODO: a lot
-class CollectionParametrizedFunctionFactory(ShiftedAndScaled,Bounded):
+class CollectionParametrizedFunctionFactory(ShiftedAndScaled,Bounded, Overwrite):
     """
     Purpose:
         Just an abstract collection (list) of Parametrized function which can be
@@ -857,7 +932,7 @@ class CollectionParametrizedFunctionFactory(ShiftedAndScaled,Bounded):
          Implemented in the subclass
         
     """
-    def __init__(self, func = None, constraints = None, typeSS = 'scale', boundaries = None):
+    def __init__(self, func = None, constraints = None, typeSS = 'scale', boundaries = None, listX = None, listY = None):
         self.listFun = func
         self._nbFunc = len(func)
         self._listNbParams = [f._nbParams for f in self.listFun]
@@ -866,6 +941,7 @@ class CollectionParametrizedFunctionFactory(ShiftedAndScaled,Bounded):
         self._nbTotalParams = np.sum(self._listNbTotalParams)
         ShiftedAndScaled.__init__(self, constraints, typeSS)
         Bounded.__init__(self, boundaries)
+        Overwrite.__init__(self, listX, listY)
 
     def __call__(self, variable):
         raise NotImplementedError()
@@ -1157,15 +1233,20 @@ class Times(CollectionParametrizedFunctionFactory):
     [f1, f2](t) >> f1(t) * f2(t)
     Gradient should be implemented
     """
-    def __init__(self, func = None, constraints = None, typeSS = 'scale', boundaries = None):
-        CollectionParametrizedFunctionFactory.__init__(self, func, constraints, typeSS, boundaries)
+    def __init__(self, func = None, constraints = None, typeSS = 'scale', boundaries = None, listX=None, listY=None):
+        CollectionParametrizedFunctionFactory.__init__(self, func, constraints, typeSS, boundaries, listX, listY)
 
     @ut.vectorise_method
     def __call__(self, variable):
-        resPerFun = [f(variable) for f in self.listFun]
-        res = np.product(resPerFun)
-        res = self.ShiftAndScale(res, t = variable)
-        res = self.Bound(res)
+        ow, ow_val = self.OW(variable)
+        if(ow):
+            res = ow_val
+        else:
+            resPerFun = [f(variable) for f in self.listFun]
+            res = np.product(resPerFun)
+            res = self.ShiftAndScale(res, t = variable)
+            res = self.Bound(res)
+
         return res
         
 class Plus(CollectionParametrizedFunctionFactory):        
@@ -1174,15 +1255,20 @@ class Plus(CollectionParametrizedFunctionFactory):
     [f1, f2](t) >> f1(t) + f2(t)
     Gradient should be implemented
     """
-    def __init__(self, func = None, constraints = None, typeSS = 'scale', boundaries = None):
-        CollectionParametrizedFunctionFactory.__init__(self, func, constraints, typeSS, boundaries)
+    def __init__(self, func = None, constraints = None, typeSS = 'scale', boundaries = None, listX=None, listY=None):
+        CollectionParametrizedFunctionFactory.__init__(self, func, constraints, typeSS, boundaries, listX, listY)
 
     @ut.vectorise_method
     def __call__(self, variable):
-        resPerFun = [f(variable) for f in self.listFun]
-        res = np.sum(resPerFun)
-        res = self.ShiftAndScale(res, t = variable)
-        res = self.Bound(res)
+        ow, ow_val = self.OW(variable)
+        if(ow):
+            res = ow_val
+        else:
+            resPerFun = [f(variable) for f in self.listFun]
+            res = np.sum(resPerFun)
+            res = self.ShiftAndScale(res, t = variable)
+            res = self.Bound(res)
+            
         return res
  
 class Composition(CollectionParametrizedFunctionFactory):
@@ -1191,17 +1277,21 @@ class Composition(CollectionParametrizedFunctionFactory):
     [f1, f2](t) >> f1(f2(t))
     Gradient should be implemented
     """
-    def __init__(self, func = None, constraints = None, typeSS = 'scale', boundaries = None):
-        CollectionParametrizedFunctionFactory.__init__(self, func, constraints, typeSS, boundaries)
+    def __init__(self, func = None, constraints = None, typeSS = 'scale', boundaries = None, listX=None, listY=None):
+        CollectionParametrizedFunctionFactory.__init__(self, func, constraints, typeSS, boundaries, listX, listY)
 
     @ut.vectorise_method
     def __call__(self, variable):
-        res = variable
-        for f in self.listFun:
-            res = f(res) 
-            
-        res = self.ShiftAndScale(res, t = variable)
-        res = self.Bound(res)
+        ow, ow_val = self.OW(variable)
+        if(ow):
+            res = ow_val
+        else:
+            res = variable
+            for f in self.listFun:
+                res = f(res) 
+                
+            res = self.ShiftAndScale(res, t = variable)
+            res = self.Bound(res)
         return res
        
         
@@ -1247,6 +1337,12 @@ LIST_CUSTOM_FUNC['cChebyshevOdd']= ""
 LIST_CUSTOM_FUNC['cChebyshevEven']= ""
 LIST_CUSTOM_FUNC['ccChebyshevEvenFixedCt']= ""
 LIST_CUSTOM_FUNC['cChebyshevFixedTrend']= ""
+LIST_CUSTOM_FUNC['cFixedExpRamp'] = ""
+
+class cFixedExpRamp(ExpRamp):
+    def __init__(self, params, **extra_args):
+        extra_args['fixedParams'] = True
+        ExpRamp.__init__(self, params, **extra_args)
 
 class cFourierAmplitudesFixedCt(FourierFunc):
     """
@@ -1879,7 +1975,7 @@ class Overwrite2():
     
     @ut.vectorise_method
     def OW(self, x):
-        res = [False, None]
+        res = (False, None)
         for i in self._nbOWPoints:
             if(self._list_is_interval[i]):
                 check = (x>= self._listX[i][0]) * (x<= self._listX[i][1]) 
@@ -1887,7 +1983,8 @@ class Overwrite2():
                 check = (x == self._listX[i])
 
             if(check):
-                res = [True, self._listY[i]]
+                res = (True, self._listY[i])
+                res = self._listY[i]
                 break
             
         return res
