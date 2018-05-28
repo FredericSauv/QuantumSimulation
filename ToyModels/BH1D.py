@@ -49,7 +49,6 @@ class BH1D(mod.Models):
         """
         #pdb.set_trace()
         mod.Models.__init__(self, noise = model_params.get('noise'))
-        self.SetUpTime(model_params)
         self.SetUpSystem(controlFun, model_params)
         self.UpdateStateInit(model_params.get('state_init'))
         self.UpdateStateTarget(model_params.get('state_tgt'))
@@ -59,18 +58,6 @@ class BH1D(mod.Models):
 # --------------------------------------------------------------------------- #
 #   SET UP CONTROL
 # --------------------------------------------------------------------------- #
-    def SetUpTime(self, model_params):
-        """ Generate time attributes
-        """
-        self.T = model_params['T']
-        self.dt = model_params['dt']
-        self.t_array = np.concatenate((np.arange(0, self.T, self.dt), [self.T]))
-        self._flag_intermediate = model_params['flagInterTime']
-        if(self._flag_intermediate):
-            self.t_simul = self.t_array
-        else:
-            self.t_simul = self.T
-
     def SetUpSystem(self, controlFun, model_params):
         """  
         """ 
@@ -453,6 +440,9 @@ class BH1D(mod.Models):
         else:
             _ = self.EvolutionPopAdiab(**args_pop_adiab)
             self.plot_pop_adiab()
+
+
+
 ### ======================= ###
 # SOME SUPPORT FUNCTIONS for FOM: 
 #   + getFluence()

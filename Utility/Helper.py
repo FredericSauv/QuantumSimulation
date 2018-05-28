@@ -16,68 +16,6 @@ from ast import literal_eval as ev
 import matplotlib.pylab as plt
 
 
-
-#==============================================================================
-#                   Quantum Utility (list / dico / text files)
-#==============================================================================
-## ---------------------------
-## Methods acting on state
-## proba / ip / norm / distance / heating / fidelity / apply {X,Y,Z} 
-## ---------------------------
-#def probaFromState(state):
-#    """
-#    Purpose:
-#        transform probability amplitudes in proba
-#    """
-#    return np.square(np.abs(state))
-#   
-#def ip(ket1, ket2):
-#    """
-#    Purpose:
-#        Compute (complex) inner product 
-#    Dimensions:
-#        + if 1d Compute <ket1 | ket2>
-#        + if 2d kets (i.e. t rows d columns)
-#        t should be the time index and d the dim of the Hilbert space 
-#        >> returns <ket1(t) | ket2(t)> a t entries array
-#        + Nd last dim is the Hilbert space 
-#    """
-#    assert (ket1.shape == ket2.shape), "unconsistent dim of ket1, ket2"
-#    res = np.sum(np.conj(ket1) * ket2, len(ket1.shape)-1)
-#    return np.abs(res)
-#    
-#def norm(ket1):        
-#    """
-#    Purpose:
-#        Compute the usual norm ||ket1||
-#    """
-#    # Compute sqrt(<ket1 | ket1>) (float)
-#    return np.sqrt(ip(ket1,ket1))
-#
-## ---------------------------
-## Fidelity measures (2 conventions with square or not)
-## ---------------------------
-#def fidelity(ket1, ket2):
-#    # Compute |<ket1 | ket2>|^2 
-#    return np.abs((ip(ket1, ket2)))
-#
-#
-#def fidelity_avg(ket1_t, ket2_t):
-#    # assume ket1_t ket2_t are 2d arrays - rows: time column: HSpace
-#    # same as fidelity_distance but for states over time
-#    return np.average(fidelity(ket1_t, ket2_t))
-#
-#def fidelity2(ket1, ket2):
-#    # Compute |<ket1 | ket2>|^2 
-#    return np.square(np.abs(ip(ket1, ket2)))
-#
-#
-#def fidelity2_avg(ket1_t, ket2_t):
-#    # assume ket1_t ket2_t are 2d arrays - rows: time column: HSpace
-#    # same as fidelity_distance but for states over time
-#    return np.average(fidelity2(ket1_t, ket2_t))    
-#
-
 #==============================================================================
 #                   MANIP STRUCTURES (list / dico / text files)
 #==============================================================================
