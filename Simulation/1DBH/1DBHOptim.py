@@ -20,7 +20,6 @@ else:
     from ...Utility.Optim import OptimML as opt
     from ...Utility.Optim import ParametrizedFunctionFactory as pfunc
 
-
 import numpy as np
 import pdb as pdb #debugger 
 import importlib as ilib
@@ -31,8 +30,6 @@ ilib.reload(bh)
 ilib.reload(ut)
 
 
-#TODO: Deal with setup2
-#TODO: Test setup 3
 class BH1DOptim(opt.AbstractOptimML):
     """ Implementation of the abstract optimization for the toyModel (simulated via
     the lightSimulation class)
@@ -42,12 +39,11 @@ class BH1DOptim(opt.AbstractOptimML):
     
     """
     # parameters MANDATORY to initialise the simulator (should be maintained)
-    LIST_PARAMS_SIM_NEEDED = bh.BH1D.MODEL_PARAMS_DEF
+    LIST_PARAMS_SIM_NEEDED = bh.BH1D.LIST_ARGS
     
-
     def __init__(self, paramsSimulation = None, paramsOptim = None, paramsSimulationTest = None):
         # call of self.initSimulator from the parent class
-        self.nbControlFunPerSetUp = {'1':1, '2':2, '3':1}
+        self.nbControlFunPerSetUp = {'1':1}
         opt.AbstractOptimML.__init__(self, paramsOptim, paramsSimulation, paramsSimulationTest)
         
     @classmethod    
@@ -73,29 +69,25 @@ class BH1DOptim(opt.AbstractOptimML):
         Output:
             Simulator (model we want to simulate which has been initialized)
             p: 
-            
-
         """
         # pdb.set_trace()
-        # Build the parametrized control function 
-        custom_control, args_control = self.GenerateCustomControlFunction(p)
-        sim_args = ut.merge_dico(p, args_control, update_type = 3)
-        # Initializethe simulator        
-        simulator = bh.BH1D(controlFun = custom_control, model_params = p)
-        self._args_control = args_control
+        simulator = bh.BH1D(**p)
+        sim_args = ut.merge_dico(p, simulator.info_control, update_type = 3)
         return simulator, sim_args
 
 
     def GenNameSimul(self, name_method = None, args_simul = None, args_optim = None):
-        """ Generate a name for the simulation (used to tag/store the results) 
+        """ Generate a name for the simulation (used to tag/store the results)
+        based on the args of the simulations and optimizations
         """
         setup = str(args_simul['setup'])
         fom_name = args_simul['fom_name']
+        algo = args_optim['algo']
         
         if (name_method is None):
             if (isinstance(fom_name, list)):
-                fom_name = fom_name[0] # use first one as that is the one used for optim
-            name = ut.concat2String(self._name_algo, 'Setup', setup)
+                fom_name = fom_name[0] 
+            name = ut.concat2String(algo, 'Setup', setup)
         else:
             raise NotImplementedError()
             
@@ -113,8 +105,7 @@ class BH1DOptim(opt.AbstractOptimML):
         write_logs = args.get('write_logs', False)
         fom_name = args.get('fom_name')
         printVal = args.get('print', False)
-        argsUpdateParams = {'parametrization': self._args_control.get('function'), 
-                     'indexFun':self._args_control.get('indexFunToUpdate')}
+        argsUpdateParams = {'index_fun':args.get('indexFunToUpdate')}
         
         if(write_logs):
             # Some infos are obtained directly here
@@ -126,8 +117,8 @@ class BH1DOptim(opt.AbstractOptimML):
             self._bestfom_func = []
             
             def arg2costFun(params):
-                self.CustomUpdateControlParameters(params, simulator, **argsUpdateParams)
-                # self._randomize_simulator(simulator)
+                simulator.update_control_parameters(params, **argsUpdateParams)
+                self._randomize_simulator(simulator)
                 fom = simulator.Simulate(fom = fom_name)
                 
                 if(printVal):
@@ -140,7 +131,8 @@ class BH1DOptim(opt.AbstractOptimML):
                     if (fom_best_so_far is None) or (fom_best_so_far > fom):
                         self.best['fom'] = fom
                         self.best['params'] = params
-                        self.best['omegas'] = self._args_control.get('omegas')
+                        self.best['omegas'] = args.get('omegas')
+                        self.best['fun'] = repr(simulator.controlFun)
                         self._time_elapsed = self._timer.time() - self._time_init
                         self._bestfom_nbev.append([self._nb_call_fev, fom])
                         self._bestfom_time.append([self._time_elapsed, fom])
@@ -151,8 +143,8 @@ class BH1DOptim(opt.AbstractOptimML):
             
         else:
             def arg2costFun(params):
-                self.CustomUpdateControlParameters(params, simulator, **argsUpdateParams)
-                # self._randomize_simulator(simulator)
+                simulator.update_control_parameters(params, **argsUpdateParams)
+                self._randomize_simulator(simulator)
                 
                 fom = simulator.Simulate(fom = fom_name)
                 if(printVal):
@@ -163,7 +155,7 @@ class BH1DOptim(opt.AbstractOptimML):
                     if (fom_best_so_far is None) or (fom_best_so_far > fom):
                         self.best['fom'] = fom
                         self.best['params'] = params
-                        self.best['omegas'] = self._args_control.get('omegas')
+                        self.best['omegas'] = args.get('omegas')
                 
                 return fom
         
@@ -180,29 +172,9 @@ class BH1DOptim(opt.AbstractOptimML):
     def _randomize_simulator(self, simulator):
         """ Randomize the simulators
         """
-        simulator.gen_energy_scaling()
+        pass
         
 
-
-#==============================================================================
-#                   Auxilliary function
-#============================================================================== 
-def ConstraintsToLinearCoeff(constraints, dico = False):
-    if(len(constraints) == 2):
-        x0, y0 = constraints[0]
-        x1, y1 = constraints[1]
-        
-        a = (y1 - y0)/(x1 - x0)
-        b = y0 - a*x0
-    else:
-        raise NotImplementedError()
-    
-    if(dico):
-        res = {'a':a, 'b':b}
-    else:
-        res = [a, b]
-    
-    return res
 
 #==============================================================================
 #                   TESTING
@@ -215,9 +187,10 @@ if(__name__ == '__main__'):
     T = 5
     L=5
     N=L
+    seed = 1255656112
     name_fom_main = ['f2t2:neg_fluenceNorm:0.0001_smooth:0.01']
-    name_fom_testing = ['f2t2:neg_fluenceNorm:0.0001_smooth:0.01', 'f2t2', 'fluenceNorm', 'smooth2', 'varN']
-    name_fom_re = ['last:f2t2:neg_fluenceNorm:0.0001_smooth:0.01', 'last:f2t2', 'fluenceNorm', 'smooth2', 'last:varN']
+    name_fom_testing = ['f2t2:neg_fluenceNorm:0.0001_smooth:0.01', 'f2t2', 'fluenceNorm', 'smooth', 'varN']
+    name_fom_re = ['last:f2t2:neg_fluenceNorm:0.0001_smooth:0.01', 'last:f2t2', 'fluenceNorm', 'smooth', 'last:varN']
 
     paramsSim = {'L':L, 'N':N, 'mu':0, 'T':T, 'dt':0.1, 'flagInterTime':False,
                      'setup':'1', 'state_init':'GS_i', 'state_tgt':'11111',
@@ -230,22 +203,30 @@ if(__name__ == '__main__'):
         paramsSim['guess'] = {}
         paramsSim['control'] = {'func':'step'}        
         
-    if(flag_PW):
-        paramsSim['overall'] = {'bounds':[0,1], 'ow_X':[0,T], 'ow_Y':[0,1]}
-        paramsSim['guess'] = None
-        paramsSim['control'] = {'func':'step'}
-    
-    
-        paramsOptim_DE =  {'algo':'DE','name_res':None,'nb_params':30,'params_init':'uniform_0_1',
-                           'params_bound':'range_0_1','de_maxiter':100,'_FLAG_NAME':'DE', 'de_popsize':2} 
-    
-        paramsOptim_GP = {'algo':'GP', 'name_res':None,'nb_params':15,'params_init':'uniform_0_1',
-                          'params_bound':'range_0_1','gp_init’:40,’gp_acq':'ei','gp_kernel':None,
-                          'gp_wnoise':0.01,'gp_maxiter':300,'_FLAG_NAME':'GP','flag_MP':7} 
         
-        paramsOptim_NM = {'algo':'NM','name_res':None,'nb_params':15,'params_init':'uniform_-2_2', 
-                          'params_bound':'range_0_1','nm_maxiter':5000,'nm_maxfev':15000,'nm_ftol':1e-6,
-                          '_FLAG_NAME':'NM','flag_MP':7}
+        
+        
+    if(flag_PW):
+        controlFun_dico = {'T':T}
+        controlFun_dico['overall'] = {'bounds':[0,1], 'ow_X':[0,T], 'ow_Y':[0,1]}
+        controlFun_dico['guess'] = None
+        controlFun_dico['control'] = {'func':'step', 'nbP':15} 
+    
+        paramsSim['controlFun'] = controlFun_dico 
+    
+    
+        paramsOptim_DE =  {'algo':'DE','name_res':None, 'nb_params':15, 'seed':seed,
+                           'params_init':'uniform_0_1', 'params_bound':'range_0_1',
+                           'de_maxiter':100,'_FLAG_NAME':'DE', 'de_popsize':2} 
+    
+        paramsOptim_GP = {'algo':'GP', 'name_res':None, 'nb_params':15,
+                          'params_init':'uniform_0_1', 'params_bound':'range_0_1', 
+                          'gp_init’:40,’gp_acq':'ei','gp_kernel':None,'gp_wnoise':0.01,
+                          'gp_maxiter':300,'_FLAG_NAME':'GP','flag_MP':7, 'seed':seed} 
+        
+        paramsOptim_NM = {'algo':'NM','name_res':None, 'nb_params':15,'flag_MP':7,'seed':seed,
+                          'params_init':'uniform_-2_2', 'params_bound':'range_0_1',
+                          'nm_maxiter':5000,'nm_maxfev':15000,'nm_ftol':1e-6, '_FLAG_NAME':'NM'}
     
         paramsTesting = cp.copy(paramsSim)
         paramsTesting['fom_name'] = name_fom_testing
@@ -262,6 +243,8 @@ if(__name__ == '__main__'):
         params_ottimo = res_DE['opt_params']
     
         
+        
+    if(False):       
         #Recreate testing condition 1 
         import copy 
         p1 = copy.copy(paramsSim)
