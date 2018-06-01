@@ -57,15 +57,7 @@ class Models:
         
         self.SetupRandom(**args_model)
         self.SetupTime(**args_model)
-        self.UpdateStateInit(args_model['state_init'])
-        self.UpdateStateTarget(args_model.get('state_tgt'))
 
-    
-    def UpdateStateInit(self, init = None):
-        self.state_init = self.GetState(init)
-
-    def UpdateStateTarget(self, tgt = None):
-        self.state_tgt = self.GetState(tgt)    
      
     def SetupTime(self, **args_model):
         """ Generate time attributes of the model.
@@ -89,7 +81,7 @@ class Models:
         noise = args_model.get('noise')
         
         if(seed is not None):
-            self._rdmgen = rdm.init_random_generator(seed)
+            self._rdmgen = rdm.RandomGenerator.init_random_generator(seed)
         else:
             self._rdmgen = rdm.RandomGenerator()
             
@@ -181,7 +173,7 @@ class ControlledModels(Models):
     DIC_NAME2FUN['chebyFixedTrend'] = pfunc.cChebyshevFixedTrend
     DIC_NAME2FUN['cheby'] = pfunc.cChebyshev    
     DIC_NAME2FUN['chebyOdd'] = pfunc.cChebyshevOdd
-    DIC_NAME2FUN['step'] = pfunc.StepFunc
+    DIC_NAME2FUN['step'] = pfunc.cStepFunc
     DIC_NAME2FUN['squareexp'] = pfunc.SquareExponential
     # DIC_NAME2FUN['sumsquareexp'] = pfunc.SumSquareExponential
 
@@ -194,7 +186,7 @@ class ControlledModels(Models):
         self.SetupControlFunction(controlFun)
 
 
-    def SetUpControlFunction(self, controlFun):
+    def SetupControlFunction(self, controlFun):
         """ Set up the control functions and 
         if callable (or list of callable are provided) store them directly
         if dico {'control':XXX, 'guess':YYY, 'overall':ZZZ} (or list) is provided
@@ -206,15 +198,19 @@ class ControlledModels(Models):
         if(ut.is_list(controlFun)):
             if(ut.is_callable(controlFun[0])):
                 self.controlFun = controlFun
+                self.info_control = None
             elif(ut.is_dico(controlFun[0])):
-                self.controlFun = [self.gen_control_functions(cf) for cf in controlFun]
+                tmp = [self.gen_control_functions(cf) for cf in controlFun]
+                self.controlFun = [t[0] for t in tmp]
+                self.info_control = [t[1] for t in tmp]
             else:
                 raise NotImplementedError()
         else:
             if(ut.is_callable(controlFun)):
                 self.controlFun = controlFun
+                self.info_control = None
             elif(ut.is_dico(controlFun)):
-                self.controlFun = self.gen_control_functions(controlFun)
+                self.controlFun, self.info_control = self.gen_control_functions(controlFun)
             else:
                 raise NotImplementedError()
 
@@ -290,7 +286,8 @@ class ControlledModels(Models):
 
         # Param function 
         p_control['T'] = T
-        if(self._name_algo == 'D-CRAB'):
+        flag = p_control.get('flag')
+        if(flag == 'D-CRAB'):
             f_param, info_control = self._gen_param_func(p_control, split = True)
         else:
             f_param, info_control = self._gen_param_func(p_control, split = False)
@@ -426,7 +423,6 @@ class ControlledModels(Models):
                 res_func = function_class(dico_params, ctts, ctts_type, bdries)
                 res_dico_args = ut.merge_N_dico(1, res_dico_args, dico_params)
 
-            else:
                 raise NotImplementedError()
             res_dico_args['nb_effective_params'] = res_func._nbTotalParams
         return res_func, res_dico_args
@@ -437,10 +433,12 @@ class ControlledModels(Models):
         if several control functions update them sequentially according to their
         numbers of free parameters: _nbTotalParameters
         """
+        #pdb.set_trace()
         if(index_control is None):
             if(self._nb_control_func > 1):
                 i_p = 0
                 for index, func in enumerate(self._nb_control_func):
+                    #What is we want to update part of the function via 
                     nb_eff = func._nbTotalParams                    
                     func.UpdateParams(params[i_p : i_p+nb_eff], **args)
                     i_p += nb_eff
@@ -457,11 +455,12 @@ class ControlledModels(Models):
         """
         om_ref = 2 * np.pi / T
         name_rdm = params.get('rdm_freq')
-        dico_args = {'rdm_freq':name_rdm}
+        dico_args = {'rdm_freq':name_rdm, 'flag_rdm':False}
 
         if(name_rdm not in [None, False]):
             args_rdm = ut.splitString(name_rdm)
             if(args_rdm[0] == 'CRAB'):
+                dico_args['flag_rdm'] = True
                 if(len(args_rdm) == 1):
                     rdv_method = 'uniform_-0.5_0.5'  
                 elif(len(args_rdm) == 2):
@@ -477,6 +476,7 @@ class ControlledModels(Models):
                 om = (1 + np.arange(nb_freq) + rdvgen()) * om_ref
                     
             elif(args_rdm[0] == 'DCRAB'):
+                dico_args['flag_rdm']=True
                 if(len(args_rdm)>1):
                     Nmax = int(args_rdm[1])
                 else:
@@ -486,6 +486,8 @@ class ControlledModels(Models):
                 rdvgen = rdm.gen_rdmnb_from_string(rdv_method, nb_freq)
                 om = rdvgen()                            
                 dico_args['flag'] = 'DCRAB'
+            else:
+                raise NotImplementedError()
         else:
             om = (1 + np.arange(nb_freq)) * om_ref
 
@@ -560,10 +562,19 @@ class QuspinModels(ControlledModels):
         """Store params of the toymodel
         """
         self._fom_func = None
-        ControlledModels.__init__(self, **args_model)
+        ControlledModels.__init__(self,controlFun, **args_model)
         self.SetupBasis(**args_model)
-        self.SetupH(self._ss, **args_model)
+        self.SetupH(**args_model)
         self.SetupFOM()
+        self.UpdateStateInit(args_model['state_init'])
+        self.UpdateStateTarget(args_model.get('state_tgt'))
+
+    
+    def UpdateStateInit(self, init = None):
+        self.state_init = self.GetState(init)
+
+    def UpdateStateTarget(self, tgt = None):
+        self.state_tgt = self.GetState(tgt)    
         
     def SetupBasis(self, **args_model):
         """ build the basis (self._ss) and potentially other basis
@@ -589,7 +600,7 @@ class QuspinModels(ControlledModels):
         self._fom_func['fluence'] =  (lambda x: self.GetFluence(self.t_array))
         self._fom_func['fluenceNorm'] =  (lambda x: self.GetFluence(self.t_array) / 2)
         self._fom_func['smooth'] = (lambda x: self.GetSmoothness(self.t_array))
-        self._fom_func['smooth2'] = (lambda x: self.GetSmoothness2(self.t_array))
+        
         
         #To add randomness
         self._fom_func['rdmplus'] = (lambda x: x + self._noise_func['fom']())
@@ -619,7 +630,7 @@ class QuspinModels(ControlledModels):
             elif(state == 'uniform'):
                 #GS at t = T
                 state_res = np.random.uniform(-1, 1, size=basis.Ns)
-                state_res = state_res / QuspinModels.norm(state_res)
+                state_res = state_res / QuspinModels.h_norm(state_res)
             else:
                 i_res = basis.index(state)
                 state_res = np.zeros(basis.Ns, dtype=np.float64)
@@ -634,7 +645,7 @@ class QuspinModels(ControlledModels):
 
     ### Helper functions
     @staticmethod
-    def h_ip(cls, V1, V2):
+    def h_ip(V1, V2):
         """ compute an inner product between V1 and V2
         """
         return np.dot(np.conj(np.squeeze(V1)), np.squeeze(V2))
@@ -647,11 +658,11 @@ class QuspinModels(ControlledModels):
     
     @staticmethod
     def h_fid2(V1, V2):
-        return np.square(np.abs(QuspinModels.ip(V1, V2)))
+        return np.square(np.abs(QuspinModels.h_ip(V1, V2)))
     
     @staticmethod
     def h_fid(V1, V2):
-        return np.abs(QuspinModels.ip(V1, V2))
+        return np.abs(QuspinModels.h_ip(V1, V2))
     
     @staticmethod
     def h_state2proba(ket1):
@@ -712,8 +723,8 @@ class QuspinModels(ControlledModels):
             assert(measur_basis.shape[1] == dim_ket)
             
         index_measure = np.arange(len(measur_basis))
-        proj = [QuspinModels.ip(basis, ket1) for basis in measur_basis]
-        proba = QuspinModels.probaFromState(proj)
+        proj = [QuspinModels.h_ip(basis, ket1) for basis in measur_basis]
+        proba = QuspinModels.h_probaFromState(proj)
         assert(np.sum(proba)<=(1.0 + num_precis)), "not a valid proba distrib" #should it be relaxed 
         proba_cum = np.concatenate(([0],np.cumsum(proba)))
         samples = np.random.sample(nb)
@@ -732,7 +743,7 @@ class QuspinModels(ControlledModels):
         if(H is None):
             H = self.H
             
-        if(ut.is_iter(time)):
+        gif(ut.is_iter(time)):
             res = [self.get_lowest_energies(t, nb, H) for t in time]
         else:
             res, _ = H.eigsh(time = time, k=nb, which='SA',maxiter=1E10)
@@ -756,7 +767,7 @@ class QuspinModels(ControlledModels):
             pop_ev = [self.project_to_instant_evect(t, ham, np.squeeze(state_t[:,n]), nb_ev) for n, t in enumerate(time)]
         else:
             en, ev = self.H.eigsh(time = time, k=nb_ev, which='SA',maxiter=1E10)
-            pop_ev = np.square(np.abs(QuspinModels.ip(state_t, ev)))
+            pop_ev = np.square(np.abs(QuspinModels.h_ip(state_t, ev)))
         return np.array(pop_ev)
     
     def plot_pop_adiab(self, **args_pop_adiab):
@@ -767,27 +778,43 @@ class QuspinModels(ControlledModels):
         if(hasattr(self,'pop_adiab')):
             pop_adiab = self.pop_adiab
             t_simul = self.t_simul
+            energies = self.energies
+            cf = self.get_controlFun_t(t_simul)
             nb_levels = pop_adiab.shape[1]    
-            f, axarr = plt.subplots(3, sharex=True)
+            f, axarr = plt.subplots(2,2, sharex=True)
             
+            axarr[0,0].plot(t_simul, cf, label = 'f(t)')
             for i in range(nb_levels):
                 pop_tmp = pop_adiab[:, i]
                 max_tmp = np.max(pop_tmp)
                 if(max_tmp > 0.1):
-                    axarr[0].plot(t_simul, pop_tmp, label = str(i))
+                    axarr[0,1].plot(t_simul, pop_tmp, label = str(i))
+                    axarr[1,0].plot(t_simul, energies[:, i], label = str(i))
                 elif(max_tmp > 0.01):
-                    axarr[1].plot(t_simul, pop_tmp, label = str(i))
-                else:
-                    axarr[2].plot(t_simul, pop_tmp, label = str(i))
+                    axarr[1,1].plot(t_simul, pop_tmp, label = str(i))
+                    axarr[1,0].plot(t_simul, energies[:, i], label = str(i))
             
-            axarr[0].legend()
-            axarr[1].legend()
-            axarr[2].legend()
+            axarr[0,1].legend()
+            axarr[1,1].legend()
+            axarr[1,0].legend()
+            axarr[0,0].legend()
+
                         
         else:
             _ = self.EvolutionPopAdiab(**args_pop_adiab)
             self.plot_pop_adiab()
         
+    def get_controlFun_t(self, t_array = None):
+        if(t_array is None):
+            t_array = self.t_array
+            
+        if(self._nb_control_func == 0):
+            res = None
+        elif(self._nb_control_func == 1):
+            res = np.array([self.controlFun(t) for t in t_array])
+        else:
+            res = np.array([[cf(t) for cf in self.controlFun] for t in t_array])
+        return res
         
 def linear(val, a = -1, b = 1):
     """ f(x) = b + ax, by def f(x) = 1 - x
