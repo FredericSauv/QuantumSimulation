@@ -351,7 +351,7 @@ class pFunc_base():
     @abstractmethod
     @ut.vectorise_method
     def __call__(self, X, Y=None, eval_gradient=False):
-        """Evaluate the kernel."""
+        """Evaluate the function."""
         
     def clone(self, theta):
         """Returns a clone of self with given hyperparameters theta. """
@@ -518,93 +518,32 @@ class pFunc_collec(pFunc_Base):
     #   I/O
     # ----------------------------------------------------------------------- #
     def to_dico(self):
-        """ Output a dico which should allow to reconstruct the function
-        """
+        """ Output a dico with vital infos .. is it necessary??"""
         raise NotImplementedError()
     
     def __repr__(self):
-        return "{0}(**{1})".format(self.__class__.__name__, self.get_params()) 
-    
-    def __repr__(self):
-        """ Output a text file which should allow to reconstruct the function
-        """
-        name_func = self.__class__.__name__
-        str_list = "list(["
-        for fun in self.listFun:
-            str_list = str_list + repr(fun) + ","
-        str_list = str_list[:-1]
-        str_list += "])"
-        str_final = name_func + "(func=" + str_list 
-        
-        if(self._constraints is not None):
-            str_final += ",constraints="
-            str_final += str(self._constraints)
-            str_final += ",typeSS='"
-            str_final += str(self._typeSS)
-            str_final += "'"
+        name_collec = self.__class__.__name__
+        list_func = str([repr(f) for f in self.list_func])
+        list_func_bounds = str(self.list_func_bounds)
+        return "{0}(list_func={1}, list_func_bounds={2})".format(name_collec, 
+                list_func, list_func_bounds) 
             
-        if(self._boundaries is not None):
-            str_final += ",boundaries="
-            str_final += str(self._boundaries)
-        
-        str_final += ")"
-        return str_final
-        
-    
-# --------------------------------------------------------------------------- #
-#   Implementations
-# --------------------------------------------------------------------------- #
-class Product(pFunc_collec):
-    """Product of several pFuncs (<pFunc_base> or <pFunc_collec>) 
-    [f1, f2, c1](t) >> f1(t) * f2(t) * c1(t) """
     
     @ut.vectorise_method
-    def __call__(self, variable):
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """return a list of each evaluation function."""
         list_pfunc = self._get_one_param('list_func')
-        return np.product([f(variable) for f in list_func])
-        
+        return [f(variable) for f in list_func]
     
-class Sum(CollectionParametrizedFunctionFactory):        
-    """Sum of several pFuncs (<pFunc_base> or <pFunc_collec>) 
-    [f1, f2, c1](t) >> f1(t) + f2(t) + c1(t) """
+    ### New methods    
+    @property
+    def list_func(self):
+        return self._get_one_param('list_func')
     
-    @ut.vectorise_method
-    def __call__(self, variable):
-        ow, ow_val = self.OW(variable)
-        if(ow):
-            res = ow_val
-        else:
-            resPerFun = [f(variable) for f in self.listFun]
-            res = np.sum(resPerFun)
-            res = self.ShiftAndScale(res, t = variable)
-            res = self.Bound(res)
-            
-        return res
- 
-class Composition(CollectionParametrizedFunctionFactory):
-    """
-    Implementation of collectionOfFunctions
-    [f1, f2](t) >> f1(f2(t))
-    Gradient should be implemented
-    """
-    def __init__(self, func = None, constraints = None, typeSS = 'scale', boundaries = None, listX=None, listY=None):
-        CollectionParametrizedFunctionFactory.__init__(self, func, constraints, typeSS, boundaries, listX, listY)
-
-    @ut.vectorise_method
-    def __call__(self, variable):
-        ow, ow_val = self.OW(variable)
-        if(ow):
-            res = ow_val
-        else:
-            res = variable
-            for f in self.listFun:
-                res = f(res) 
-                
-            res = self.ShiftAndScale(res, t = variable)
-            res = self.Bound(res)
-        return res
-    ### New methods
-            
+    @property
+    def list_func_bounds(self):
+        return self._get_one_bound('list_func')
+    
     def add_new_function(self, pfunc, pfunc_bound= True, index = None):
         """ Add new <pFunc_base> or <pFunc_collect> to the collection"""
         raise NotImplementedError()
@@ -620,4 +559,41 @@ class Composition(CollectionParametrizedFunctionFactory):
     def get_function(self, index = 0):
         """ Return the index-th <pFunc_base> or <pFunc_collect> of the collection"""
         return self._get_one_param('list_func')[index]
+        
+    
+# --------------------------------------------------------------------------- #
+#   Implementations
+# --------------------------------------------------------------------------- #
+class Product(pFunc_collec):
+    """Product of several pFuncs (<pFunc_base> or <pFunc_collec>) 
+    [f1, f2, c1](t) >> f1(t) * f2(t) * c1(t) """
+    
+
+    @ut.vectorise_method
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """Evaluate the function."""
+        return np.product(pFunc_collec(X, Y, eval_gradient))
+        
+    
+class Sum(CollectionParametrizedFunctionFactory):        
+    """Sum of several pFuncs (<pFunc_base> or <pFunc_collec>) 
+    [f1, f2, c1](t) >> f1(t) + f2(t) + c1(t) """
+    
+    @ut.vectorise_method
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """Evaluate the function."""
+        return np.sum(pFunc_collec(X, Y, eval_gradient))
+    
+ 
+class Composition(CollectionParametrizedFunctionFactory):
+    """Composition of several pFuncs (<pFunc_base> or <pFunc_collec>) 
+    [f1, f2, c1](t) >> f1(f2(c1(t)))) """
+    @ut.vectorise_method
+
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """Evaluate the function."""
+        list_pfunc = self._get_one_param('list_func')
+        for f in list_pfunc:
+            X = f(X, Y, eval_gradient=False)
+        return X
         

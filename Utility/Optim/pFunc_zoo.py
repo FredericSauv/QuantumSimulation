@@ -1,17 +1,19 @@
+class pFunc_factory():
+    """ Generate on demand parametrized function
+    """
+    pass
 
 
-#==============================================================================
-#                   ParametrizedFunctions
-# 
+
+
+
+# --------------------------------------------------------------------------- #
+# Parametrized function zoo: several parametrized functions with no param fixed
 # StepFunc         
 # FourierFunc
 # LinearFunc
 # ConstantFunc
 # ChebyshevFun
-#TODO: bounded scale ... as functions sclae probably split up in different function sin
-#============================================================================== 
-# --------------------------------------------------------------------------- #
-#   Step Function
 # --------------------------------------------------------------------------- #
 class StepFunc(ParametrizedFunctionFactory):
     """
@@ -488,75 +490,7 @@ class ChebyshevFun(ParametrizedFunctionFactory):
 
 
 
-# --------------------------------------------------------------------------- #
-#   Implementations
-# --------------------------------------------------------------------------- #
-class Times(CollectionParametrizedFunctionFactory):
-    """
-    Implementation of collectionOfFunctions
-    [f1, f2](t) >> f1(t) * f2(t)
-    Gradient should be implemented
-    """
-    def __init__(self, func = None, constraints = None, typeSS = 'scale', boundaries = None, listX=None, listY=None):
-        CollectionParametrizedFunctionFactory.__init__(self, func, constraints, typeSS, boundaries, listX, listY)
 
-    @ut.vectorise_method
-    def __call__(self, variable):
-        ow, ow_val = self.OW(variable)
-        if(ow):
-            res = ow_val
-        else:
-            resPerFun = [f(variable) for f in self.listFun]
-            res = np.product(resPerFun)
-            res = self.ShiftAndScale(res, t = variable)
-            res = self.Bound(res)
-
-        return res
-        
-class Plus(CollectionParametrizedFunctionFactory):        
-    """
-    Implementation of collectionOfFunctions
-    [f1, f2](t) >> f1(t) + f2(t)
-    Gradient should be implemented
-    """
-    def __init__(self, func = None, constraints = None, typeSS = 'scale', boundaries = None, listX=None, listY=None):
-        CollectionParametrizedFunctionFactory.__init__(self, func, constraints, typeSS, boundaries, listX, listY)
-
-    @ut.vectorise_method
-    def __call__(self, variable):
-        ow, ow_val = self.OW(variable)
-        if(ow):
-            res = ow_val
-        else:
-            resPerFun = [f(variable) for f in self.listFun]
-            res = np.sum(resPerFun)
-            res = self.ShiftAndScale(res, t = variable)
-            res = self.Bound(res)
-            
-        return res
- 
-class Composition(CollectionParametrizedFunctionFactory):
-    """
-    Implementation of collectionOfFunctions
-    [f1, f2](t) >> f1(f2(t))
-    Gradient should be implemented
-    """
-    def __init__(self, func = None, constraints = None, typeSS = 'scale', boundaries = None, listX=None, listY=None):
-        CollectionParametrizedFunctionFactory.__init__(self, func, constraints, typeSS, boundaries, listX, listY)
-
-    @ut.vectorise_method
-    def __call__(self, variable):
-        ow, ow_val = self.OW(variable)
-        if(ow):
-            res = ow_val
-        else:
-            res = variable
-            for f in self.listFun:
-                res = f(res) 
-                
-            res = self.ShiftAndScale(res, t = variable)
-            res = self.Bound(res)
-        return res
        
         
 #==============================================================================
