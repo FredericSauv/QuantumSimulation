@@ -12,7 +12,7 @@ if(__name__ == '__main__'):
 else:
     from .. import Helper as ut
 
-from numpy import array
+
 import numpy as np
 import numpy.polynomial.chebyshev as cheb
 import matplotlib.pylab as plt
@@ -254,9 +254,7 @@ class ParametrizedFunctionFactory(ShiftedAndScaled, Bounded, Overwrite):
         self._nbParams = len(self._params)
         
     def UpdateParams(self, params, **args):
-        """
-        Purpose:    
-            Update paramaters dictionary (_params) with new parameters (params).
+        """Update paramaters dictionary (_params) with new parameters (params).
             params (its keys) should be a subset of _params if not it will fail
         Extra:
             Extra custom update procedures of the parameters can be implemented in 
@@ -370,6 +368,8 @@ class ParametrizedFunctionFactory(ShiftedAndScaled, Bounded, Overwrite):
         
     
     def CloneFunc(self):
+        """ Clone function
+        """
         return eval(repr(self))
 
     @classmethod
@@ -444,7 +444,7 @@ class StepFunc(ParametrizedFunctionFactory):
         f(t>=T_N) = f_N
     """        
     NAME_FUNC = "StepFunc"
-    LIST_NAME_PARAMS = ['F', 'F0']
+    LIST_NAME_PARAMS = ['F', 'F0', 'Tstep']
     def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False, listX = None, listY = None):
         ParametrizedFunctionFactory.__init__(self, params, constraints, typeSS, boundaries, fixedParams, listX, listY)
 
@@ -458,7 +458,7 @@ class StepFunc(ParametrizedFunctionFactory):
         if (isinstance(params, dict)):
             F = params.get('F')
             F0 = params.get('F0', 0)
-            T = params.get('Tstep')
+            T = params['Tstep']
             
             if(F is not None):
                 T, F = ut.sortAccordingToFirst(T, F)                
@@ -469,7 +469,8 @@ class StepFunc(ParametrizedFunctionFactory):
                 F = np.zeros_like(T)
             params = {'Tstep':T, 'F':np.array(F), 'F0':F0}
         else:
-            raise NotImplementedError()    
+            raise NotImplementedError()
+        self._eff_params_list = ['F', 'F0']
         self._nbTotalParams = len(F) + 1
         return params            
 
@@ -504,15 +505,13 @@ class StepFunc(ParametrizedFunctionFactory):
             dico_params = ut.filter_dico(params, self._eff_params_list)
         else:
             assert len(params) == self._nbSteps, " params don't have the right size"
-            dico_params = {'F':np.array(params)}            
+            dico_params = {'F':np.array(params)} #NOT what is implied by self._eff_params_list = ['F', 'F0']       
         return dico_params
         
     def _CustomUpdate(self, params):
         pass
     
-    def Smoothness(self, array_t = None):
-        # use of lag1 autocoorelation??
-        raise NotImplementedError()
+
         
 # --------------------------------------------------------------------------- #
 #   Step Function
@@ -1518,7 +1517,7 @@ class cSineTrend(Plus):
         Plus.__init__(self, [sin, trend], constraints, typeSS, boundaries)
     
     
-    def UpdateParams(self, params):
+    def UpdateParams(self, params, **args):
         """
         Purpose:
             Update of the 'B' parameters of the fourier series (1st function
@@ -1561,7 +1560,7 @@ class cSineFixedTrend(cSineTrend):
         self._eff_params_list = ['B']
         self._nbTotalParams = self.GetFunction(0)._nbTotalParams
 
-    def UpdateParams(self, params):
+    def UpdateParams(self, params, **args):
         """
         Purpose:
             Update of only the 'B' parameters of the fourier series
@@ -1589,7 +1588,7 @@ class cSineTrendFixedCt(cSineTrend):
         self._eff_params_list = ['B', 'a']
         self._nbTotalParams = self.GetFunction(0)._nbTotalParams + 1
     
-    def UpdateParams(self, params):
+    def UpdateParams(self, params, **args):
         """
         Purpose:
             Update of only the 'B' parameters of the fourier series
@@ -1786,11 +1785,8 @@ class cChebyshevEvenFixedCt(cChebyshev):
         return 2 * nb_params # c0 
     
 class cChebyshevFixedTrend(cChebyshevEvenFixedCt):
-    """
-    Purpose:
-        Exactly as cChebyshevEvenFixedCt except that initialization can deal with parameters
+    """Exactly as cChebyshevEvenFixedCt except that initialization can deal with parameters
         'a' and 'b'
-        
     """
     def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None):
         a, b = params.get('a'), params.get('b')
@@ -1810,8 +1806,27 @@ class cChebyshevFixedTrend(cChebyshevEvenFixedCt):
     def GetNbH(cls, nb_params):
         return 2 * nb_params     
 
+class cStepFunc(StepFunc):
+    """stepFun with only 'F' free
+    """        
+
+    def __init__(self, params, constraints = None, typeSS = 'scale', boundaries = None, fixedParams = False, listX = None, listY = None):
+        StepFunc.__init__(self, params, constraints, typeSS, boundaries, fixedParams, listX, listY)
+        self._eff_params_list = ['F']
+        self._nbTotalParams = len(self.GetParams('F'))
 
 
+    def _ProcessUpdateParams(self, params):
+        """
+        if the params to be updated is a dict filter it and pass it
+        if not assume it's an iterable and that it should be used to update F
+        """
+        if(isinstance(params, dict)):
+            dico_params = ut.filter_dico(params, self._eff_params_list)
+        else:
+            assert len(params) == self._nbTotalParams, " params don't have the right size"
+            dico_params = {'F':np.array(params)}        
+        return dico_params
 
 
 
