@@ -44,12 +44,25 @@ class AbstractOptimML(optim.AbstractOptim):
 #   run
 #   save     
 # ------------------------------------------------------
+    #Default hyperparameters of the optimizer 
+    _def_GP = {'disp':True, 'gp_acq':'ucb', 'gp_kappa':5.0, 'gp_maxiter':150,
+               'gp_init':None, 'gp_verbose':False, 'gp_kernel':'matern2.5', 
+               'gp_wnoise':0.1, 'gp_scaling':0.1, 'flag_MP':False, 
+               'gp_acq_iter':250, 'gp_n_warmup':100000}
+
+    _def_DE = {'disp':True, 'de_maxiter':50, 'de_popsize':10, 'de_tol':0.01}        
+        
+    
+    _DEF_PARAMETERS = optim.AbstractOptim._DEF_PARAMETERS 
+    _DEF_PARAMETERS['NM'] = _def_GP
+    _DEF_PARAMETERS['BH'] = _def_DE
     
     def __init__(self, paramsOptim = None, paramsSimulation = None, paramsSimulationTest = None):
         optim.AbstractOptim.__init__(self, paramsOptim, paramsSimulation, paramsSimulationTest)
         self.ALGO_AVAILABLE['DE'] = self.runDE
         self.ALGO_AVAILABLE['GP'] = self.runGP
 
+    
 
 # ------------------------------------------------------
 # ML based OPTIMIZATION PROCEDURES :
@@ -57,42 +70,22 @@ class AbstractOptimML(optim.AbstractOptim):
 # runGP - GP
 # ------------------------------------------------------
     def runDE(self, arg2costFun = None, argsOptim = None, writeLogs = False):
-        """ 
-        What it does:
-            Implementation of a differential evolution optimizer
-            (need bounds)
-
+        """ Implementation of a differential evolution optimizer (need bounds)
         """
-        if arg2costFun is None:
-            arg2costFun = self.arg2costFun
         cost = ut.reduceFunToFirstOutput(arg2costFun) 
 
         #Optim setup and run
-        bounds= argsOptim['params_bound']
-        popsize = argsOptim['de_popsize']
-        maxiter =argsOptim['de_maxiter']
-        disp = argsOptim['disp'] 
-        
-        resultOptim = sco.differential_evolution(cost, bounds, popsize = popsize, maxiter = maxiter, disp = disp)
+        options = {'bounds':argsOptim['params_bound'], 'popsize':argsOptim['de_popsize'],
+                   'maxiter':argsOptim['de_maxiter'], 'disp':argsOptim['disp']}
+
+        resultOptim = sco.differential_evolution(cost, **options)
         return resultOptim
 
     
     def runGP(self, arg2costFun = None, argsOptim = None, writeLogs = False):
-        """ 
-        What it does:
-            Run a bayesian optimization using the library Bayesian Optimization
+        """ Run a bayesian optimization using the library Bayesian Optimization
             (https://github.com/fmfn/BayesianOptimization) built on 
-            
-        Comment:
-        #TODO: tuning of the kernel in particular implement ARD
-        #TODO: Transfert Learning
-        #TODO: REMBO
-        #TODO: Prior on the measurement noise
-        #TODO: parrallelization of the acq_max
-        #TODO: Final optim
-        #TODO: Bigger alphabet
         """        
-        
         bo, bo_args, name_params, nb_points_init = self.InitializeGP(argsOptim, arg2costFun)
         bo.maximize(init_points=0, **bo_args)
 
@@ -133,33 +126,27 @@ class AbstractOptimML(optim.AbstractOptim):
 # Support function
 # ------------------------------------------------------
     def InitializeGP(self, argsGP, arg2costFun):
-        """ Create the GP model with 
+        """ Create the GP model 
         """
-        #pdb.set_trace()
         acq = argsGP.get('gp_acq') #acquisition function
         niter = argsGP.get('gp_maxiter') # Number of data to get
-        kappa = argsGP.get('gp_kappa')
+        
         verbose = argsGP.get('gp_verbose')
         init_type = argsGP.get('gp_init') #    
-        kernel = argsGP.get('gp_kernel')
-        white_noise = argsGP.get('gp_wnoise')
-        scaling_ker = argsGP.get('gp_scaling')
-        flag_MP = argsGP.get('flag_MP', False)
-        gp_acq_iter = argsGP.get('gp_acq_iter')
-        gp_n_warmup = argsGP.get('gp_n_warmup')
         
-        dico_gp = {'kernel': kernel, 'whiteNoise':white_noise, 'scalingKer':scaling_ker, 
-                   'flag_MP': flag_MP, 'gp_acq_iter': gp_acq_iter, 'gp_n_warmup': gp_n_warmup}
+        dico_gp = {'kernel': argsGP['gp_kernel'], 'whiteNoise':argsGP['gp_wnoise'], 
+                   'scalingKer':argsGP['gp_scaling'], 'flag_MP': argsGP['flag_MP'], 
+                   'gp_acq_iter': argsGP['gp_acq_iter'], 'gp_n_warmup': argsGP['gp_n_warmup']}
         
         #static kappa (parameters)
+        kappa = argsGP.get('gp_kappa')
         if(isinstance(kappa, float)):
             kappa = np.repeat(kappa, niter)
-        #Dynamic kappa
         else:
             bits = ut.splitString(kappa)
             if(bits[0] == 'linear'):
                 kappa = float(bits[1]) * (1 - np.arange(niter) / (niter - 1))
-            #kappa = kappa[0] #TODO: CHANGEEE
+
         
         # name the parameters in a consistent way
         name_params = [str(i) for i in range(self._nb_params)]
@@ -214,29 +201,7 @@ class AbstractOptimML(optim.AbstractOptim):
         return bo, bo_args, name_params, nb_points_init
     
     
-    
-    
-    def GenDefaultOptimParameters(self):
-        """
-        Purpose:
-            Generate default parameters for the optimizer
-        """
-        dico = optim.AbstractOptim.GenDefaultOptimParameters(self)
-
-        # Differential Evolution algorithm
-        dico['de_maxiter'] = 50 
-        dico['de_popsize'] = 10  #pop = nbParams * popsize  
-        dico['de_tol'] = 0.01
-    
-        # Gaussian Processes
-        dico['gp_acq'] ='ucb'
-        dico['gp_kappa'] = 5.0
-        dico['gp_maxiter'] = 150
-        dico['gp_init'] = None
-        dico['gp_verbose'] = False
-    
-        return dico
-    
+        
     
     def PrintDefaultOptimParameters(self):
         dicoDef = self.GenDefaultOptimParameters()

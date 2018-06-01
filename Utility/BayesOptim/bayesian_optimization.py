@@ -49,7 +49,7 @@ class BayesianOptimization(object):
         self.i = 0
 
         #NEWFS used only for acq_max
-        self._mp_enable = kwargs.get('flag_MP')
+        self._mp_enable = kwargs['flag_MP']
         self._init_mp_pool(self._mp_enable)
 
         #NEW FS TO IMPLEMENT DIFFERENT KERNELS
@@ -114,10 +114,9 @@ class BayesianOptimization(object):
         self.verbose = verbose
         
         #NewFS
-        #self._time_init = time.time()
         self._nb_ev = 0
-        #self._bestfom_fev = []
-        #self._bestfom_time = []
+
+
 
     def init(self, init_points):
         """

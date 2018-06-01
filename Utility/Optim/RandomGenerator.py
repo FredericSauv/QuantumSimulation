@@ -48,7 +48,7 @@ class RandomGenerator(rdm.RandomState):
         elif(ut.is_int(rdm_object)):
             return RandomGenerator(seed = rdm_object)
             
-        elif(rdm_object.__class__ == 'RandomGenerator'):
+        elif(rdm_object.__class__ == cls):
             return rdm_object
         
         else:
@@ -87,36 +87,6 @@ class RandomGenerator(rdm.RandomState):
         return res
 
 
-#def getRandomGenerator(method = None, size = 1, seed = None):
-#    """
-#    Purpose: 
-#
-#    Methods:
-#        + 'uniform_A_B' for each params value drawn from Unif(A, B)
-#        + 'normal_A_B' for each params value drawn from Normal(A, B)
-#
-#        +
-#    """
-#    if method is None:
-#        res = None
-#    
-#    else:
-#        rdm.seed(seed)
-#        args = splitString(method)
-#        if(args[0] == 'uniform'):
-#            def fun():                    
-#                rdm_args = rdm.uniform(low = float(args[1]), high = float(args[2]), size = size)
-#                return rdm_args
-#            
-#        elif(args[0] == 'normal'):
-#            def fun():
-#                rdm_args = rdm.normal(loc = float(args[1]), scale = float(args[2]), size = size)
-#                return rdm_args
-#        else:
-#            raise NotImplementedError()
-#            
-#        res = fun
-#    return res
 
     def gen_rdmfunc_from_string(self, method_rdm, dim = 1):
         """return a function that when called return random variables according
