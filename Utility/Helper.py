@@ -228,11 +228,15 @@ def merge_dico(dico_init, dico_new, update_type = 0, copy = True):
         2                      CREATE//        ADD NEW VALUE TO THE OLD ONE 
         3                      CREATE//        FAIL IF IT IS NOT THE SAME VALUE 
     """
+
     if(copy):
         dico_final = dico_init.copy() 
     else:
         dico_final = dico_init
-        
+
+    if(dico_new is None):
+        return dico_final
+    
     for k, v in dico_new.items():
         if (update_type == 1):
             assert (k not in dico_final), '1 : entry already existing'
