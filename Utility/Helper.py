@@ -319,7 +319,23 @@ def extract_from_nested(nested_structure, path = []):
         res = res[p]
 
     return res
-        
+
+
+def is_x_in_y(x, y, tol=0):
+    """ depending on the shape of test if x == y, x in [y[0], y[1]] """
+    res = False
+    if is_iter(y):
+        if (len(y) >=2):
+            res = (x >= y[0] - tol) * (x <= y[1] + tol)
+        else:
+            res = (np.abs(x-y[0]) <= tol)   
+    else:
+        res = (np.abs(x-y) <= tol)
+    return res
+
+def is_x_not_in_y(x, y, tol=0):
+    """ depending on the shape of test if x == y, x in [y[0], y[1]] """
+    return not(is_x_in_y(x, y, tol))
 #==============================================================================
 #                   FUNCTIONS
 # Not really used.. May be deleted
@@ -1140,7 +1156,7 @@ def is_list(obj):
 #                   Decorators
 # Build generators with arguments
 #==============================================================================
-#TODO: more general decorator e.g. vectorize f(x_ND) -> f(x_(N+1)D) = np.array([x[i]_ND ... ]
+#TODO: replace everything with extend_method_to_higher_dim
 def vectorise_method(f):
     @wraps(f)
     def vectorized_method(self, arg, **kwargs):
@@ -1177,6 +1193,23 @@ def vectorise_method_ndim(n_dim):
                 raise NotImplementedError()
         return vectorized_method
     return vectorize_impl
+
+def extend_dim_method(n_dim=0, array_output = False):
+    """ for a method taking as its first positional argunent 
+    an object of nb_dim = n_dim extend it s.t. it accepts
+    """
+    def extend_impl(f):
+        @wraps(f)
+        def extended_method(self, arg, *args, **kwargs):
+            n_dim_args = len(np.shape(arg))
+            if n_dim_args == (n_dim + 1):
+                res = [f(self, x, *args, **kwargs) for x in arg]
+                if array_output:
+                    res = np.array(res)
+            else:
+                res = f(self, arg, *args, **kwargs)
+            return res
+        return extended_method
 
 #==============================================================================
 #                   Decorators
