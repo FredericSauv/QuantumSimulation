@@ -15,101 +15,185 @@ if(__name__ == '__main__'):
     sys.path.append("../../")
     from QuantumSimulation.Utility import Helper as ut
     from QuantumSimulation.Utility.Optim import RandomGenerator as rdm
-    from QuantumSimulation.Utility.Optim import ParametrizedFunctionFactory as pfunc
+    from QuantumSimulation.Utility.Optim import pFunc_base as pfbase
+    from QuantumSimulation.Utility.Optim import pFunc_zoo as pfzoo
+
 else:
     from ..Utility import Helper as ut
     from ..Utility.Optim import RandomGenerator as rdm
-    from ..Utility.Optim import ParametrizedFunctionFactory as pfunc
+    from ..Utility.Optim import pFunc_base as pfbase
+    from ..Utility.Optim import pFunc_zoo as pfzoo
 
 
-class Models:
-    """Base class for (quantum) models i.e. 
-    Attributes:
 
+class model_base:
+    """Base class for (quantum) models i.e. define what a model / simulation is.
+    A model is comprised of an Hamiltonian (self._H), an underlying state space
+    (self._ss), time characteristics s.a horizon self.T, ). 
     
-    Methods:
-        - SetupTime
-        - SetupRandom:    
-        - UpdateStateInit / UpdateStateTarget
-        - ComputeFOM
+    Evolving the system: from an initial state (self.state_init) make it evolve according 
+    to an Hamiltonian (self._H) up to final time (horizon self.T) while recording intermediate
+    state if 'flag_intermediate' is True
+
+    Simulating the system is understood as evolving the system and computing some figure of merit
+    (a choice has be made to make this computation of fom part of the model_base).
+
+    Optionally one can provide a random_obj and noise_obj
+
+    TODO: implement mprocessing capabilities the same way as random
     """
-    LIST_ARGS = {'T':'<float> Horizon of the simul', 'dt':'<float> time step', 
+    _LIST_ARGS = {'T':'<float> Horizon of the simul', 'dt':'<float> time step', 
                  'flagInterTime':'<bool> allows the use of intermediate times', 
                  'state_init':'<string/np.array> Initial state'}
     
-    LIST_ARGS_OPT = {'seed': '<int/randomstate/None> Use to generate/pass the random generator',
+    _LIST_ARGS_OPT = {'rdm_obj': '<int/randomstate/None> Use to generate/pass the random generator',
                      'noise':'<dict<string>> to build noise in the model ', 
                      'state_target': '<string/np.array> Target state'}
     
     def __init__(self, **args_model):
         """ 
         """
-        self._ss = None
-        self.H = None
-        self.state_init = None
-        self.state_tgt = None
-        self.state_t = None
+        self._ss = None # underlying state space
+        self._H = None # Hamiltonian
+        self._rdmgen = None #random generator
+        self._fom_func = None # functions available to compute FOM
+        self._t_array = None #
         self.pop_t = None
-        self.time_array = None
-        self.t_simul = None
-        self._rdmgen = None
-        self._fom_func = None
-        
-        self.SetupRandom(**args_model)
-        self.SetupTime(**args_model)
+        self.t_simul = None # time array of the simulation
+        self.T = None #Horizon of the simulation
+               
+        self._setup_time(**args_model)
+        self.rdm_gen = args_model.get('rdm_obj')
+        self.noise = args_model.get('noise')
+        self.state_init = args_model['state_init']
+        self.state_tgt = args_model.get('state_tgt')
+        self.main_fom = args_model.get('fom') # functions available to compute FOM
 
-     
-    def SetupTime(self, **args_model):
-        """ Generate time attributes of the model.
+
+    def set_up_fom_basic_bricks(self):
+        """ populate the dictionary self._fom_func of functions which can be used
+        to compose fom measures 
+        e.g. fom = 'last:f2t:square:rdmplus' stands for taking the last state ('last')
+         compute fidelity to target ('f2t' not implemented yet), square it ('square') 
+         and finaly add some randomness ('rdmplus' whih require that some _noise_func['fom'] 
+         exists).
         """
+        def last(V):
+            if(len(np.shape(V)) == 2):
+                return V[:, -1]
+            elif(len(np.shape(V)) == 1)
+                return V
+            else:
+                raise NotImplementedError
+
+        def neg(x):
+            return 1 - x
+
+        self._fom_func['max'] = np.max
+        self._fom_func['min'] = np.min
+        self._fom_func['avg'] = np.average
+        self._fom_func['sqrt'] = np.sqrt
+        self._fom_func['square'] = np.square
+        self._fom_func['last'] = last
+        self._fom_func['neg'] = neg
+
+        #To add randomness
+        self._fom_func['rdmplus'] = (lambda x: x + self._noise_func['fom']())
+        self._fom_func['rdmtime'] = (lambda x: x * (1 + self._noise_func['fom']()))
+        
+
+    @property
+    def state_init(self):
+        retun self._state_init 
+    
+    @property.setter
+    def state_init(self, init)
+        self._state_init = self.get_state(init)
+
+    @property
+    def state_tgt(self):
+        retun self._state_init 
+    
+    @property.setter
+    def state_tgt(self, tgt)
+        self._state_tgt = self.get_state(tgt)
+
+    @property
+    def state(self):
+        if(hasattr(self, '_state_t')):
+            return self._state_t 
+        else:
+            return None
+
+    @property.setter
+    def state(self, st):
+        self._state_t = st
+        self._pop_t = self._state_to_pop(st)
+
+    @property
+    def pop(self):
+        if(hasattr(self, '_pop_t')):
+            return self._pop_t
+        else:
+            return None
+    @property
+    def rdm_gen(self):
+        return self._rdmgen 
+    
+    @property.setter
+    def rdm_gen(self, rdm_obj)
+        self._rdmgen = rdm.init_random_generator(rdm_obj)
+
+    @property
+    def noise(self):
+        return self._noise_func
+    
+    @property.setter
+    def noise(self, noise):
+        if noise is None:
+            self._noise_func = None
+        elif(ut.is_dico(noise)):
+            self._noise_func = {k:self._gen_noise_function(v) for 
+                                k, v in noise.items()}
+        else:
+            raise NotImplementedError()
+
+    def _gen_noise_function(self, noise_obj):
+        """ allow generation of function based on different type of inputs"""
+        if(ut.is_str(noise_obj)):
+            try:
+                res = self.rdm_gen.gen_rdmfunc_from_string(v)
+            except:
+                res = eval()
+        elif(ut.is_callable(noise_obj)):
+            res = noise_obj
+        else:
+            raise NotImplementedError
+     
+    def _setup_time(self, **args_model):
+        """ Generate time attributes of the model."""
         self.T = args_model['T']
         self.dt = args_model['dt']
-        self._flag_intermediate = args_model['flagInterTime']
+        self._flag_intermediate = args_model['flag_intermediate']
         
         self.t_array = np.concatenate((np.arange(0, self.T, self.dt), [self.T]))
         if(self._flag_intermediate):
             self.t_simul = self.t_array
         else:
             self.t_simul = self.T
-        
-        
-    def SetupRandom(self, **args_model):
-        """ Generate the random generator of the model
-        noise = {'fom':'uniform_0_0.05'}
-        """
-        seed = args_model.get('seed')
-        noise = args_model.get('noise')
-        
-        if(seed is not None):
-            self._rdmgen = rdm.RandomGenerator.init_random_generator(seed)
-        else:
-            self._rdmgen = rdm.RandomGenerator()
-            
-        if(noise is not None):
-            self._noise_func = {k:self._rdmgen.gen_rdmfunc_from_string(v) for 
-                                k, v in self._random_dico.items() if k != 'seed'}
-        else:
-            self._noise_func = None
-    
+           
      
     ### LOGIC FOR COMPUTING THE FOM
-    def ComputeFOM(self, st, fom):
+    @ut.extend_dim_method
+    def _compute_fom(self, fom, st=self.state):
         """Compute a potentially composed FOM (or list of FOM)
-            i.e. fom = ['lst:f2t:neg:0.3, last:f2t2']
-        """        
-        if(isinstance(fom, list)):
-            res=list([])
-            for f in fom:
-                components = ut.splitString(f)
-                tmp = np.sum([self.ComputeFOMAtom(st, c) for c in components])
-                res.append(tmp)
-        else:
-            components = ut.splitString(fom)
-            res = np.sum([self.ComputeFOMAtom(st, c) for c in components])
+            i.e. fom = ['lst:f2t:neg:0.3, last:f2t2'] """        
+        components = ut.splitString(fom)
+        res = np.sum([self._compute_atom_fom(c, st) for c in components])
         return res       
 
 
-    def ComputeFOMAtom(self, st, fom):        
+    def _compute_atom_fom(self, fom, st=self.state):        
         """Compute a fom by composing functions
             e.g. ComputeFOMAtom(state, 'lst:f2t:neg:0.3') >> 0.3 * neg(f2t(lst))
             i.e. 0.3*(1 - f2t(st[-1])) i.e. inverse of the fidelity 
@@ -119,23 +203,23 @@ class Models:
         res = ut.compoFunctions(f2apply, st, order = 0)
         return res 
 
-
-    
     
     ###TO BE IMPLEMENTED IN THE CHILD CLASSES
-    def GetState(self, state):
-        """ Return a state based on some string/array/other format
-        """
+    def get_state(self, state):
+        """ Return a state based on some string/array/other format"""
         raise NotImplementedError()      
             
+    def _state_to_pop(self, st):
+        """ compute pop from state"""
+        raise NotImplementedError()
+
     def Simulate(self, **args):
         """ Main entry point to simulate the system: evolves the init state and 
-        performs other actions (typically computing a figure of Merit or other 
+        performs some other actions (typically computing a figure of Merit or other 
         statistic)
         """
         raise NotImplementedError()            
 
-        
     def Evolution(self, **args):
         """ Evolve the init_state according to the relevant method and store if
             required
@@ -145,476 +229,208 @@ class Models:
         raise NotImplementedError()      
 
 
-
-class ControlledModels(Models):
+class cModel_base(model_base):
     """ Base class for controlled models i.e. simulations depending of a
-    (some) time-dependent control function(s)
+    (some) time-dependent control function(s)"""
+    _LIST_ARGS = Models._LIST_ARGS
+    _LIST_ARGS['control_obj'] = "<callable> or <dict> or <str>"
     
-    Attributes:
-        - controlFun
-
-    
-    Methods:
-        - SetupControlFun
-        - __call__() 
-        - 
-    """
-    LIST_ARGS = Models.LIST_ARGS
-    LIST_ARGS['controlFun'] = "<callable/dict{'guess':XXX, 'control': YYY, 'overall'}>"
-    
-    # Available type of control functions
-    # TODO: move to pFunc_zoo class
-    DIC_NAME2FUN = {}
-    DIC_NAME2FUN['fourFixedCt'] = pfunc.cFourierAmplitudesFixedCt
-    DIC_NAME2FUN['sineFixedTrend'] = pfunc.cSineFixedTrend
-    DIC_NAME2FUN['sineTrendFixedCt'] = pfunc.cSineTrendFixedCt
-    DIC_NAME2FUN['sine'] = pfunc.cSine
-    DIC_NAME2FUN['chebyFixedCt'] = pfunc.cChebyshevFixedCt
-    DIC_NAME2FUN['chebyFixedTrend'] = pfunc.cChebyshevFixedTrend
-    DIC_NAME2FUN['cheby'] = pfunc.cChebyshev    
-    DIC_NAME2FUN['chebyOdd'] = pfunc.cChebyshevOdd
-    DIC_NAME2FUN['step'] = pfunc.cStepFunc
-    DIC_NAME2FUN['squareexp'] = pfunc.SquareExponential
-    # DIC_NAME2FUN['sumsquareexp'] = pfunc.SumSquareExponential
-
-
     def __init__(self, controlFun, **args_model):
-        """Store params of the toymodel
-        """
-        self.controlFun = None
+        """ init model and control functions (stored as a list) """
         Models.__init__(self, **args_model)
-        self.SetupControlFunction(controlFun)
+        self.control_fun = args_model('control_fun')
+        self._setup_fom_controlfun_bricks()
 
-
-    def SetupControlFunction(self, controlFun):
-        """ Set up the control functions and 
-        if callable (or list of callable are provided) store them directly
-        if dico {'control':XXX, 'guess':YYY, 'overall':ZZZ} (or list) is provided
-        generate the relevant control functions
-        
-        >> SetUpControlFunction(lambda x: x**2)
-        >> SetUpControlFunction(        
+       def _setup_fom_controlfun_bricks(self):
+        """ populate the dictionary self._fom_func of functions relating to the controlfun 
+        cf. doc self._setup_fom_basic_bricks
+        workaround: lambda function with one input x which is not used
         """
-        if(ut.is_list(controlFun)):
-            if(ut.is_callable(controlFun[0])):
-                self.controlFun = controlFun
-                self.info_control = None
-            elif(ut.is_dico(controlFun[0])):
-                tmp = [self.gen_control_functions(cf) for cf in controlFun]
-                self.controlFun = [t[0] for t in tmp]
-                self.info_control = [t[1] for t in tmp]
-            else:
-                raise NotImplementedError()
-        else:
-            if(ut.is_callable(controlFun)):
-                self.controlFun = controlFun
-                self.info_control = None
-            elif(ut.is_dico(controlFun)):
-                self.controlFun, self.info_control = self.gen_control_functions(controlFun)
-            else:
-                raise NotImplementedError()
+        self._fom_func['fluence'] =  (lambda x: 
+            self._get_info_control('fluence', self.t_array, None, None))
+        self._fom_func['smooth'] = (lambda x: 
+            self._get_info_control('smoothness', self.t_array, None, None))
 
-    def __call__(self, params, **args_call):
-        """ Model(params) >> res 
-        """
-        self.update_parameters(params)
-        res = self.simulate()
-        return res
+    #-----------------------------------------------------------------------------#
+    # Management of the contro_fun (a list)
+    #-----------------------------------------------------------------------------#
+    @property
+    def control_fun(self):
+        return self._control_fun
 
+    @property.setter
+    def control_fun(self, control):
+        list_fun = self._process_control_function(control)
+        if(not(ut.is_iter(funs))):
+            list_fun = [list_fun]
+        self._control_fun = list_fun
 
     @property
-    def _nb_control_func(self):
-        if(self.controlFun is None):
-            nb = 0
-        elif(ut.is_iter(self.controlFun)):
-            nb = len(self.controlFun)
-        else:
-            nb = 1
-        return nb
+    def n_controls(self):
+        return len(self.control_fun)
     
-# ---------------------------
-# GENERATION OF THE CUSTOM CONTROL FUNCTIONS
-# SHOULD MOVE TO pFunc_zoo at one point
-# ---------------------------
-    def gen_control_functions(self, params):
-        """ generate custom parametrized control function(s)
-        """
-        dicoGuess = params.get('guess', None)
-        dicoControl = params.get('control', None)
-        dicoOverall = params.get('overall', None)
-        T = params['T']
-        
-        if isinstance(dicoControl, list):
-            nb_fun = len(dicoControl)
-            control_func = []
-            control_info = []
-            
-            if(not(isinstance(dicoGuess, list))):
-                dicoGuess = [dicoGuess for _ in range(nb_fun)]
-            
-            if(not(isinstance(dicoOverall, list))):
-                dicoOverall = [dicoOverall for _ in range(nb_fun)]
-            
-            for i in range(len(dicoControl)):
-                ctl_tmp = dicoControl[i]
-                guess_tmp = dicoGuess[i]
-                overall_tmp = dicoOverall[i]
-                fun_tmp, info_tmp = self.gen_1control_function(guess_tmp, ctl_tmp, overall_tmp, T =T)
-                control_func.append(fun_tmp)
-                control_info.append(info_tmp)
-            
-            control_info= ut.concat_dico(control_info, global_name=None, suffix = 'f')
-        
-        else:
-            control_func, control_info = self.gen_1control_function(dicoGuess, dicoControl, dicoOverall, T =T)
+    def get_one_control_fun(self, index = 0):
+        return self.control_fun[index]
 
-        return control_func, control_info
+    def _process_control_function(self, control):
+        """ control_fun should be a (list of) callable(s)"""
+        if(ut.is_callable(control)):
+            return control
+        if(ut.is_iter(contol)):
+            return [self._process_control_function(c) for c in control]
 
+    def _get_info_control(self, info_type = 'fluence', t_array = self.t_array, index = None, func_wrap = None):
+        """ compute info on the controlfluenc of the control function (or of wrapped control functions) 
+        Provide some flexibility on which function(s) to consider and on potential
+        wrapping of the function (e.g. may be intereseted in the fluence of 1 - controlFun) """
+        if info_type == 'fluence':
+            info_func = self._fluence
+        elif info_type == 'smoothness':
+            info_func = self._smoothnes
 
-    def gen_1control_function(self, p_guess, p_control, p_overall, **args):
-        """ Generate one custom parametrized control function
-        f(t) = overall[f_guess(t) * f_param(t)]
-        where overall implement potential boundaries/rescaling
-        """
-        T = args['T']
-
-        # Guess
-        if(p_guess is not None):
-            p_guess['T'] = T
-        f_guess, info_guess = self._gen_param_func(p_guess)
-        f_guess.FixParams()
-
-        # Param function 
-        p_control['T'] = T
-        flag = p_control.get('flag')
-        if(flag == 'D-CRAB'):
-            f_param, info_control = self._gen_param_func(p_control, split = True)
-        else:
-            f_param, info_control = self._gen_param_func(p_control, split = False)
-        
-        # overall
-        if (p_overall is not None):
-            bds = p_overall.get('bounds')
-            ct = p_overall.get('constraints')
-            ct_type = p_overall.get('constraints_type')
-            ow_X = p_overall.get('ow_X')
-            ow_Y = p_overall.get('ow_Y')
-            f_control = pfunc.Times([f_param, f_guess], ct, ct_type, bds, ow_X, ow_Y)
-        else:
-            f_control = f_param
-
-        return f_control, info_control
-    
-            
-    def _gen_param_func(self, args, split = False):
-        """ generate parametrized functions:
-        """
-        if (args in [None, {}]):
-            res_func = pfunc.ConstantFunc(1)
-            res_dico_args = {'type':'constant', 'c0':1}
-
-        else:
-            T = args['T']
-            ctts = args.get('constraints')
-            ctts_type = args.get('constraints_type')
-            bdries = args.get('hard_wall')
-            name_function = args.get('func')
-            res_dico_args = {'func': name_function, 'constraints':ctts, 
-                             'constraints_type':ctts_type, 'T':T, 'hard_wall': bdries, 'indexFunToUpdate':0}
-            
-            if(name_function == 'constant'):
-                 c0 = args.get('c0')
-                 res_func = pfunc.ConstantFunc(c0)
-                 res_dico_args = {'type':'constant', 'c0':c0}
-                 
-            # Linear function
-            elif(name_function == 'linear'):
-                if((ctts is not None) and (len(ctts) == 2)):
-                    x0, y0 = ctts[0]
-                    x1, y1 = ctts[1]
-                    a = (y1 - y0)/(x1 - x0)
-                    b = y0 - a*x0
-                else:
-                    a = args.get('a')
-                    b = args.get('b')
-                dico_params = {'a':a, 'b':b}
-                res_dico_args = ut.add_dico(res_dico_args, dico_params)
-                res_func = pfunc.LinearFunc(dico_params)                    
-            
-            # Exponential function
-            elif(name_function == 'exp'):
-                raise NotImplementedError()
-            
-            elif(name_function == 'expramp'):
-                a = args['ampl']
-                T = args['T']
-                l = args['l']
-                dico_params = {'ampl':a, 'T':T, 'l':l}
-                res_func = pfunc.cFixedExpRamp(dico_params)
-            
-            # Fourier series type parametrization (needs a number of parameter
-            # or harmonics)
-            elif(name_function[:4] in ['four', 'sine']):
-                function_class = self.DIC_NAME2FUN[name_function]
-                nbH = args.get('nbH')
-                if(nbH is None):
-                    nbP = args.get('nbP')
-                    nbH = function_class.GetNbH(nbP)
-                else:
-                    nbP = None
-                    
-                om, dico_freq = self.__GenFrequencies(T, nbH, args)
-                phi = args.get('phi', 0)
-                a = args.get('a', 0)
-                b = args.get('b', 0)
-                c0 = args.get('c0', 0)
-                dico_params = {'nbP':nbP, 'c0':c0, 'phi':phi, 'om':om, 'a':a, 'b':b, 'nbH':nbH}
-                # Workaround for DCRAB optim
-                if(split):
-                    dico_params['c0'] = 0
-                    fs = function_class(dico_params, None, None, None)                  
-                    ct = pfunc.ConstantFunc(args.get('c0', 0))
-                    res_func = pfunc.Plus([fs, ct], ctts, ctts_type, bdries)
-                    res_dico_args['indexFunToUpdate'] = [0,0]
-                else:
-                    res_func = function_class(dico_params, ctts, ctts_type, bdries)
-                    
-                res_dico_args = ut.merge_N_dico(1, res_dico_args, dico_params, dico_freq)
-                    
-                                    
-            # Chebyshev type parametrization
-            elif(name_function[:5] == 'cheby'):
-                function_class = self.DIC_NAME2FUN[name_function]
-                nbP = args['nbP']
-                domain = args.get('domain', [0, T])
-                c0 = args.get('c0', 0)
-                dico_params = {'c0':c0, 'nbP': nbP, 'domain':domain}
-                a = args.get('a')
-                b = args.get('b')
-                if(a is not None):
-                    dico_params['a'] = a
-                if(a is not None):
-                    dico_params['c0'] = b
-
-                if(split):
-                    dico_params['c0'] = 0
-                    ch = function_class(dico_params, None, None, None)
-                    ct = pfunc.ConstantFunc(c0)
-                    res_func = pfunc.Plus([ch, ct], ctts, ctts_type, bdries) 
-                    res_dico_args['indexFunToUpdate'] = [0,0]
-                else:       
-                    res_func = function_class(dico_params, ctts, ctts_type, bdries)
-                res_dico_args = ut.merge_N_dico(1, res_dico_args, dico_params)
-            
-            #Step function
-            elif(name_function[:4] == 'step'):
-                nbP = args['nbP']
-                function_class = self.DIC_NAME2FUN[name_function]
-                step_dt = T / nbP
-                step_T = np.arange(0, T, step_dt)
-                dico_params = {'Tstep':step_T}
-                res_func = function_class(dico_params, ctts, ctts_type, bdries)
-                res_dico_args = ut.merge_N_dico(1, res_dico_args, dico_params)
-                
-            # sqquare exponential    
-            elif(name_function[:9] == 'squareexp'):  
-                function_class = self.DIC_NAME2FUN[name_function]
-                dico_params = {'sigma':1.0, 'mu':T/2, 'l':T/4}
-                res_func = function_class(dico_params, ctts, ctts_type, bdries)
-                res_dico_args = ut.merge_N_dico(1, res_dico_args, dico_params)
-
-                raise NotImplementedError()
-            res_dico_args['nb_effective_params'] = res_func._nbTotalParams
-        return res_func, res_dico_args
-    
-    def update_control_parameters(self, params, index_control = None,  **args):
-        """ Update the parameters of the control function(s)
-        index_control
-        if several control functions update them sequentially according to their
-        numbers of free parameters: _nbTotalParameters
-        """
-        #pdb.set_trace()
-        if(index_control is None):
-            if(self._nb_control_func > 1):
-                i_p = 0
-                for index, func in enumerate(self._nb_control_func):
-                    #What is we want to update part of the function via 
-                    nb_eff = func._nbTotalParams                    
-                    func.UpdateParams(params[i_p : i_p+nb_eff], **args)
-                    i_p += nb_eff
+        if((index is not None) or (self._nb_control_func <= 1)):
+            func_tmp = self.get_one_control_fun(index)
+            if(func_wrap is not None):
+                func_tmp_wrapped = [lambda x: func_wrap(func_tmp(x))]
             else:
-                self.controlFun.UpdateParams(params, **args)
+                func_tmp_wrapped = [func_tmp]        
+            
         else:
-            self.controlFun[index_control].UpdateParams(params, **args)
-
-    def __GenFrequencies(self, T, nb_freq = 1, params = None):
-        """Generate (potentially randomized) frequencies
-        + CRAB:
-        + DCRAB: Uniformly drawn in
-        + None: gen frequencies k 2Pi/T
-        """
-        om_ref = 2 * np.pi / T
-        name_rdm = params.get('rdm_freq')
-        dico_args = {'rdm_freq':name_rdm, 'flag_rdm':False}
-
-        if(name_rdm not in [None, False]):
-            args_rdm = ut.splitString(name_rdm)
-            if(args_rdm[0] == 'CRAB'):
-                dico_args['flag_rdm'] = True
-                if(len(args_rdm) == 1):
-                    rdv_method = 'uniform_-0.5_0.5'  
-                elif(len(args_rdm) == 2):
-                    val = str(args_rdm[1])
-                    rdv_method = ut.concat2String('uniform', -val, val)
-                elif(len(args_rdm) == 3):
-                    distrib = val = str(args_rdm[1])
-                    val = str(args_rdm[2])
-                    rdv_method = ut.concat2String(distrib, -val, val)
-                elif(len(args_rdm) == 4):
-                    rdv_method = ut.concat2String(args_rdm[1], args_rdm[2], args_rdm[3])                        
-                rdvgen = rdm.gen_rdmnb_from_string(rdv_method, nb_freq)
-                om = (1 + np.arange(nb_freq) + rdvgen()) * om_ref
-                    
-            elif(args_rdm[0] == 'DCRAB'):
-                dico_args['flag_rdm']=True
-                if(len(args_rdm)>1):
-                    Nmax = int(args_rdm[1])
+            func_tmp = self.controlFun
+            if(func_wrap is not None):
+                if(ut.is_iter(func_wrap)):
+                    func_tmp_wrapped = [lambda x: func_wrap[i](f(x)) for f in func_tmp]
                 else:
-                    Nmax = nb_freq
-                wmax = Nmax * om_ref
-                rdv_method = ut.concat2String('uniform', 0, wmax)  
-                rdvgen = rdm.gen_rdmnb_from_string(rdv_method, nb_freq)
-                om = rdvgen()                            
-                dico_args['flag'] = 'DCRAB'
+                    func_tmp_wrapped = [lambda x: func_wrap(f(x)) for f in func_tmp]
             else:
-                raise NotImplementedError()
+                func_tmp_wrapped = func_tmp
+
+        res = np.sum([info_func(f, t_array) for f in func_tmp_wrapped])
+        return res
+    
+    def get_controlFun_t(self, t_array = None):
+        if(t_array is None):
+            t_array = self.t_array
+            
+        if(self._nb_control_func == 0):
+            res = None
+        elif(self._nb_control_func == 1):
+            res = np.array([self.controlFun(t) for t in t_array])
         else:
-            om = (1 + np.arange(nb_freq)) * om_ref
+            res = np.array([[cf(t) for cf in self.controlFun] for t in t_array])
+        return res
 
-        dico_args['omegas'] = om
-        return om, dico_args
+    def _smoothness(self, ):
+        """ could be impl here but will be in children classes"""
+        raise NotImplementedError()
 
-    def GetFluence(self, time = None, index = None):
-        """ Fluence of the control  Functions
+    def _fluence():
+        """ could be impl here but will be in children classes """
+        raise NotImplementedError
+    
+
+class pcModel_base(cModel_base):
+    """ parametrized control models """
+
+    # Available type of parametrized control functions
+    _LIST_CUSTOM_FUNC = pfzoo.pFunc_factory._LIST_CUSTOM_FUNC
+
+    def __init__(self, **args_model):
+        cModel_base.__init__(self, **args_model)
+
+    def _process_control_function(self, control):
+        """ delegate everything to the capability of pFunc_zoo.pFunc_factory 
+        store the dico (as a list of dicos allowing to rebuild the function)
+        TODO: (probably) remove dico_control
         """
-        if (time is None):
-            time = self.t_array
+        control, dico_control = pf.pFunc_factory.build_function(control, True, self.rdm_gen)
+        self._dico_control = dico_control
+        return control
+            
+
+    def update_control_parameters(self, params, index_control = None,  **args_update):
+        """ Update the parameters of the control function(s) i.e. the thetas (free params)
+        of the functions 
+        TODO: implement the use of index_control (i.e. choose a (a list) of which func to be updated)
+        """
+        if(args_update.get(debug)):
+            pdb.set_trace()
+
+        if(index_function is None):
+            self.control_fun.thetas = params
         
-        if self._nb_control_func > 1:
-            fl = [self._fluence(f, time) for f in self.controlFun]
         else:
-            fl = self._fluence(self.controlFun, time)
-        
-        if (index is None):
-            res = np.sum(fl)
-        else:
-            res = np.sum(fl[index])
-        return res
-    
-    def GetSmoothness(self, time = None, time_step = None, index = None):
-        """ Smoothness of the control functions
-        """
-        if (time is None):
-            time = self.t_array
+            raise NotImplementedError
 
-        if ut.is_iter(self.controlFun):
-            fl = [self._smoothnes(f, time) for f in self.controlFun]
-        else:
-            fl = self._smoothnes(self.controlFun, time)
 
-        if (index is None):
-            res = np.sum(fl)
-        else:
-            res = np.sum(fl[index])
-        return res
-    
-    
-    def _fluence(self, func, range_t, normalized = True):
-        """ Compute fluence of the control field
-        """
-        time_step = np.array(range_t[1:]) - np.array(range_t[:-1])
-        val_square = np.array([func(t)**2 for t in range_t[:-1]])
-        res = np.sum(np.array(val_square * time_step))
-        if(normalized):
-            res = res/(range_t[-1] - range_t[0])
+    def __call__(self, params, **args_call):
+        """ model(params) >> fom
+        Should be used at some point but first need to implement logs"""
+        self.update_control_parameters(params, **args_call)
+        res = self.Simulate(**args_call)
+        if(ut.is_iter(res)):
+            res = res[0]
         return res
 
-    def _smoothnes(self, func, range_t, normalized = True):
-        """ (ad-hoc) Measure of smoothness for a function (func) evaluated at times
-        (range_t)
-        res = sum_t (func(t) - func(t-1))**2
-        """
-        time_step = np.diff(range_t)
-        diff_val_square = np.square(np.diff(func(range_t)))
-        res = np.sum(np.array(diff_val_square / time_step))
-        if(normalized):
-            res = res/(range_t[-1] - range_t[0])
-        return res
-      
-     
     
-    
-class QuspinModels(ControlledModels):
-    """ Models based on the QuSpin package.
+class pcModel_qspin(pcModel_base):
+    """ Models based on the QuSpin package. inherit from the parametrized control
+    function base class. On top of the that implement:
+    + Building the state space (equiv to the basis objects in QuSpin)
+    + Build the Hamiltonian
+    + Define new building blocks for computing the fom
+    + provide helper functions to act on QuSpin objects self.h_XXX
+      e.g. self.h_ip for the inner product
     
     """
-    def __init__(self, controlFun, **args_model):
-        """Store params of the toymodel
-        """
-        self._fom_func = None
-        ControlledModels.__init__(self,controlFun, **args_model)
-        self.SetupBasis(**args_model)
-        self.SetupH(**args_model)
-        self.SetupFOM()
-        self.UpdateStateInit(args_model['state_init'])
-        self.UpdateStateTarget(args_model.get('state_tgt'))
+    def __init__(self, **args_model):
+        """ """
+        pcModel_base.__init__(self, **args_model)
+        self._setup_basis(**args_model)
+        self._setup_H(**args_model)
+        self._setup_helper_functions()
+        self._setup_fom_qspin_bricks()
 
     
-    def UpdateStateInit(self, init = None):
-        self.state_init = self.GetState(init)
+    #-----------------------------------------------------------------------------#
+    # Setup functions
+    #-----------------------------------------------------------------------------#
+    def _setup_basis(self, **args_model):
+        """ build the basis (self._ss) and potentially other basis"""
+        raise NotImplementedError()
+        
+    def _setup_H(self, **args_model):
+        """ build the Hamiltonian governing the dynamics of the system (self.H)"""
+        raise NotImplementedError()
 
-    def UpdateStateTarget(self, tgt = None):
-        self.state_tgt = self.GetState(tgt)    
+    def _setup_helper_functions(self):
+        """ create an attribute helper which is a dico<'name_help_func':func> s.t.
+        these helper functions are available through self.helper.h_XXXX 
+        simply to make things more readable (isn't it??) """
+        helper_dico={'ip': self._h_ip, 'norm':self._h_norm, 'fid':self._h_fid, 
+        'fid2': self._h_fid2, 'last':self._h_last, 's_to_p':self._h_state2proba,
+        'var':self._h_variance, 'var2': self._h_variance2, 'n_meas': self._h_n_measures,
+        'le': self._h_get_lowest_energies, 'proj_instant': self._h_project_to_instant_evect
+        'fid2_tgt': self._h_fid2, 'fid_tgt':self._h_fid_tgt}
         
-    def SetupBasis(self, **args_model):
-        """ build the basis (self._ss) and potentially other basis
-        """
-        raise NotImplementedError()
+        self.helper = helper_dico
+        self.helper_infos = {k:v.__doc__ for k,v in helper_dico.items()}
+
         
-    def SetupH(self, **args_model):
-        """ build the Hamiltonian governing the dynamics of the system (self.H)
-        and potentially other Hamiltonians
-        """
-        raise NotImplementedError()
-        
-    def SetupFOM(self):
-        """ Set up functions accessible to compose Figure OF Merit (fOm)
-        used in getFOM method
-        """
-        #main figure
-        self._fom_func = {'max': np.max, 'min': np.min, 'avg': np.average, 'sqrt':np.sqrt}
-        self._fom_func['last'] = QuspinModels.h_last
-        self._fom_func['neg'] = linear
-        self._fom_func['f2t'] =  (lambda x: QuspinModels.h_fid(x, self.state_tgt))
-        self._fom_func['f2t2'] =  (lambda x: QuspinModels.h_fid2(x, self.state_tgt))
-        self._fom_func['fluence'] =  (lambda x: self.GetFluence(self.t_array))
-        self._fom_func['fluenceNorm'] =  (lambda x: self.GetFluence(self.t_array) / 2)
-        self._fom_func['smooth'] = (lambda x: self.GetSmoothness(self.t_array))
-        
-        
-        #To add randomness
-        self._fom_func['rdmplus'] = (lambda x: x + self._noise_func['fom']())
-        self._fom_func['rdmtime'] = (lambda x: x * (1 + self._noise_func['fom']()))
-        
+    def _setup_fom_qspin_bricks(self):
+        """ Set up fom based of quspin states """
+        #fidelity to the target state
+        self._fom_func['f2t'] =  (lambda x: self.helper.fid_tgt(x))
+        self._fom_func['f2t2'] =  (lambda x: self.helper.fid2_tgt(x))
+
         # measurement projection on the target_state 
-        self._fom_func['proj5'] = (lambda x: QuspinModels.h_n_measures(x, nb =5, measur_basis = self.state_tgt))
-        self._fom_func['proj10'] = (lambda x: QuspinModels.h_n_measures(x, nb =10, measur_basis = self.state_tgt))
-        self._fom_func['proj100'] = (lambda x: QuspinModels.h_n_measures(x, nb =100, measur_basis = self.state_tgt))
-        self._fom_func['proj1000'] = (lambda x: QuspinModels.h_n_measures(x, nb =1000, measur_basis = self.state_tgt))
+        self._fom_func['proj5'] = (lambda x: self.helper.n_meas_tgt(x, nb =5))
+        self._fom_func['proj10'] = (lambda x: self.helper.n_meas_tgt(x, nb =10))
+        self._fom_func['proj100'] = (lambda x: self.helper.n_meas_tgt(x, nb =100))
+        self._fom_func['proj1000'] = (lambda x: self.helper.n_meas_tgt(x, nb =1000))
 
-    def GetState(self, state = None):
-        """ Generate quantum states either from string or array/list of num values 
-        """
+    def get_state(self, state_obj = None):
+        """ Generate quantum states from state_obj <str> or <array/list<num>>"""
         basis = self._ss
         if(state is None):
             state_res = None
@@ -630,7 +446,7 @@ class QuspinModels(ControlledModels):
             elif(state == 'uniform'):
                 #GS at t = T
                 state_res = np.random.uniform(-1, 1, size=basis.Ns)
-                state_res = state_res / QuspinModels.h_norm(state_res)
+                state_res = state_res / self.helper.norm(state_res)
             else:
                 i_res = basis.index(state)
                 state_res = np.zeros(basis.Ns, dtype=np.float64)
@@ -641,45 +457,53 @@ class QuspinModels(ControlledModels):
 
         return np.squeeze(state_res)
 
-
-
-    ### Helper functions
+    def _state_to_pop(self, st):
+        """ compute pop from state"""
+        self.helper.s_to_p(st)
+    #-----------------------------------------------------------------------------#
+    # Helper functions: functions to manipulate QuSpin objects (states, operators, etc..) 
+    #-----------------------------------------------------------------------------#
     @staticmethod
-    def h_ip(V1, V2):
-        """ compute an inner product between V1 and V2
-        """
+    def _h_ip(V1, V2):
+        """ compute an inner product between V1 and V2"""
         return np.dot(np.conj(np.squeeze(V1)), np.squeeze(V2))
     
     @staticmethod
-    def h_norm(V1):
-        """ compute an inner product between V1 and V2
-        """
-        return np.sqrt(np.abs(QuspinModels.h_ip(V1, V1)))
+    def _h_norm(V1):
+        """ compute an inner product between V1 and V2"""
+        return np.sqrt(np.abs(pcModel_qspin._h_ip(V1, V1)))
     
     @staticmethod
-    def h_fid2(V1, V2):
-        return np.square(np.abs(QuspinModels.h_ip(V1, V2)))
+    def _h_fid2(V1, V2):
+        """ compute fidelity(square conv) between V1 and V2"""
+        return np.square(np.abs(pcModel_qspin._h_ip(V1, V2)))
     
     @staticmethod
-    def h_fid(V1, V2):
-        return np.abs(QuspinModels.h_ip(V1, V2))
+    def _h_fid(V1, V2):
+        """ compute fidelity between V1 and V2"""
+        return np.abs(pcModel_qspin._h_ip(V1, V2))
     
+    def _h_fid2_tgt(V1):
+        """ compute fidelity (square convention) between V1 and state_tgt"""
+        return pcModel_qspin._h_fid2(V1, self.state_tgt)
+
+    def _h_fid_tgt(V1):
+        """ compute fidelity between V1 and state_tgt"""
+        return pcModel_qspin._h_fid(V1, self.state_tgt)
+
     @staticmethod
-    def h_state2proba(ket1):
-        """ Gen proba distrib from a quantum state
-        """
+    def _h_state2proba(ket1):
+        """ Gen proba distrib from a quantum state"""
         return np.square(np.abs(ket1))
     
     @staticmethod
-    def h_last(V):
-        """ return last element
-        """
+    def _h_last(V):
+        """ return last element of a state_t """
         return V[:, -1]
     
     @staticmethod              
-    def h_variance(O, V):
-        """ 
-        """
+    def _h_variance(O, V):
+        """ variance of a QuSpin operator O wrt a state V"""
         OV = O.dot(V)
         VOOV = np.asscalar(O.matrix_ele(V, OV))
         VOV2 = O.expt_value(V) ** 2
@@ -688,31 +512,24 @@ class QuspinModels(ControlledModels):
         return np.abs(var)
     
     @staticmethod
-    def h_variance2(O, V, **args):
-        """ Another flavor based on quant_fluct
-        """
+    def _h_variance2(O, V, **args):
+        """ Another flavor based on quant_fluct (sign inversion atm)"""
         res = -O.quant_fluct(V, **args)
         return res
     
+    @ut.extend_dim_method(n_dim=1, array_output = True)
     @staticmethod
-    def n_measures(ket1, nb = 1, measur_basis = None, num_precis = 1e-6):        
-        """Projective measurement in a basis (by default the basis in which the ket 
-        is represented) 
-        Returns an array with each entry corresponding to the frequency of the 
-        measurement based on nb measurements
+    def _h_n_measures(ket1, nb = 1, measur_basis = None, num_precis = 1e-6):        
+        """Frequencies of <nb> projective measurements of the state <ket1>  
+        in  <measur_basis> (by default the basis in which the ket is represented) 
         
-        !!CONVENTION!! measur_basis = N x D (with D dim of the Hilbert space and N the
-        number of elements provided)
-        
-        # TODO: only work for one ket (as opposed to array of kets over time)
-        # Ortho measurement only
-        #TODO: Could probably do better (concise + dealing with different shapes of
-        data)
+        args = (ket1 <1D-2D np.array>, nb = 1 <int>, measur_basis = <N x D np.array> 
+        N number of vectors, D dim of the H-space, num_precis = 1e-6)        
+        #TODO: Could probably do better (concise) + ortho measurement only
         """
-        #pdb.set_trace()
         dim_ket = len(ket1)
-        
         single_value = False
+
         if(measur_basis is None):
             measur_basis = np.eye(dim_ket) #Computational basis
         elif (len(measur_basis.shape) == 1):
@@ -723,8 +540,8 @@ class QuspinModels(ControlledModels):
             assert(measur_basis.shape[1] == dim_ket)
             
         index_measure = np.arange(len(measur_basis))
-        proj = [QuspinModels.h_ip(basis, ket1) for basis in measur_basis]
-        proba = QuspinModels.h_probaFromState(proj)
+        proj = [pcModel_qspin._h_ip(basis, ket1) for basis in measur_basis]
+        proba = pcModel_qspin._h_probaFromState(proj)
         assert(np.sum(proba)<=(1.0 + num_precis)), "not a valid proba distrib" #should it be relaxed 
         proba_cum = np.concatenate(([0],np.cumsum(proba)))
         samples = np.random.sample(nb)
@@ -735,41 +552,33 @@ class QuspinModels(ControlledModels):
             frequencies = frequencies[0]
         return frequencies    
     
-    
-    
-    def get_lowest_energies(self, time, nb = 2, H = None):
-        """ Get the n lowest energies of the Hamiltonian at time t
+    @static
+    def _h_n_measures_to_target(ket1, nb=1, num_precis=1e-6):
+        """ _h_n_measures with measur_basis = self.state_tgt """
+        return _h_n_measures_to_target(ket1, nb, self.state_tgt, num_precis)
+
+    @ut.extend_dim_method()
+    def _h_get_lowest_energies(self, time, nb = 2, H = self.H):
+        """ Get the <nb> lowest energies of the Hamiltonian <H> at a time <time>
+        args = (time <numeric> or <list>, nb=2 <integer>, H = self.H <QuSpin.Hamiltonian>)
         """
-        if(H is None):
-            H = self.H
-            
-        gif(ut.is_iter(time)):
-            res = [self.get_lowest_energies(t, nb, H) for t in time]
-        else:
-            res, _ = H.eigsh(time = time, k=nb, which='SA',maxiter=1E10)
-        
+        res, _ = H.eigsh(time = time, k=nb, which='SA',maxiter=1E10)
         return res    
     
-    def project_to_instant_evect(self, time = None, ham = None, state_t = None, nb_ev = 5):
-        """ Project a state (or a state_t) on the nb_ev first Eigen vectors of ham(time)
-        return the poputation of these EigenVectors
+    @ut.extend_dim_method()
+    def _h_project_to_instant_evect(self, time = self.t_simul, H = self.H, state_t = self.state_t, nb_ev = 5):
+        """ Project a state <state_t> on the <nb_ev> first eigenvectors of <H> at <time>
+        args = (time = self.t_simul <list<num>> or <num>, H = self.H <QuSpin.Hamiltonian>
+                state_t = self.state_t <np.array>, nb_ev = 5 <int>)
         """
-        #pdb.set_trace()
-        if(time is None):
-            time = self.t_simul
-        if(ham is None):
-            ham = self.H
-        if(state_t is None):
-            state_t = self.state_t #Need to have been stored
-        
-        if(ut.is_iter(time)):
-            assert (state_t.shape[1] == len(time)), "length of time doesn't match length os state_t"
-            pop_ev = [self.project_to_instant_evect(t, ham, np.squeeze(state_t[:,n]), nb_ev) for n, t in enumerate(time)]
-        else:
-            en, ev = self.H.eigsh(time = time, k=nb_ev, which='SA',maxiter=1E10)
-            pop_ev = np.square(np.abs(QuspinModels.h_ip(state_t, ev)))
+        en, ev = H.eigsh(time = time, k=nb_ev, which='SA',maxiter=1E10)
+        pop_ev = np.square(np.abs(pcModel_qspin._h_ip(state_t, ev)))
         return np.array(pop_ev)
     
+
+    #-----------------------------------------------------------------------------#
+    # plot capabilities
+    #-----------------------------------------------------------------------------#
     def plot_pop_adiab(self, **args_pop_adiab):
         """ Plot pop adiab where each population_t is dispatched on one of the 
         three subplot
@@ -779,7 +588,7 @@ class QuspinModels(ControlledModels):
             pop_adiab = self.pop_adiab
             t_simul = self.t_simul
             energies = self.energies
-            cf = self.get_controlFun_t(t_simul)
+            cf = self.get_control_t(t_simul)
             nb_levels = pop_adiab.shape[1]    
             f, axarr = plt.subplots(2,2, sharex=True)
             
@@ -804,20 +613,4 @@ class QuspinModels(ControlledModels):
             _ = self.EvolutionPopAdiab(**args_pop_adiab)
             self.plot_pop_adiab()
         
-    def get_controlFun_t(self, t_array = None):
-        if(t_array is None):
-            t_array = self.t_array
-            
-        if(self._nb_control_func == 0):
-            res = None
-        elif(self._nb_control_func == 1):
-            res = np.array([self.controlFun(t) for t in t_array])
-        else:
-            res = np.array([[cf(t) for cf in self.controlFun] for t in t_array])
-        return res
-        
-def linear(val, a = -1, b = 1):
-    """ f(x) = b + ax, by def f(x) = 1 - x
-    """
-    return (b + a * val)
 
