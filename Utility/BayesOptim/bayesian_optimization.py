@@ -48,14 +48,11 @@ class BayesianOptimization(object):
         # Counter of iterations
         self.i = 0
 
-        #NEWFS used only for acq_max
-        self._mp_enable = kwargs['flag_MP']
-        self._init_mp_pool(self._mp_enable)
-
         #NEW FS TO IMPLEMENT DIFFERENT KERNELS
         kernel = kwargs.get('kernel')
         whiteNoise = kwargs.get('whiteNoise', 0.1)
         scaling = kwargs.get('scalingKer', 0.1)
+        self.mp = kwargs.get('mp_obj', None)
         
         if(kernel is None):
              kernel=Matern(nu=2.5) 
@@ -310,13 +307,18 @@ class BayesianOptimization(object):
         # Find unique rows of X to avoid GP from breaking
         self.gp.fit(self.space.X, self.space.Y)
 
+        if(self.mp is None):
+            pool = None
+        else:
+            pool = mp.pool
+
         # Finding argmax of the acquisition function.
         x_max = acq_max(ac=self.util.utility,
                         gp=self.gp,
                         y_max=y_max,
                         bounds=self.space.bounds,
                         random_state=self.random_state,
-                        pool = self._Pool,
+                        pool = pool,
                         **self._acqkw)
 
         # Print new header
@@ -364,7 +366,7 @@ class BayesianOptimization(object):
                             y_max=y_max,
                             bounds=self.space.bounds,
                             random_state=self.random_state,
-                            pool = self._Pool,
+                            pool = pool,
                             **self._acqkw)
 
             # Keep track of total number of iterations
@@ -425,34 +427,3 @@ class BayesianOptimization(object):
         warnings.warn("use self.space.dim instead", DeprecationWarning)
         return self.space.dim
 
-    def _init_mp_pool(self, flagMP = False):
-        """ NewFS create a pool if flagMP is True
-        """
-        if(isinstance(flagMP, bool)):
-            if(flagMP):
-                self._nb_cpus = mp.cpu_count()
-                self._nb_workers = max(1, self._nb_cpus -1)
-                self._Pool = mp.Pool(self._nb_workers)
-                self._flag_MP = True
-            else:
-                self._nb_cpus = 1
-                self._nb_workers = 1
-                self._Pool = None
-                self._flag_MP = False
-        elif(isinstance(flagMP, int)):
-            self._nb_cpus = mp.cpu_count()
-            self._nb_workers = int(flagMP)
-            self._Pool = mp.Pool(self._nb_workers)
-            self._flag_MP = True
-        
-        else:
-            self._nb_cpus = 1
-            self._nb_workers = 1
-            self._Pool = None
-            self._flag_MP = False
-    
-    def close_mp_pool(self):
-        """ Close the pool if it exists
-        """
-        if(self._Pool is not None):
-            self._Pool.close()
