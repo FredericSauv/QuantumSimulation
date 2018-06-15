@@ -30,7 +30,6 @@ ilib.reload(batch)
 ilib.reload(cspinopt)
 
 
-
 class ControlledSpinOptimBatch(batch.Batch):
     """ Just implements what running a procedure (based on a config) means
     """
