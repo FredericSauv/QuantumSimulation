@@ -1,1 +1,1 @@
-from . import Batch, Optim, OptimML, ParametrizedFunctionFactory, RandomGenerator
+from . import Batch,  pFunc_base, pFunc_zoo, RandomGenerator, MP, Learner 
