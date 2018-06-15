@@ -96,6 +96,17 @@ def dico_to_text_rep(dico, fileName = None, typeWrite = 'w', beg = None, end = N
         file.write(repr(dico).replace(" ","").replace("\n","").replace("array", "np.array"))
         if(end is not None):
             file.write(end)
+
+def custom_repr(object):
+    """ remove unwanted space line jump, transform array in np.array"""
+    res = repr(object).replace(" ","").replace("\n","").replace("array", "np.array")
+    return res
+
+def save_str(string, file_name, type_write = 'w'):
+    """ save a string <str> to a file <filename>"""
+    with open(file_name, type_write, newline=None) as file:
+        file.write(string)
+
             
 def file_to_dico(file, nested = False, delimiter = ' ', na_character = [''], evfunc = eval):
     """ Transform a txt file into a dico // expecting only one element
@@ -219,14 +230,16 @@ def concat_dico(listDico, global_name='Concatenated Results', suffix = ''):
     return dicoOut
 
 def merge_dico(dico_init, dico_new, update_type = 0, copy = True):
-    """ Update entries of dico_init based on entries in dico_new according to 
-    update_type (used in different places)
+    """ Update entries of (a copy if <copy>) <dico_init> based on 
+    entries in <dico_new> according to <update_type> which defines 
+    the update rules to apply
     >> update_type:
-        0 if key doesn't exist CREATE // if exist UPDATE
-        1                      CREATE //          FAIL 
-        -1                     FAIL  //           UPDATE
-        2                      CREATE//        ADD NEW VALUE TO THE OLD ONE 
-        3                      CREATE//        FAIL IF IT IS NOT THE SAME VALUE 
+        0 if key doesn't exist CREATE  // if exist UPDATE
+        1                      CREATE  //          FAIL 
+        -1                     FAIL    //          UPDATE
+        2                      CREATE  //          SUM NEW VALUE TO THE OLD ONE 
+        3                      CREATE  //          FAIL IF IT IS NOT THE SAME VALUE
+        4                      PASS    //          UPDATE
     """
 
     if(copy):
@@ -238,7 +251,9 @@ def merge_dico(dico_init, dico_new, update_type = 0, copy = True):
         return dico_final
     
     for k, v in dico_new.items():
-        if (update_type == 1):
+        if (update_type == 0):
+           dico_final[k] = v
+        elif (update_type == 1):
             assert (k not in dico_final), '1 : entry already existing'
             dico_final[k] = v
         elif (update_type == -1):
@@ -247,12 +262,18 @@ def merge_dico(dico_init, dico_new, update_type = 0, copy = True):
         elif (update_type == 2):
             if (k in dico_final):
                 dico_final[k] += v
+            else:
+                dico_final[k] = v
         elif (update_type == 3):
             if(k in dico_final):
                 assert (dico_final[k] == dico_new[k]), '3: entry already exists, but not the same value'
-            dico_final[k] = v
+            else:
+                dico_final[k] = v
+        elif(update_type == 4):
+            if(k in dico_final):
+                dico_final[k] = v
         else:
-            dico_final[k] = v
+            raise NotImplementedError()
             
     return dico_final
         
@@ -448,6 +469,46 @@ def appendList(x,y):
 # removeFromString
 # recastString
 #==============================================================================
+def parse_enclose_with_counter(string, **extra_args):
+    """ {dico1} + {dico2} >>> str_func({dico1}}"""
+    before = extra_args.get('before', '(') 
+    outer = extra_args.get('nested', True)
+    after = extra_args.get('after', ')')   
+    flag = extra_args.get('flag', '{}')
+    flag_bef = flag[0]
+    flag_after = flag[1]
+
+    counter = 0
+    str_out = ''
+
+    for char in string:
+        if(char == flag_bef):
+            if(outer):
+                if(counter == 0):
+                    str_out += before
+                    str_out += char
+                counter += 1
+            else:    
+                str_out += before
+                str_out += char
+                
+        elif(char == flag_after):
+            if(outer):
+                counter -= 1
+                if(counter == 0):
+                    str_out += char
+                    str_out += after    
+
+            else:
+                str_out += char
+                str_out += after
+
+            assert (counter >= 0), "pb when parsing"
+        
+        else:
+            str_out += char
+    return str_out    
+
 def custom_cast(string_val, type_casting):
     """ cast string_val as type_casting
     casting_allowed = ['int', 'str', 'bool'], should be augmented with new types    
@@ -1202,14 +1263,17 @@ def extend_dim_method(n_dim=0, array_output = False):
         @wraps(f)
         def extended_method(self, arg, *args, **kwargs):
             n_dim_args = len(np.shape(arg))
-            if n_dim_args == (n_dim + 1):
+            if (n_dim_args == n_dim):
+                res = f(self, arg, *args, **kwargs)
+            elif (n_dim_args == (n_dim + 1)):
                 res = [f(self, x, *args, **kwargs) for x in arg]
                 if array_output:
                     res = np.array(res)
             else:
-                res = f(self, arg, *args, **kwargs)
+                raise SystemError(" wrong arg dimensionnality: {}".format(np.shape(arg)))
             return res
         return extended_method
+    return extend_impl
 
 #==============================================================================
 #                   Decorators
