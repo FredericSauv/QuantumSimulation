@@ -54,7 +54,8 @@ class model_base:
     _LIST_ARGS_OPT = {'rdm_obj':('<int/randomstate/None> Use to generate/pass the random generator', None),
                      'mp_obj':('<int/bool/mp> Use to generate/pass the random generator', None),
                      'noise':('<dict<string>> to build noise in the model ',None), 
-                     'fom':('fom <str> or <list<str>>, has', None)}
+                     'fom':('fom <str> or <list<str>>, has', None),
+                     'state_init':('<string/np.array> Initial state',None)}
     
     def __init__(self, **args_model):
         """ """

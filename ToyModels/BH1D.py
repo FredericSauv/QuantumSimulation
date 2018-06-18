@@ -19,15 +19,16 @@ if(__name__ == '__main__'):
     sys.path.append("../../")
     from QuantumSimulation.Utility import Helper as ut
     from QuantumSimulation.ToyModels import ModelBase as mod
+    from QuantumSimulation.Utility.Optim import pFunc_base as pf
     
 else:
     from ..Utility import Helper as ut
+    from ..Utility.Optim import pFunc_base as pf
     from . import ModelBase as mod
 
 
 ilib.reload(ut)
 ilib.reload(mod)
-ilib.reload(fun)
 
 
 class BH1D(mod.pcModel_qspin):
@@ -35,19 +36,20 @@ class BH1D(mod.pcModel_qspin):
     _LIST_ARGS = mod.pcModel_qspin._LIST_ARGS
     _LIST_ARGS['setup'] = '<str> string pointing to one of the setup'
     _LIST_ARGS['L'] = '<int> Length of the chain'
-    _LIST_ARGS['state_init'] = '<np.array> or <str> initial state'
     
     _LIST_ARGS_OPT = mod.pcModel_qspin._LIST_ARGS
-    _LIST_ARGS_OPT['N'] = ('<int>Number of particles', )
+    _LIST_ARGS_OPT['N'] = ('<int>Number of particles', _LIST_ARGS['L'])
     _LIST_ARGS_OPT['mu'] = ('<float> chemical potential', 0)
     _LIST_ARGS_OPT['sps'] = ('<int> Number of particles max per site', 3)
     _LIST_ARGS_OPT['sym'] = ('<dict> definition of the symmetries to use c.f. quspin doc', {}) 
     _LIST_ARGS_OPT['flag_store'] = ('<bool> Allow the storage of intermediate results', False)  
-    _LIST_ARGS['state_tgt'] = '<np.array> or <str> initial state'
 
     def __init__(self, controlFun = (lambda t: 0), **args_model):
         """ Initialize the simulations of the driven BH  """
         mod.QuspinModels.__init__(self, controlFun, **args_model)
+        self._setup_basis(args_model)
+        self._setup_H(args_model)
+        self._FLAG_STORE = args_model['flag_store']
         self._setup_fom_bh1d_bricks(**args_model)
         self.state_init = args_model['state_init']
         self.state_tgt = args_model.get('state_tgt')
@@ -60,21 +62,21 @@ class BH1D(mod.pcModel_qspin):
         """
         config_bh1D ={}
         for p in ['setup', 'L']:
-            config_bh1D = args_model[p_opt]
+            config_bh1D[p] = args_model[p]
 
-        for p_opt in ['N', 'mu', 'sps', 'sym', 'flag_store']:
-            config_bh1D = args_model.get(p_opt, self._LIST_ARGS_OPT[p_opt][1])
+        for p in ['N', 'mu', 'sps', 'sym']:
+            config_bh1D[p] = args_model.get(p, self._LIST_ARGS_OPT[p][1])
 
-        if(self.sym in [{}, None]):
-            self._flag_symm = False
-            self._ss = boson_basis_1d(L, Nb = self.N, sps = self.sps)
+        self._ss = boson_basis_1d(**config_bh1D)
+        if(config_bh1D['sym'] in [{}, None]):
+            self._flag_basis_symm = False
             self._ss_nosym = self._ss
             self._P = None #Id            
         else:
-            self._flag_symm = True
-            self._ss = boson_basis_1d(self.L, Nb = self.N, sps = self.sps, **self.sym)
-            self._ss_nosym = boson_basis_1d(self.L, Nb = self.N, sps = self.sps)
-            self._P = self._ss.get_proj(dtype=np.float64,pcon=True)
+            self._flag_basis_symm = True
+            config_bh1D['sym'] = None
+            self._ss_nosym = boson_basis_1d(**config_bh1D)
+            self._P = self._ss.get_proj(dtype=np.complex128, pcon=True)
         
     def _setup_H(self, **args_model):
         """  Bose Hubbard Hamiltonians:
@@ -126,12 +128,22 @@ class BH1D(mod.pcModel_qspin):
 # --------------------------------------------------------------------------- #
 #   SIMULATIONS 
 # --------------------------------------------------------------------------- #
-    def Simulate(self, time = self.t_array, state_init = self.state_init, fom = self.fom, store = False, method = 'se', **extra_args):
+    def Simulate(self, time = None, state_init = None, fom = None, store = None, method = None, **extra_args):
         """ Main entry point to simulate the system. If fom is not None, it will 
         return it, if not return the state_t of the system.
         """
         if extra_args.get('debug'):
             pdb.set_trace()
+        if time is None:
+            time = self.t_array
+        if state_init is None:
+            state_init = self.state_init
+        if fom is None:    
+            fom = self.fom
+        if store is None:
+            store = False
+        if method is None:
+            method = 'se'
         
         res = self.Evolution(time = time, state_init = state_init, method = method, store = store, **extra_args)
 
@@ -141,7 +153,7 @@ class BH1D(mod.pcModel_qspin):
             print("FOM="+str(res))
         return res
 
-    def Evolution(self, time = self.t_array, state_init = self.state_init, method = 'se', store = True, **extra_args):
+    def Evolution(self, time , state_init, method, store, **extra_args):
         """  Evolve the state_init according to the relevant method and store if
             required
         """
@@ -162,19 +174,29 @@ class BH1D(mod.pcModel_qspin):
 # --------------------------------------------------------------------------- #
 #   Custom evolutions
 # --------------------------------------------------------------------------- #
-    def EvolutionSE(self, time = self.t_array, state_init = self.state_init, iterable = False, **args_evolve):
+    def EvolutionSE(self, time = None, state_init = None, iterable = False, **args_evolve):
         """  Wrap evolve from QuSpin only expose some of teh arguments
         hamiltonian.evolve(state_init, t0 = 0,times = T, eom="SE",solver_name="dop853",stack_state=False,
         verbose=False,iterate=False,imag_time=False,**solver_args)
         """
+        if time is None:
+            time = self.t_array
+        if state_init is None:
+            state_init = self.state_init
+
         state_t = self._H.evolve(state_init, t0 = 0, times = time, iterate=iterable, **args_evolve)
         return state_t
 
 
-    def EvolutionPopAdiab(self, time = self.t_array, state_init = self.state_init, **args_evolve):
+    def EvolutionPopAdiab(self, time = None, state_init = None, **args_evolve):
         """ Evolve the state according to SE and project it on the instantaneous 
         eigen vectors of the hamiltonian. This pop_adiab is stored by default and
         state_t is returned """
+        if time is None:
+            time = self.t_array
+        if state_init is None:
+            state_init = self.state_init
+
         nb_ev = args_evolve.pop('nb_ev', 5)
         state_t = self.EvolutionSE(time, state_init, **args_evolve)
         # Not optimal
@@ -187,10 +209,8 @@ class BH1D(mod.pcModel_qspin):
         return state_t
         
 
-    def EvolutionInstEnergies(self, time = self.t_array, nb = 2):
-        """ Custom study of the gap 
-        """
-        #pdb.set_trace()
+    def EvolutionInstEnergies(self, time = None, nb = 2):
+        """ Custom study of the gap """
         if(time is None):
             time = self.t_array
         energies = self.get_lowest_energies(time, nb)
@@ -202,10 +222,7 @@ class BH1D(mod.pcModel_qspin):
 ### ======================= ###
 # TESTING
 ### ======================= ###
-if(__name__ == '__main__'):
-    from QuantumSimulation.Utility.Optim import pFunc_base as pfbase
-    from QuantumSimulation.Utility.Optim import pFunc_zoo as pfzoo
-    
+if(__name__ == '__main__'): 
     BH1D.infos()
     
     # Create a 1D BH chain linearly driven
@@ -217,7 +234,6 @@ if(__name__ == '__main__'):
     linear_ramp = pf.Linear_func(w=v/T , bias =0)
     fom_name = ['f2t2:neg_fluenceNorm:0.0001_smooth:0.0005', 'f2t2', 'varN:sqrt', 'fluenceNorm', 'smooth']
     fom_name_last = ['last:'+f for f in fom_name]
-
 
     dico_simul = {'control_obj':linear_ramp, 'L':6, 'N':6, 'mu':0, 'T':T, 'dt':0.01, 
                 'flagInterTime':False, 'setup':'1', 'state_init':'GS_i', 
@@ -231,50 +247,17 @@ if(__name__ == '__main__'):
     
     #study Evol of the population in the first energy levels
     if(False):    
-        L = 6
-        N = L
-        v = 0.1
-        U, T = gen_linear_ramp(v)
-        sym = {'kblock':0, 'pblock':1}
-        dico_simul={'controlFun': U, 'L':L, 'N':N, 'mu':0, 'T':T, 'dt':0.01, 
-                    'flagInterTime':True, 'setup':'1', 'state_init':'GS_i', 
-                    'state_tgt':'GS_f', 'sym':sym}
-    
         simul = BH1D(**dico_simul)
         nb_ev = 10
         state_t = simul.EvolutionPopAdiab(nb_ev = nb_ev)
         simul.plot_pop_adiab()
         
     #Try the exponential ram        
-    if(True):    
-        L = 6
-        N = L
-        v = 0.1
-        T = 10
-        sym = {'kblock':0, 'pblock':1}
-        controlFun = {'T':T, 'control':{'func':'expramp', 'ampl':1, 'T':T, 'l': -5}}
- 
-        dico_simul={'controlFun': controlFun, 'L':L, 'N':N, 'mu':0, 'T':T, 
-                    'dt':0.01, 'flagInterTime':True, 'setup':'1', 
-                    'state_init':'GS_i', 'state_tgt':'GS_f', 'sym':sym}
-    
-        simul = BH1D(**dico_simul)
-        res_square = simul.Simulate(fom = fom_name_last, store = True, debug = False)
-        nb_ev = 10
+    if(True):        
         state_t = simul.EvolutionPopAdiab(nb_ev = nb_ev)
         simul.plot_pop_adiab()
     
     if(False):
-        #study Energy gap
-        L = 8
-        N = L
-        v = 0.01
-        U, T = gen_linear_ramp(v)
-        sym = {'kblock':0, 'pblock':1}
-        dico_simul={'L':L, 'N':N, 'mu':0, 'T':T, 'dt':0.1, 'flagInterTime':False,
-                    'setup':'1', 'state_init':'GS_i', 'state_tgt':'GS_f', 'sym':sym}
-    
-        simul = BH1D(U, dico_simul)
         energy_evol = simul.EvolutionInstEnergies(nb = 5)
         
         
