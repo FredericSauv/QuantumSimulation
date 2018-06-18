@@ -5,7 +5,7 @@ if(__name__ == '__main__'):
     import pFunc_base as pf
     from RandomGenerator import RandomGenerator as rg
 else:
-    from . import Helper as ut
+    from .. import Helper as ut
     from . import pFunc_base as pf
     from .RandomGenerator import RandomGenerator as rg
     

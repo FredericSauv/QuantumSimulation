@@ -15,7 +15,7 @@ if(__name__ == '__main__'):
     sys.path.append("../")
     import Helper as ut
 else:
-    import Helper as ut
+    from .. import Helper as ut
 #==============================================================================
 #                   MANIP STRUCTURES (list / dico / text files)
 #==============================================================================

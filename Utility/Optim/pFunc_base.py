@@ -12,7 +12,7 @@ if(__name__ == '__main__'):
     sys.path.insert(0, '../')
     import Helper as ut
 else:
-    import Helper as ut
+    from .. import Helper as ut
     
 import numpy as np
 from numpy import array

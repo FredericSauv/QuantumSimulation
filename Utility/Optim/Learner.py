@@ -5,25 +5,25 @@ Created on Mon Dec 18 16:03:37 2017
 
 @author: fs
 """
-from .. import Helper as ut
-from . import RandomGenerator as rdmg
-
-import scipy.optimize as optim
+import scipy.optimize as sco
 import numpy as np
 import pdb as pdb
 import importlib as ilib
 
 
 if(__name__ == '__main__'):
-    sys.path.append("../../")
+    import sys
+    sys.path.append("../../../")
     from QuantumSimulation.Utility import Helper as ut
     from QuantumSimulation.Utility.Optim.RandomGenerator import  RandomGenerator as rdm
     from QuantumSimulation.Utility.Optim.MP import MPCapability as mp
+    from QuantumSimulation.Utility.BayesOptim import BayesianOptimization
 
 else:
-    from ..Utility import Helper as ut
-    from ..Utility.Optim.RandomGenerator import RandomGenerator as rdm
-    from ..Utility.Optim.MP import MPCapability as mp
+    from ..BayesOptim import BayesianOptimization 
+    from .. import Helper as ut
+    from ..Optim.RandomGenerator import RandomGenerator as rdm
+    from ..Optim.MP import MPCapability as mp
 ilib.reload(ut)
 
 
@@ -38,151 +38,50 @@ class learner_base:
     
     # mandatory params to initialise the learner
     _LIST_PARAMS_LEARNER = {}
-    _LIST_PARAMS_LEARNER['algo'] =  "Type of optimization performed - "
-               "DE' differential evolution, 'NM' nedler mead, 'BH' basin hopping"
-               "'NoOPtim' (still can be some testing)"
-    _LIST_PARAMS_LEARNER['nb_params'] =  "Nb of parameters to be optim"
+    _LIST_PARAMS_LEARNER['algo'] =  "Type of optimization performed - DE' differential evolution, 'NM' nedler mead, 'BH' basin hopping 'NoOPtim' (still can be some testing)"
     
     # optional params     
     _LIST_PARAMS_LEARNER_OPT = {}
-    _LIST_PARAMS_LEARNER_OPT['params_init'] =  ("How to initialize the parameters - "
-        "Mandatory if NM / Simple / BH algos are used", None)
-    _LIST_PARAMS_LEARNER_OPT['params_bounds'] =  ("enforce parameters bounds.. if not" 
-        "assessed from the model object", None)
     _LIST_PARAMS_LEARNER_OPT['rdm_obj'] = ("random_object", None) 
-    _LIST_PARAMS_LEARNER_OPT['rdm_obj'] = ("multiprocessing_object", None) 
+    _LIST_PARAMS_LEARNER_OPT['mp_obj'] = ("multiprocess0ing_object", None) 
 
-    # <dico>{<str>'name_algo': (<dico> default_hyperparameters, <method> method)> 
-    _ALGO_INFOS =
-    {
-        'NM':({'disp':True, 'maxiter':200, 'ftol':1e-6, 'maxfev':200, 'adaptative':False}
-            , self._run_NM),
-        
-        'NOOPTIM':({}, self._run_NOOPTIM),
-        
-        'GP' = ({'disp':True, 'acq':'ei', 'kappa':5.0, 'maxiter':150,
-                'verbose':False, 'kernel':'matern2.5', 
-               'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 
-               'acq_iter':250, 'n_warmup':100000}, self._RUN_GP),
-        
-        'DE' = ({'disp':True, 'maxiter':50, 'popsize':10, 'tol':0.01}, self._RUN_DE)     
-    }
- 
 
-    def __init__(self, model, init_obj, bounds_obj = None, **params_learner):
+    def __init__(self, **params_learner):
         self.rdm_gen = params_learner.get('rdm_obj')
-        self.mp = args_model.get('mp_obj')
-        self._setup_learner_options(model, init_obj, bounds_obj, **params_learning)
-
-
-    def _setup_learner_options(self, init_obj, bounds_obj, **params_learner):
-        """ save main characteristics, create the random_generator used, 
-        fetch default parameters depending on the algo
-        """
-        self._backup_initparams = params_learner # store initial params just in case  
-        default = self._DEF_HYPERPARAMS[params_learner['algo']][0] # default hyper parameters       
-        opt_l = ut.merge_dico(default, params_learner, update_type = 4)     
-        opt_l.update({'algo': params_learner['algo']})
-        opt_l.update({'nb_params':self.get_nb_params(model, params_learner.get('params_nb'))})
-        opt_l.update({'bounds_params':self.get_boundaries_params(model, bounds_obj, opt_l)})
-        opt_l.update({'init_params':self.get_init_params(model, init_obj, **opt_l)})
-        self._params_learner = opt_l
-
-    def _get_nb_params(self, model, nb_params):
-        """ get boundaries from different ways so far either by passing a number
-        if not get it from the model.. """
-        if nb_params is  None:
-            nb_params = model.n_params
-        return nb_params
-
-
-    def _get_boundaries_params(self, model, bds_obj, option):
-        """ get boundaries from different ways: if model"""
-        nb_params = options['nb_params']
-        if(bds_obj is None):
-            if(hasattr (model, 'params_bounds')):
-                pdb.set_trace()
-                bounds = model.params_bounds
-            else:
-                None
-
-        elif(isinstance(bds_obj, tuple)):
-            bounds = [bds_obj for range(n_params)]
-
-        else:
-            bounds = np.array(model.params_bounds)    
-            expected_dim = (n_params, 2)
-            assert (dim(bounds) == expected_dim), "len boundaries = {1}, nb_params"
-                    " ={2}".format(dim(bounds), expected_dim)
-        return bounds
-
-
-    def _gen_init_params(self, init_obj, **args_extra):
-            
-        """ Different algotithms, require different type of init.. that's why they are 
-        splitted here..
-        TODO: try to unify everything""" 
-        if init_obj is None:
-            return None
-
-        algo = options['algo']
-        if(algo == 'BO'):
-            init = self._init_params_BO(init_obj, **args_extra)
-        elif(algo == 'NM'):
-            init = self._init_params_NM(init_obj, **args_extra)
-        elif(algo == 'DE'):
-            init = self._init_params_DE(init_obj, **args_extra)
-        else:
-            raise NotImplementedError("Should implement adhoc _init_params_{}".format(algo))
-        return init
+        self.mp = params_learner.get('mp_obj')
+        self._setup_learner_options(**params_learner)
+        
+    def _setup_learner_options(self, **params_learner):
+        """ To be implemented in the subclasses"""
+        raise NotImplementedError()
+        
           
-
     def __call__(self, **args_call):
         """ effectively run the optimization. Rely on a <model> which is an object which should
         at least have a method __call__(params) and may have attributes _info_simulations.
         Run the adequate optimization, save the results"""
-        options = self.options_learner
-        algo2run = self.ALGO_AVAILABLE[options['algo']]
-        res_optim_raw = algo2run(model, options, **args_call)
-        
-        ## populate res
-        res = {'name_algo': self._NAME_ALGO}
-        res['params'] = res_optim_raw['x']
-        res['fun'] = res_optim_raw['fun']                    
-        res['nfev'] = resOptim.get('nfev') 
-        res['nit'] = resOptim.get('nit')
-        res['sucess'] = resOptim.get('sucess')
-        res['init'] = init
-        res['bounds'] = bounds        
-        if(hasattr(model, '_track_calls')):
-            res.update({'extra_'+k: v for k,v in model._info_simulations.items()})
-
-        self._res_optim_raw = res_optim_raw
-        self.mp.close_mp
-        return res
+        raise NotImplementedError()
 
     def Save(self, path_file = None, fun_string_gen = ut.custom_repr):
         """Save results as a text file """
         string = fun_string_gen(self._res_optim)
         ut.save_str(path_file, string)
 
-
-
     @property
     def rdm_gen(self):
         return self._rdmgen 
     
-    @property.setter
-    def rdm_gen(self, rdm_obj)
+    @rdm_gen.setter
+    def rdm_gen(self, rdm_obj):
         self._rdmgen = rdm.init_random_generator(rdm_obj)
 
     @property
     def mp(self):
         return self._mp 
     
-    @property.setter
-    def mp(self, mp_obj)
-        self._mp = mp.init_mp(rdm_obj)
+    @mp.setter
+    def mp(self, mp_obj):
+        self._mp = mp.init_mp(mp_obj)
 
 
     @property
@@ -194,70 +93,193 @@ class learner_base:
         """
         return self._params_learner
 
+    @options_learner.setter
+    def options_learner(self, options):
+        """ optimizer hyperparameters e.g. tolerance, n_iter_max, etc...
+        To add new options: has to add entries in _ALGO_INFOS and make sure
+        these are used in _RUN_ALGO, to change them from the default valuemeasurement
+        a new value should be provided when initializing the learner in **args_learner
+        """
+        self._params_learner = options
+
+
+class learner_Opt(learner_base):
+    # mandatory params to initialise the learner
+    _LIST_PARAMS_LEARNER = learner_base._LIST_PARAMS_LEARNER
+    _LIST_PARAMS_LEARNER['nb_params'] =  "Nb of parameters to be optim"
+    _LIST_PARAMS_LEARNER['model'] =  "a model which is at least callable"
+    
+    # optional params     
+    _LIST_PARAMS_LEARNER_OPT = learner_base._LIST_PARAMS_LEARNER_OPT
+    _LIST_PARAMS_LEARNER_OPT['params_init'] =  ("How to initialize the parameters - Mandatory if NM / Simple / BH algos are used", None)
+    _LIST_PARAMS_LEARNER_OPT['params_bounds'] =  ("enforce parameters bounds.. if not assessed from the model object", None)
+
+
+    def __init__(self, model, **params_learner):
+        # <dico>{<str>'name_algo': (<dico> default_hyperparameters, <method> method)> 
+        self._ALGO_INFOS ={
+        'NM':({'disp':True, 'maxiter':200, 'ftol':1e-6, 'maxfev':200, 'adaptative':False}, self._run_NM),        
+        'NOOPTIM':({}, self._run_NOOPTIM), 
+        'BO':({'disp':True, 'acq':'ei', 'kappa':5.0, 'maxiter':150,'verbose':False, 'kernel':'matern2.5', 
+               'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'acq_iter':250, 'n_warmup':100000}, self._run_BO),
+        'DE':({'disp':True, 'maxiter':50, 'popsize':10, 'tol':0.01}, self._run_DE)}
+        
+        learner_base.__init__(self, model=model, **params_learner)
+        
+
+    def _setup_learner_options(self, model, **params_learner):
+        """ save main characteristics, fetch default parameters depending on the algo
+        generate init and bounds of the parameters (most tricky part)
+        """
+        self._backup_initparams = params_learner # store initial params just in case
+        default = self._ALGO_INFOS[params_learner['algo']][0] # default hyper parameters       
+        opt_l = ut.merge_dico(default, params_learner, update_type = 4)     
+        opt_l.update({'model': model})
+        opt_l.update({'algo': params_learner['algo']})
+        opt_l.update({'nb_params':model.n_params})
+        opt_l.update({'bounds_obj':params_learner.get('bounds_obj')})
+        opt_l.update({'bounds_params':self._gen_boundaries_params(**opt_l)})
+        opt_l.update({'init_obj':params_learner.get('init_obj')})
+        opt_l.update({'init_params':self._gen_init_params(**opt_l)})
+        opt_l['random_state'] = self.rdm_gen
+        opt_l['mp_obj'] = self.mp
+        self.options_learner = opt_l
+
+    def _gen_boundaries_params(self, **args_optim):
+        """ get boundaries from different ways: if model"""
+        nb_params = args_optim['nb_params']
+        bounds_obj = args_optim.get('bounds_obj')
+        model = args_optim['model']
+        if(bounds_obj is None):
+            if(hasattr (model, 'params_bounds')):
+                bounds = model.params_bounds
+            else:
+                None
+        elif(isinstance(bounds_obj, tuple)):
+            bounds = [bounds_obj for _ in range(nb_params)]
+        else:
+            bounds = np.array(model.params_bounds)    
+            expected_dim = (nb_params, 2)
+            real_dim = np.shape(bounds)
+            assert (real_dim == expected_dim), "len boundaries = {1}, nb_params={2}".format(real_dim, expected_dim)
+        return bounds
+
+
+    def _gen_init_params(self, **args_optim):            
+        """ Different algotithms, require different type of init.. that's why they are 
+        splitted here..
+        TODO: try to unify everything""" 
+        algo = args_optim['algo']
+        if(algo == 'BO'):
+            init = self._init_params_BO(**args_optim)
+        elif(algo == 'NM'):
+            init = self._init_params_NM(**args_optim)
+        elif(algo == 'DE'):
+            init = self._init_params_DE(**args_optim)
+        else:
+            raise NotImplementedError("Should implement adhoc _init_params_{}".format(algo))
+        return init
+
+
+    def __call__(self, **args_call):
+        """ effectively run the optimization. Rely on a <model> which is an object which should
+        at least have a method __call__(params) and may have attributes _info_simulations.
+        Run the adequate optimization, save the results"""
+        options = self.options_learner
+        algo_run = self._ALGO_INFOS[options['algo']][1]
+        res_optim_raw = algo_run(options, **args_call)
+        
+        ## populate res
+        res = {'name_algo': options['algo']}
+        res['params'] = res_optim_raw['x']
+        res['fun'] = res_optim_raw['fun']                    
+        res['nfev'] = res_optim_raw.get('nfev') 
+        res['nit'] = res_optim_raw.get('nit')
+        res['sucess'] = res_optim_raw.get('sucess')
+        res['init'] = self.options_learner['init_params']
+        res['bounds'] = self.options_learner['bounds_params']
+        model = options['model']
+        if(hasattr(model, '_track_calls')):
+            res.update({'extra_'+k: v for k,v in model._info_simulations.items()})
+
+        self._res_optim_raw = res_optim_raw
+        self.mp.close_mp
+        return res
 
 
     # ------------------------------------------------------
     # optimization procedures
     # ------------------------------------------------------
-    def _run_NM(self, model, options, **args_call):
+    def _run_NM(self, options, **args_call):
         """ Implementation of a Nedler Meat optimization  
         
         scipy.optimize.minimize(fun, x0, args=(), method='Nelder-Mead', tol=None, 
         callback=None, options={'func': None, 'maxiter': None, 'maxfev': None, 
         'disp': False, 'return_all': False, 'initial_simplex': None, 'xatol': 0.0001, 
         'fatol': 0.0001, 'adaptive': False})"""
+        init = options['params_init']
+        model = options['model']
         if(len(np.shape(init)) == 2):
             options['initial_simplex'] = init
             init = init[0,:]
-        resultOptim = optim.minimize(model, args = args_call, init, method='Nelder-Mead', options = options)
+        resultOptim = sco.minimize(model, x0 =init, args = args_call , method='Nelder-Mead', options = options)
         return resultOptim
 
-    def _run_DE(self, model, options, **args_call):
+    def _run_DE(self, options, **args_call):
         """ Implementation of a differential evolution optimizer (need bounds)
 
         scipy.optimize.differential_evolution(func, bounds, args=(), strategy='best1bin',
         maxiter=None, popsize=15, tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=None, 
         callback=None, disp=False, polish=True, init='latinhypercube')
         """
-        options['seed'] = self.rdm_gen
-        cost = lambda x : model(x, **args_call)
-        resultOptim = sco.differential_evolution(cost, **options)
+        options_DE = {k:options[k] for k in self._ALGO_INFOS['DE'][0]}
+        options_DE['seed'] = self.rdm_gen
+        model = options['model']
+        bounds = options['bounds_params']
+        def cost(x):
+            res = model(x, **args_call)
+            return res
+        resultOptim = sco.differential_evolution(cost, bounds, **options_DE)
         return resultOptim
 
-    def _run_NOOPTIM(self, model, options, **args_call):
+    def _run_NOOPTIM(self, options, **args_call):
         """ Simple run of the simulator on a set of parameters (no Optim involved,
             one call of the simulator)
         """
         #TODO: will probably evolved to contain more details abt the optim 
-        simRun = model(options['init_params'], **args_call)
-        resultTest = {'x': params, 'fun': simRun, 'nfev':1, 'nit':1, 'sucess':True}
+        init = options['init_params']
+        model = options['model']
+        simRun = model(init, **args_call)
+        resultTest = {'x': init, 'fun': simRun, 'nfev':1, 'nit':1, 'sucess':True}
         return resultTest
 
-    def _run_BO(self, model, options, **args_call):
+    def _run_BO(self, options, **args_call):
         """ Run a bayesian optimization using the library Bayesian Optimization
             (https://github.com/fmfn/BayesianOptimization) built on 
         """        
         #Init BO
-        nb_params = options['n_params']
+        model = options['model']
+        nb_params = options['nb_params']
         name_params = [str(i) for i in range(nb_params)]
         bounds_bo = {name_params[i]: options['bounds_params'][i] for i in range(nb_params)}
-        options['random_state'] = self.rdm_gen
-        options['mp_obj'] = self.mp_obj
-        options['name_params'] = name_params
-        cost = lambda x : model(x, **args_call)
-        bo = BayesianOptimization(cost, bounds_bo, **options)
 
+        pdb.set_trace()
+        options['name_params'] = name_params
+        cost = ut.ArrayToDicoInputWrapper(model)
+        bo = BayesianOptimization(cost, bounds_bo, **options)
+        acq = options['acq']
+        
         #Initialization phase
         init = options['init_params']
         if(ut.is_int(init)):
             nb_points_init = init
             bo.maximize(init_points = nb_points_init, n_iter=0, acq=acq, kappa=0) 
         else:
+            pdb.set_trace()
             nb_points_init = len(init)
-            to_explore = {name_params[i]: [init_matrix[j][i] for j in range(nb_points_init)] for i in range(self._nb_params)}
+            to_explore = {name_params[i]: [init[j][i] for j in range(nb_points_init)] for i in range(nb_params)}
             bo.explore(to_explore)
 
-        
         # Exploration-Exploitation phase
         kappa = self._process_kappa(options['kappa'])        
         bo_args = {'n_iter':options['maxiter'], 'acq': options['acq'], 'kappa':kappa}    
@@ -288,6 +310,9 @@ class learner_base:
         resultTest['nb_cpus'] = nb_cpus_seen
         return resultTest
 
+    def _run_BO_2(self, model, options, **args_call):
+        """ Bayesian optimization using GPYOpt """
+        raise NotImplementedError()
 
     def _process_kappa(self, options_GP):
         """ static or dynamic kappa"""
@@ -307,35 +332,37 @@ class learner_base:
     # init and boundaries... a lot of custom cases ...
     # ------------------------------------------------------
 
-    def _init_params_DE(self, init_obj, **args_init):
+    def _init_params_DE(self, **args_optim):
         """ just pass through """
+        init_obj = args_optim['init_obj']
         return init_obj
 
-    def _init_params_NM(self, init_obj, **args_init):
+    def _init_params_NM(self, **args_optim):
         """Methods:
-            + 'zero' for each params 0 <(n_params) np.array>
-            + 'uniform', 'normal', 'lhs' <(n_params+1, n_params ) np.array>
+            + 'zero' for each params 0 <(nb_params) np.array>
+            + 'uniform', 'normal', 'lhs' <(n_bparams+1, n_params ) np.array>
             + 'nmguess_guess_step0_stepNon0': <(n_params+1, n_params ) np.array>
             Init produce N+1 vertices arround a guess (adapted fm Matlab routine)
             guess[0] = guess, guess[i] = guess + e * n_i, with e= step0/stepNon0 
             (dep on value of guess for a particular element) and n_i is one basis unit vector)
             e.g. nmguess_[3,0,1]_0.5_1 >> [[3,0,1], [4, 0, 1], [3,0.5,1], [3,0,2]]
         """ 
-        n_params = args_init['nb_params']            
-        if(ut.is_str(init_ob))
+        init_obj = args_optim['init_obj']
+        nb_params = args_optim['nb_params']            
+        if(ut.is_str(init_obj)):
             args = init_obj.split("_")
             if(args[0] == 'zero'):
-                init_args = np.zeros_like(n_params)
+                init_args = np.zeros_like(nb_params)
             
             elif(args[0] in ['uniform','normal', 'lhs']):  
-                dim = [n_params + 1, n_params]
-                init_args = self.rdm_gen.gen_rdmnb_from_string(method, dim)                    
+                dim = [nb_params + 1, nb_params]
+                init_args = self.rdm_gen.gen_rdmnb_from_string(init_obj, dim)                    
 
             elif(args[0] == 'nmguess'):
                 assert (len(args)==4), 'nmguess, not the right format'
-                gues, step0, stepNon0 = args[1], args[2], args[3]
+                guess, step0, stepNon0 = args[1], args[2], args[3]
                 init_args = np.zeros_like([nb_params + 1, nb_params])
-                init_args[0, :] = guess_vector
+                init_args[0, :] = guess
                 for i in range(nb_params):
                     perturb = np.zeros(nb_params)
                     if(guess[i] == 0):
@@ -345,12 +372,15 @@ class learner_base:
                     init_args[(i+1), :] = init_args[0,:] + perturb
                 return init_args            
                 print(init_args)
+        elif init_obj is None:
+            print('params set up to zero-vect')
+            init_args = np.zeros(nb_params)
         else:
             init_args = np.array(init_obj)
             
         return init_args
 
-    def _init_params_BO(self, init_obj, **args_init):
+    def _init_params_BO(self, **args_optim):
         """ Provides different ways to initialize bo depending of the input type:
         <None> / <int>: returns an integer (nb of points to be eval)
             e.g. None >> 2 * nb_params 
@@ -361,14 +391,15 @@ class learner_base:
                   range of each params is infered from bounds
         <P * N array>: passs it though 
         """
-        nb_params = args_init['nb_params']
-        bounds = args_init['bounds_params']
+        init_obj = args_optim['init_obj']
+        nb_params = args_optim['nb_params']
+        bounds = args_optim['bounds_params']
 
         if (init_obj is None):
             init_args = nb_params *2
             
         elif ut.is_int(init_obj):
-            init_args = init_type
+            init_args = init_obj
             
         elif ut.is_string(init_obj):
             bits = init_obj.split("_",1)
@@ -379,25 +410,51 @@ class learner_base:
                 init_args = self.rdm_gen.init_population_lhs(size_pop, limits)
             else:
                 distrib_one_param = [bits[1]+'_'+ bounds[i][0] + '_' + bounds[i][1] for i in range(nb_params)]
-                init_matrix = [self.rdm_gen.gen_rdmfunc_from_string(d, dim = np_points_init) for d in distrib_one_param]
+                init_matrix = [self.rdm_gen.gen_rdmfunc_from_string(d, dim = nb_points_init) for d in distrib_one_param]
                 init_args = np.array(init_matrix).T
 
-        else ut.is_string(init_obj):
+        else:
             init_args = init_obj
         return init_args
 
-
-
-    
+    #TODO: tofill  
     def print_default_hyperparams(self):
         raise NotImplementedError
 
-    #TODO: tofill  
     def help(self):
         raise NotImplementedError
 
+#==============================================================================
+# Some testing
+# 6 humps camel function minimal example
+# x1 ∈ [-3, 3], x2 ∈ [-2, 2]
+# Opt: array([ 0.08984198, -0.71265648]), 'fun': -1.0316284534898246
+#==============================================================================
+if __name__ == '__main__':
+    class Camel_model():
+        def __init__(self):
+            self.n_params = 2
+            self.params_bounds = [(-3, 3), (-2, 2)]
+        
+        def __call__(self, params, **args_call):
+            assert(len(params) == 2), "bad dim: expected 2 instead {0}".format(len(params))
+            x1 = params[0]
+            x2 = params[1]
+            res = (4 - 2.1 * x1**2 + (x1**4) / 3) * x1**2 + x1*x2 + (-4 + 4*x2**2) * x2**2
+            print(res)
+            return res
+        
+        
 
-
-
-
+    camel = Camel_model()
+    
+    optim_args = {'algo': 'DE', 'init_obj':[0,0]}
+    optim = learner_Opt(model = camel, **optim_args)
+    resOptim = optim()
+    print(resOptim)
+    
+    optim_args = {'algo': 'BO'}
+    optim = learner_Opt(model = camel, **optim_args)
+    resOptim = optim()
+    print(resOptim)
 

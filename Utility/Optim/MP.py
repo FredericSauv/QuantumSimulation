@@ -40,8 +40,11 @@ class MPCapability():
             self._Pool = mp.Pool(self._nb_workers)
             self._flag_MP = True
         
+        
         else:
-            raise NotImplementedError()
+            self._flag_MP = False
+            self.n_workers = 1
+            self.pool = None
     
     def close_mp(self):
         """ Close the pool if it exists"""
@@ -52,7 +55,7 @@ class MPCapability():
     def pool(self):
         return self._pool
     
-    @property.setter
+    @pool.setter
     def pool(self, p):
         self._pool = p
    
@@ -60,7 +63,7 @@ class MPCapability():
     def n_workers(self):
         return self._nb_workers
     
-    @property.setter
+    @n_workers.setter
     def n_workers(self, n):
         self._nb_workers = n
 
@@ -68,7 +71,7 @@ class MPCapability():
     def n_cpus(self):
         if(self._flag_MP):
             n = mp.cpu_count()
-        else
+        else:
             n =0
         return n
     
@@ -77,9 +80,9 @@ class MPCapability():
         """ Return a MPGenar. Can deal with multiple input
         TODO: extend at some point"""
         if(mp_object.__class__ == cls):
-            return rdm_object
+            return mp_object
         else:
-            return MP(flag_MP = mp_object)
+            return MPCapability(flag_MP = mp_object)
         
 
 
@@ -88,22 +91,5 @@ class MPCapability():
 # TODO: testing mp capabilities
 # =========================================================================== #        
 if __name__ == "__main__":
-    rgen = RandomGenerator()    
-    func = rgen.gen_rdmfunc_from_string('uniform_0_1_0_10', dim = [5,2])
-    res = func()
-    print(res)
-    func = rgen.gen_rdmfunc_from_string('normal_0_1_0_10', dim = [2,5,2])
-    res = func()
-    print(res[:,:,0])
-    print(res[:,:,1])
-    func = rgen.gen_rdmfunc_from_string('determ_0_10', dim = [2,5,2])
-    res = func()
-    print(res[:,:,0])
-    print(res[:,:,1])
-    func = rgen.gen_rdmfunc_from_string('normal', dim = 2)
-    res = func()
-    print(res)  
-    func = rgen.gen_rdmfunc_from_string('normal', dim = 1)
-    res = func()
-    print(res)  
+    pass
     
