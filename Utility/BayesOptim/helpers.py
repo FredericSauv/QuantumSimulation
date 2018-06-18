@@ -85,8 +85,7 @@ def acq_max_old(ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter=250
 
 #### CUSTOM
 def acq_max(ac, gp, y_max, bounds, random_state, n_warmup=100000, n_iter=50, pool=None):
-    """if a pool is passed use its capability if not sequential
-    """
+    """if a pool is passed use its capability if not sequential"""
     if(pool is not None):
         xmax = acq_max_multi(ac, gp, y_max, bounds, random_state, pool, n_warmup, n_iter)
     else:
