@@ -1,0 +1,14 @@
+model_dico {'L':6,'Nb':6,'mu':0,'T':5,'dt':0.01,'main_fun':"{'name_func':'StepFunc','T':5,'nb_steps':15,'F_bounds':(0,1)}",'_flag_dispatch':True,'oa_bounds':"{'name_func':'BoundWrap','bounds_min':0.0,'bounds_max':1.0}",'oa_ow':"{'name_func':'OwriterYWrap','input_min':[-100,5],'input_max':[0, 100],'output_ow':[0,1]}",'flag_intermediate':False, 'setup':'1', 'state_init':'GS_i','state_tgt':'GS_f','fom':,'fom_print':True,'track_learning':True}
+
+testing_dico {'algo':'DE'} {'algo': 'BO'}{'algo':'NM','init_obj':'uniform_-1_1'}
+
+optim_dico {'algo':'DE','name_res':None,'nb_params':15,'params_init':'uniform_0_1','params_bound':'range_0_1','de_maxiter':300,'de_popsize':0.5,'_FLAG_NAME':'DE05'} {'algo':'DE','name_res':None,'nb_params':15,'params_init':'uniform_0_1','params_bound':'range_0_1','de_maxiter':200,'de_popsize':1,'_FLAG_NAME':'DE1'}
+
+_RDM_RUNS 10
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'TestBatch'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False

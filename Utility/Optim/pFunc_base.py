@@ -58,6 +58,7 @@ class pFunc_base():
     self.__bias = [False]
     
     TODO:
+        + Finish using name (i.e. get attribute and get by name)
         + use of different default bounds (e.g. _DEF_POS_BOUNDS)
         + test (D-CRAB setups)
         + (Priority)remove Wrapper Wrapped classes.. Not really needed right?
@@ -93,8 +94,17 @@ class pFunc_base():
                 self._setup_params_and_bounds(p, args_func[p], False)
             else:
                 self._setup_params_and_bounds(p, args_func[p], args_func.get(p+'_bounds', False))
+        if(args_func.get('name') is not None):
+            self._name = args_func.get('name')
+        else:
+            name_func = str(self.__class__).split('.')[-1].split("'")[0]
+            self._name =name_func + str(np.random.randint(0, 1e6))
 
         self._check_integrity()
+    
+#    def __hash__(self):
+#        return id(self)
+        
     #-----------------------------------------------------------------------------#
     # Parameters management
     #-----------------------------------------------------------------------------#
@@ -118,7 +128,7 @@ class pFunc_base():
         setattr(self, '__'+param_name+'_bounds', bounds_processed)
 
     def _process_vals(self, param_name, vals):
-        """ just ensure that cal is an iterable (if single value passed return 
+        """ just ensure that cal is a list  (if single value passed return 
         a list)
         """
         if(not(ut.is_iter(vals))):
@@ -281,7 +291,21 @@ class pFunc_base():
                                      (key, self.__class__.__name__))
                 setattr(self, '__' + key, value)
         
-        
+    @property
+    def name(self):
+        return self._name
+    @property
+    def all_names(self):
+        return self._name
+    
+    def get_func_by_name(self, name):
+        """ return a pFunc if found, None if not found"""
+        if(name == self.name):
+            res = self
+        else:
+            res = None
+        return res
+
     @property
     def n_parameters(self):
         """Returns the number of non-fixed hyperparameters of the kernel."""
@@ -341,7 +365,7 @@ class pFunc_base():
                 mask_free = self._get_one_free_mask(p_name)
                 nb_to_update = np.sum(mask_free)
                 if nb_to_update > 0:    
-                    params[p_name][mask_free] = theta[i:i + nb_to_update]
+                    params[p_name][mask_free] = np.array(theta[i:i + nb_to_update])
                     i += nb_to_update
 
             #That's wehere the updates really happen
@@ -351,8 +375,9 @@ class pFunc_base():
             #Delegate updates to subobj
             for sub in self.list_func_free:
                 nb_to_update_sub = sub.n_theta
-                sub.theta = theta[i:i + nb_to_update_sub]
-                i += nb_to_update_sub
+                if(nb_to_update_sub > 0):
+                    sub.theta = theta[i:i + nb_to_update_sub]
+                    i += nb_to_update_sub
 
         # check all the values in theta have been used
         if i != len(theta):
@@ -484,16 +509,16 @@ class pFunc_base():
         raise NotImplementedError()
     
 
-    def __eq__(self, b):
-        """ doesn't deal well with the type pFunc_fromcllable"""
-        if type(self) != type(b):
-            return False
-        params_a = self.get_params()
-        params_b = b.get_params()
-        for key in set(list(params_a.keys()) + list(params_b.keys())):
-            if np.any(params_a.get(key, None) != params_b.get(key, None)):
-                return False
-        return True
+#    def __eq__(self, b):
+#        """ doesn't deal well with the type pFunc_fromcllable"""
+#        if type(self) != type(b):
+#            return False
+#        params_a = self.get_params()
+#        params_b = b.get_params()
+#        for key in set(list(params_a.keys()) + list(params_b.keys())):
+#            if np.any(params_a.get(key, None) != params_b.get(key, None)):
+#                return False
+#        return True
 
     def __repr__(self):
         return "{0}(**{1})".format(self.__class__.__name__, repr(self.get_params(deep = False)))                             
@@ -512,6 +537,7 @@ class pFunc_base():
     @classmethod
     def build_pfunc(cls, representation):
         """ Build a function from a str / dico / potentially add others """
+        pdb.set_trace()
         if ut.is_str(representation):
             try:
                 func = eval(representation)
@@ -526,7 +552,8 @@ class pFunc_base():
             func = eval(name_func)(**representation)
             
         else:
-            raise NotImplementedError()
+            raise SystemError("build_custom_func can build a function from an "
+                              "object  of tye {0}".format(cls.__class__))
     
         return func
 
@@ -588,7 +615,9 @@ class pFunc_fromcallable(pFunc_base):
     capabilities of pFunc"""
     _FLAG_TYPE = 'callable'
     def __init__(self, callable_obj):
+        pFunc_base.__init__()
         self._callable = callable_obj
+
     
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
@@ -643,20 +672,13 @@ class pFunc_collec(pFunc_base):
     _FLAG_TYPE = 'collection'
     _LIST_PARAMETERS = ['list_func']
     
-    def __init__(self, list_func, list_func_bounds = True):
+    def __init__(self, list_func, list_func_bounds = True, **args_func):
         self._setup_params_and_bounds('list_func', list_func, list_func_bounds)
-        self.__init_counter = 0
-    
-    def __iter__(self):
-        """ iterable capability"""
-        i = self.__init_counter
-        while i < self.n_func:
-            yield self.get_function(i)
-            i+=1
-
-    def __getitem__(self, index):
-        """ index capability"""
-        return self.get_function(index)
+        if(args_func.get('name') is not None):
+            self._name = args_func.get('name')
+        else:
+            name_func = str(self.__class__).split('.')[-1].split("'")[0]
+            self._name =name_func + str(np.random.randint(0, 1e6))
         
     def _process_individual_bound(self, val):
         """ if False keep False (means fixed functions), """
@@ -683,6 +705,38 @@ class pFunc_collec(pFunc_base):
                 raise ValueError('type %s while expecting pFunc_base or collection'
                     ' ' % (str(type(f))))
             f._check_integrity()
+
+    @property
+    def name(self):
+        return self._name
+    
+    @property
+    def all_names(self):
+        names = [self.name]
+        for f in self.list_func:
+            name_tmp = f.all_names
+            if(ut.is_list(name_tmp)):
+                names += name_tmp
+            else:
+                names.append(name_tmp)
+        
+        return names
+    
+    def get_func_by_name(self, name):
+        """ return a pFunc if found, None if not found"""
+        if(name == self.name):
+            res = self
+        else:
+            sub = [f.get_func_by_name(name) for f in self.list_func]
+            found = [s is not None for s in sub]
+            n_found = np.sum(found)
+            if(n_found == 0):
+                res = None
+            elif(n_found == 1):
+                res = sub[found.index(True)]
+            else:
+                raise SystemError('{0} found {1} times in {2}'.format(name, n_found, self.name))
+        return res
 
     # ----------------------------------------------------------------------- #
     #   I/O
@@ -735,8 +789,25 @@ class pFunc_collec(pFunc_base):
 #==============================================================================
 # Implementations
 #==============================================================================   
+class pFunc_List(pFunc_collec):
+    def __init__(self, list_func, list_func_bounds = True, **args_func):
+        pFunc_collec.__init__(self, list_func, list_func_bounds = True, **args_func)
+        self.__init_counter = 0
+        
+    def __iter__(self):
+        """ iterable capability"""
+        i = self.__init_counter
+        while i < self.n_func:
+            yield self.get_function(i)
+            i+=1
 
-
+    def __getitem__(self, index):
+        """ index capability"""
+        return self.get_function(index)
+    
+    def __len__(self):
+        return self.n_func
+    
 # --------------------------------------------------------------------------- #
 #   Collections
 #       >> Product  Sum  Composition
@@ -941,9 +1012,10 @@ class BoundWrap(pFunc_wrapper):
     _LIST_PARAMETERS = ['bounds_min', 'bounds_max']
     _NB_ELEM_PER_PARAMS = [1,1]
 
+    @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
-        M = self._get_one_param("bounds_max")
-        m = self._get_one_param("bounds_min")
+        M = self._get_one_param("bounds_max")[0]
+        m = self._get_one_param("bounds_min")[0]
         return np.clip(X, m, M)
 
 
@@ -1022,7 +1094,7 @@ if __name__ == '__main__':
     better = ow *(bound* (guess * (1 + (sin_scaling * f2h))))
     
     better2 = better.clone()
-    better2.theta = [1,1,0,0]
+    
 
     better.plot_function(xx)    
     better2.plot_function(xx)
@@ -1030,324 +1102,9 @@ if __name__ == '__main__':
     print(better2.get_params())
     print(better2.theta)
     
+    one_name_func = better.all_names[-1]
+    better.get_func_by_name(one_name_func)
+    
     
 
 
-
-        
-# class pFunc_wrapper(pFunc_base):
-#     """ instead of params we have here hyperparams """
-#     _LIST_HYPERPARAMETERS=[]
-#     _NB_ELEM_PER_HYPERPARAMS = []
-
-#     def __init__(self, **args_wrapper):
-#         """ Look for all the hyperparameters specified in _LIST_HYPERPARAMETERS  
-#         use None if they are not specified"""
-#         if(args_wrapper.get('debug')):
-#             pdb.set_trace()
-
-#         for hp in self._LIST_HYPERPARAMETERS:
-#             setattr(self, '__'+hp, args_wrapper.get(hp))
-
-#     #-----------------------------------------------------------------------------#
-#     # hyper-parameters management (straight-forward)
-#     #-----------------------------------------------------------------------------#
-#     @classmethod
-#     def help(cls):
-#         print(cls._LIST_HYPERPARAMETERS)
-    
-#     def get_hyperparams(self):
-#         """Return a dico with the hyperparameters """
-#         params = dict()        
-#         for hp in self._LIST_HYPERPARAMETERS:
-#             params[hp] = self._get_one_param(hp)
-#         return params
-
-#     def set_hyperparams(self, **hyperparams):
-#         """Return a dico with the hyperparameters """
-#         valid_params = self.get_hyperparams()         
-#         for key, value in hyperparams.items():
-#             if key not in valid_params:
-#                 raise ValueError('Invalid parameter %s for function %s. '
-#                         'Check the list of available parameters '
-#                         'with `cls.print_params_name()`.' %
-#                         (key, self.__class__.__name__))
-#             setattr(self, '__' + key, value)
-
-#     def update_dynamically(self, func):
-#         """ update the attributes of the object dynamically based on a provided func
-#         e.g. when something changes (parameters update) in func """
-#         raise NotImplementedError()
-
-#     #-----------------------------------------------------------------------------#
-#     # IO
-#     #-----------------------------------------------------------------------------#
-#     def wrap(self, func):
-#         """ Wrapping a function returns a new type still inheriting from pFunc_base"""
-#         return pFunc_wrapped(func, self)
-
-#     def __mul__(self, b):
-#         """ wrapper * func >> wrapped_function"""
-#         if not isinstance(b, pFunc_base):
-#             raise NotImplementedError()
-#         return self.wrap(b)
-    
-#     # doen't haved to be vectorized (i.e. wrapped) as it will be always called
-#     # from pFunc_wrapped with scalar values 
-#     def __call__(self,  X, func, Y=None, eval_gradient=False):
-#         """ call rely on a func"""
-#         raise NotImplementedError
-
-#     def __repr__(self):
-#         return "{0}(**{1})".format(self.__class__.__name__, self.get_hyperparams())   
-
-# class pFunc_wrapped(pFunc_base):
-#     """ fusion of pfunc and pFunc_wrapped"""
-#     def __init__(self, func, wrapper):
-#         self._func = func
-#         self._class_func = func.__class__
-#         self._wrapper = wrapper
-#         self.update_wraper_hyperparams()
-
-#     @ut.extend_dim_method(0, True)
-#     def __call__(self, X, Y=None, eval_gradient=False):
-#         res = self._wrapper(X, self._func, Y, eval_gradient)
-#         return res
-
-#     def __repr__(self):
-#         return "{0}({1},{2})".format(self.__class__.__name__, 
-#             repr(self._func), repr(self._wrapper))
-
-#     #-----------------------------------------------------------------------------#
-#     # hyper-parameters management (delegate everything to the wrapper)
-#     #-----------------------------------------------------------------------------#    
-#     def get_hyperparams(self):
-#         """Return a dico with the hyperparameters of the wrapper"""
-#         return self._wrapper.get_hyperparams()
-
-#     def set_hyperparams(self, **hyperparams):
-#         """Return a dico with the hyperparameters """
-#         self._wrapper.set_hyperparams(**hyperparams)
-
-#     #-----------------------------------------------------------------------------#
-#     # Parameters management (delegate everything to the underlying function)
-#     #-----------------------------------------------------------------------------#
-#     def update_wraper_hyperparams(self):
-#         self._wrapper.update_dynamically(self._func)
-    
-#     def print_param_names(self):
-#         """ Print the name of parameter expected """
-#         print(self._class_func._LIST_PARAMETERS)
-
-#     def fix_all(self):
-#         """ Fix all the parameters"""
-#         self._func.fix_all()
-
-#     def get_params(self, deep = True, bounds = True):
-#         """Get parameters (and bounds) of the underlying function"""
-#         return self._func.get_params(deep, bounds)
-
-
-#     def set_params(self, **params):
-#         """Set the parameters of the underlying function: triggers update of 
-#         the attributes of the wrapper """
-#         self._func.set_params(**params)
-#         self.update_wraper_hyperparams()
-        
-        
-#     @property
-#     def n_parameters(self):
-#         """Returns the number of non-fixed hyperparameters of the underlying function"""
-#         self._func.n_parameters
-    
-#     def n_elements_one_param(self, param_name):
-#         """ return the number of elements of one parameter of the underlying function"""
-#         self._func.n_elements_one_param(param_name)
-
-
-#     ### Recall thetas are the free parameter values // recursive behavior by default 
-#     @property
-#     def n_theta(self):
-#         """Returns the number of non-fixed hyperparameters of the of the underlying function"""
-#         return self._func.n_theta
-    
-#     def n_theta_one_param(self, param_name):
-#         """Get the number of free values for one parameter of the underlying function"""
-#         return self._func.n_theta_one_param(param_name)
-        
-#     @property
-#     def theta(self):
-#         """Returns the (flattened) non-fixed hyperparameters of the underlying function """
-#         return self._func.theta  
-    
-#     @theta.setter
-#     def theta(self, theta):
-#         """Sets the non-fixed hyperparameters of the underlying function"""
-#         self._func.theta = theta
-#         self.update_wraper_hyperparams()
-
-                            
- 
-
-# # --------------------------------------------------------------------------- #
-# #   Wrappers
-# #       >> Owritten  Bounded  LTransformed
-# # --------------------------------------------------------------------------- #
-# class OWriter(pFunc_wrapper):
-#     """ Allow for overwritting results of a function when X belongs to certain
-#     values i.e. """
-#     def __init__(self, **args_wrapper):
-#         self._LIST_HYPERPARAMETERS += ['ow_X', 'ow_Y']
-#         self._NB_ELEM_PER_HYPERPARAMS += ['ow', 'ow']
-#         pFunc_wrapper.__init__(self, **args_wrapper)
-
-#     def update_dynamically(self, func):
-#         """ don't need to maintain attribute can do the bounding on the fly 
-#         in __call__() """
-#         pass
-
-#     def __call__(self, X, func, Y=None, eval_gradient=False):
-#         res_func = None
-#         ow_X = self._get_one_param("ow_X")
-#         ow_Y = self._get_one_param("ow_Y")
-#         if(ow_X is not None):
-#             for n, int_x in enumerate(ow_X):
-#                 if ut.is_x_in_y(X, int_x):
-#                     res_func = ow_Y[n]
-#                     break
-
-#         if res_func is None:
-#             res_func = func(X, Y, eval_gradient)
-#         return res_func
-    
-# class Bounder(pFunc_wrapper):
-#     """ Allow for bounding the results of a function   """
-#     def __init__(self, **args_wrapper):
-#         self._LIST_HYPERPARAMETERS += ['bounds_min', 'bounds_max']
-#         self._NB_ELEM_PER_HYPERPARAMS += [1,1]
-#         pFunc_wrapper.__init__(self, **args_wrapper)
-
-#     def update_dynamically(self, func):
-#         """ don't need to maintain attribute can do the bounding on the fly 
-#         in __call__() """
-#         pass
-
-#     def __call__(self, X, func, Y=None, eval_gradient=False):
-#         res_func = func(X, Y, eval_gradient)
-#         M = self._get_one_param("bounds_max")
-#         m = self._get_one_param("bounds_min")
-#         if (m is not None):
-#             if m > res_func:
-#                 res_func = m
-#         if (M is not None):
-#             if M < res_func:
-#                 res_func = M
-
-#         return res_func
-
-# class LTransformer(pFunc_wrapper):
-#     """ Allow to linearly transformed the results of a function   """
-#     def __init__(self, **args_wrapper):
-#         self._LIST_HYPERPARAMETERS += ['lt_type', 'lt_constraints']
-#         self._NB_ELEM_PER_HYPERPARAMS += [1,(1,2)]
-#         self._reset_lt()
-#         pFunc_wrapper.__init__(self, **args_wrapper)
-
-#     @property
-#     def n_constraints(self):
-#         ct = self._get_one_param("lt_constraints")
-#         if ct is None:
-#             return 0
-#         else:
-#             assert ut.is_iter(ct[0]), "wrong format"
-#             return len(ct)
-
-#     def _reset_lt(self):
-#         """ reset underlying scale and shift values"""
-#         self._lt_scale = 1
-#         self._lt_shift = 0
-
-#     def update_dynamically(self, func):
-#         """ update self._lt_scale and self._lt_shift based on func """  
-#         ct = self._get_one_param("lt_constraints")
-#         lt_type = self._get_one_param("lt_type")
-#         new_scale, new_shift = 1, 0
-
-        
-#         if(self.n_constraints == 1):
-#             x0, y0 = ct[0]
-#             f0 = func(x0)
-#             if(lt_type == 'scale'):
-#                 if (f0 == 0):
-#                     print('scale fixed to 1')
-#                     new_scale = 1 
-#                 else:
-#                     new_scale = y0/f0
-#             elif(lt_type == 'shift'):
-#                 new_shift = y0 - f0
-#             else:
-#                 raise NotImplementedError()
-                
-#         elif(self.n_constraints == 2):
-#             x0, y0 = ct[0]
-#             x1, y1 = ct[1]
-#             f0, f1 = func(x0), func(x1)
-#             if(lt_type == 'sin'):
-#                 # f'(t) = shift + sin(Pi * (x1 - x0) * (t-x0)) * f(t)
-#                 assert (y0 == y1), "invalid constraints: y's shouldn't be the same"
-#                 new_shift = y0
-#                 new_scale = lambda t: np.sin(np.pi / (x1 - x0) * (t - x0))
-            
-#             elif(lt_type == 'sin2'):
-#                 # f'(t) = shift + sin(Pi * (x1 - x0) * (t-x0)) * f(t)
-#                 assert (y0 == y1), "invalid constraints: y's shouldn't be the same"
-#                 new_shift = y0
-#                 new_shift = lambda t: np.square(np.sin(np.pi * (x1 - x0) * (t - x0)))
-            
-#             elif(lt_type == 'scale&shift'):
-#                 # f'(t) = shift + scale * f(t)
-#                 if ((f1-f0) != 0):
-#                     new_scale = (y1-y0) / (f1-f0)
-#                 else:
-#                     print('scale fixed to 1')
-#                     new_scale = 1
-#                 new_shift = y0 - f0 * self._scale        
-#             else:
-#                 raise NotImplementedError()
-
-#         elif(self.n_constraints > 2):
-#             raise NotImplementedError()
-#         self._lt_scale = new_scale
-#         self._lt_shift = new_shift
-
-#     def __call__(self, X, func, Y=None, eval_gradient=False):
-#         if(hasattr(self._lt_scale, '__call__')):
-#             scale = self._lt_scale(X)
-#         else:
-#             scale = self._lt_scale
-#         shift = self._lt_shift
-#         res_func = func(X, Y=Y, eval_gradient=eval_gradient)
-#         return res_func * scale + shift
-
-# class Enrober(OWriter, Bounder, LTransformer):
-#     """ Wrapper combining behavior of Bounder, LTransformer and OWriter. Mostly 
-#     define order in which underlying methods are sequentially applied: (1) linear
-#     -transformation 
-#     ... NOT REALLY NICE IMPLEM ... COULD BE MORE ...
-#     """
-#     def __init__(self, **args_wrapper):
-#         LTransformer.__init__(self, **args_wrapper)
-#         Bounder.__init__(self, **args_wrapper)
-#         OWriter.__init__(self, **args_wrapper)
-        
-
-#     def update_dynamically(self, func):
-#         """ Update is only required for LTransformer"""
-#         LTransformer.update_dynamically(self, func)
-
-#     def __call__(self, X, func, Y=None, eval_gradient=False):
-#         func1 = lambda x, y, e: LTransformer.__call__(self, X=x,  func = func, Y=y, eval_gradient= e)
-#         func2 = lambda x, y, e: Bounder.__call__(self, X=x, func = func1, Y=y, eval_gradient= e)
-#         func3 = lambda x, y, e: OWriter.__call__(self, X=x, func = func2, Y=y, eval_gradient= e)
-#         res = func3(X, Y, eval_gradient)
-#         return res

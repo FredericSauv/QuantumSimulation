@@ -45,15 +45,12 @@ class pFunc_factory():
 
     @classmethod
     def build_custom_func(cls, fun_object, **extra_args):
-        """ generate composed functions based on complex expr
-        '({dico_func1} + {dico_func2}) . {dico_func3})
+        """ generate composed functions based on complex expr (<str> or <dict>)
+        '({dico_func1} + {dico_func2}) . {dico_func3})'
         TODO: probably need to deal with noise at some point e.g. 'noise_om'
         """
-        #pdb.set_trace()
         if(ut.is_str(fun_object)):
             try:
-                func = eval(fun_object)
-            except:
                 try:
                     bf = 'cls.build_atom_custom_func('
                     af = ",".join([k+'='+str(v) for k, v in extra_args.items()]) + ')'
@@ -61,11 +58,15 @@ class pFunc_factory():
                     func = eval(st)
                 except:
                     func = pf.pFunc_base.build_pfunc(fun_object)
-        else:
-            try:
-                func = cls.build_atom_custom_func(cls, fun_object, **extra_args)
             except:
-                func = pf.pFunc_base.build_from_various(fun_object)
+                func = eval(fun_object)
+        elif(ut.is_dico(fun_object)):
+            func = cls.build_atom_custom_func(cls, fun_object, **extra_args)
+        
+        else:
+            raise SystemError("build_custom_func can build a function from an "
+                              "object  of tye {0}".format(cls.__class__))
+            
         return func
 
 
@@ -84,10 +85,11 @@ class pFunc_factory():
             func = cls._build_custom_StepFunc(dico_fun)
         elif(name_func == 'FourierFunc'):
             func = cls._build_custom_FourierFunc(dico_fun, rdm_object = rdm_object)
+        elif(name_func == 'BoundWrap'):
+            func = cls._build_custom_BoundWrap(dico_fun)
         else:
             func = cls._build_custom_Default(dico_fun, name_func = name_func)
         return func
-
 
     @classmethod
     def _build_custom_FourierFunc(cls, dico_source, **extra_args):
@@ -127,6 +129,7 @@ class pFunc_factory():
         constructor = info_func[1]
         return constructor(**dico_source)
 
+
     @classmethod  
     def _build_custom_StepFunc(cls, dico_source, **extra_args):
         """ custom rules to build a StepFunc """
@@ -135,18 +138,19 @@ class pFunc_factory():
         Tstep = dico_source.get('Tstep')
         if(Tstep is None):
             T = dico_source['T']
-            nb_step = dico_source['nb_step']
+            nb_step = dico_source['nb_steps']
             dt = float(T/(nb_step -1))
-            Tstep = np.c_[np.arange(0, T, dt), T]
+            Tstep = np.r_[np.arange(0, T, dt), T]
 
         else:
             nb_step = len(Tstep)
         F = dico_source.get('F', np.zeros(nb_step))
         F0 = dico_source.get('F0', 0)
-        
         dico_constructor = {'F':F, 'F0':F0, 'Tstep':Tstep}
         cls._add_bounds(dico_constructor, dico_source)
         return constructor(**dico_constructor)
+    
+    def _build_custom_bounds(cls, dico_source, **extra_args):
 
 
     @classmethod  

@@ -6,6 +6,7 @@ Created on Thu Mar 29 15:58:12 2018
 @author: fred
 """
 import multiprocessing as mp
+import pdb
 if(__name__ == '__main__'):
     import sys
     sys.path.append("../")
@@ -20,8 +21,9 @@ class MPCapability():
     """ Allow the management of MP pool  """
     def __init__(self, **args_MP):
         """ """
+        if(args_MP.get('debug')):
+            pdb.set_trace()
         flagMP = args_MP.get('flag_MP')
-        
         if(isinstance(flagMP, bool)):
             if(flagMP):
                 self._flag_MP = True

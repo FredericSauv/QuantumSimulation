@@ -33,7 +33,8 @@ class learner_base:
 
     learner ---  params_next  ---> model
     learner <---  fom  --- model
-    # TODO: Implement RandomSearch // BFGS // GRID
+    TODO: BO2 (based on GPyOpt)
+    TODO: Implement RandomSearch // BFGS // GRID
     """
     
     # mandatory params to initialise the learner
@@ -120,8 +121,8 @@ class learner_Opt(learner_base):
         self._ALGO_INFOS ={
         'NM':({'disp':True, 'maxiter':200, 'ftol':1e-6, 'maxfev':200, 'adaptative':False}, self._run_NM),        
         'NOOPTIM':({}, self._run_NOOPTIM), 
-        'BO':({'disp':True, 'acq':'ei', 'kappa':5.0, 'maxiter':150,'verbose':False, 'kernel':'matern2.5', 
-               'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'acq_iter':250, 'n_warmup':100000}, self._run_BO),
+        'BO':({'disp':True, 'acq':'ei', 'kappa':5.0, 'maxiter':50,'verbose':False, 'kernel':'matern2.5', 
+               'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'acq_iter':50, 'n_warmup':10000}, self._run_BO),
         'DE':({'disp':True, 'maxiter':50, 'popsize':10, 'tol':0.01}, self._run_DE)}
         
         learner_base.__init__(self, model=model, **params_learner)
@@ -141,7 +142,7 @@ class learner_Opt(learner_base):
         opt_l.update({'bounds_params':self._gen_boundaries_params(**opt_l)})
         opt_l.update({'init_obj':params_learner.get('init_obj')})
         opt_l.update({'init_params':self._gen_init_params(**opt_l)})
-        opt_l['random_state'] = self.rdm_gen
+        opt_l['rdm_gen'] = self.rdm_gen
         opt_l['mp_obj'] = self.mp
         self.options_learner = opt_l
 
@@ -203,7 +204,7 @@ class learner_Opt(learner_base):
             res.update({'extra_'+k: v for k,v in model._info_simulations.items()})
 
         self._res_optim_raw = res_optim_raw
-        self.mp.close_mp
+        self.mp.close_mp()
         return res
 
 
@@ -243,10 +244,8 @@ class learner_Opt(learner_base):
         return resultOptim
 
     def _run_NOOPTIM(self, options, **args_call):
-        """ Simple run of the simulator on a set of parameters (no Optim involved,
-            one call of the simulator)
-        """
-        #TODO: will probably evolved to contain more details abt the optim 
+        """ IS IT USEFULL """
+ 
         init = options['init_params']
         model = options['model']
         simRun = model(init, **args_call)
@@ -262,8 +261,7 @@ class learner_Opt(learner_base):
         nb_params = options['nb_params']
         name_params = [str(i) for i in range(nb_params)]
         bounds_bo = {name_params[i]: options['bounds_params'][i] for i in range(nb_params)}
-
-        pdb.set_trace()
+        options['random_state'] = self.rdm_gen
         options['name_params'] = name_params
         cost = ut.ArrayToDicoInputWrapper(model)
         bo = BayesianOptimization(cost, bounds_bo, **options)
@@ -281,33 +279,28 @@ class learner_Opt(learner_base):
             bo.explore(to_explore)
 
         # Exploration-Exploitation phase
-        kappa = self._process_kappa(options['kappa'])        
+        kappa = self._process_kappa(options)        
         bo_args = {'n_iter':options['maxiter'], 'acq': options['acq'], 'kappa':kappa}    
         bo.maximize(init_points=0, **bo_args)
-
 
         # Exploitation phase
         bo_args_Maximize = {'n_iter':15, 'acq': 'ucb', 'kappa':0.0001} 
         bo.maximize(init_points=0, **bo_args_Maximize)
 
-        
-        # Close pool of processors used (if it exists)
-        nb_workers_used = bo._nb_workers
-        nb_cpus_seen = bo._nb_cpus
-        bo.close_mp_pool()
-       
         # generate results      
         index_max = np.argmax(bo.Y)
         optim_params = bo.X[index_max]
-        optim_value = cost(optim_params)
+        optim_value = model(optim_params)
         niter = bo_args['n_iter']
         nfev = niter + nb_points_init
         resultTest = {'x': optim_params, 'fun': optim_value, 'nfev':nfev, 'nit':niter, 'sucess':True}
         resultTest['gp_kernel_init'] = str(bo.gp.kernel)
         resultTest['gp_kernel_optim'] = str(bo.gp.kernel_)
         resultTest['gp'] = bo.gp.kernel_
-        resultTest['nb_processes'] = nb_workers_used
-        resultTest['nb_cpus'] = nb_cpus_seen
+        resultTest['nb_processes'] = bo.mp.n_workers
+        resultTest['nb_cpus'] = bo.mp.n_cpus
+        
+        # Close pool of processors used (if it exists)
         return resultTest
 
     def _run_BO_2(self, model, options, **args_call):
@@ -431,30 +424,64 @@ class learner_Opt(learner_base):
 # Opt: array([ 0.08984198, -0.71265648]), 'fun': -1.0316284534898246
 #==============================================================================
 if __name__ == '__main__':
-    class Camel_model():
-        def __init__(self):
-            self.n_params = 2
-            self.params_bounds = [(-3, 3), (-2, 2)]
-        
-        def __call__(self, params, **args_call):
-            assert(len(params) == 2), "bad dim: expected 2 instead {0}".format(len(params))
-            x1 = params[0]
-            x2 = params[1]
-            res = (4 - 2.1 * x1**2 + (x1**4) / 3) * x1**2 + x1*x2 + (-4 + 4*x2**2) * x2**2
-            print(res)
-            return res
-        
-        
-
-    camel = Camel_model()
+    test_camel = False
+    test_paramFunc = True
+    if(test_camel):
+        class Camel_model():
+            def __init__(self):
+                self.n_params = 2
+                self.params_bounds = [(-3, 3), (-2, 2)]
+            
+            def __call__(self, params, **args_call):
+                assert(len(params) == 2), "bad dim: expected 2 instead {0}".format(len(params))
+                x1 = params[0]
+                x2 = params[1]
+                res = (4 - 2.1 * x1**2 + (x1**4) / 3) * x1**2 + x1*x2 + (-4 + 4*x2**2) * x2**2
+                print(res)
+                return res
+            
+            
     
-    optim_args = {'algo': 'DE', 'init_obj':[0,0]}
-    optim = learner_Opt(model = camel, **optim_args)
-    resOptim = optim()
-    print(resOptim)
-    
-    optim_args = {'algo': 'BO'}
-    optim = learner_Opt(model = camel, **optim_args)
-    resOptim = optim()
-    print(resOptim)
+        camel = Camel_model()
+        
+        optim_args = {'algo': 'DE', 'init_obj':[0,0]}
+        optim = learner_Opt(model = camel, **optim_args)
+        resOptim = optim()
+        print(resOptim)
+        
+        optim_args = {'algo': 'BO'}
+        optim = learner_Opt(model = camel, **optim_args)
+        resOptim = optim()
+        print(resOptim)
 
+
+    if(test_paramFunc):
+        from QuantumSimulation.Utility.Optim import pFunc_base as pf
+        
+        class Param_model():
+            def __init__(self, fun):
+                self.fun = fun
+                self.params_bounds = fun.theta_bounds
+                self.n_params = fun.n_theta
+            
+            def __call__(self, params):
+                self.fun.theta = params
+                res = self.fun(1.82)
+                print(res)
+                return res
+
+        func = pf.FourierFunc(A = [0.0, 0.0], B =[0.0, 0.0], phi = [0.0, 0.0], c0 = 0.0,
+                               Om =[np.pi, 2* np.pi], A_bounds = (-1.0, 1.0))
+    
+        p_model = Param_model(func)
+                
+        optim_args = {'algo': 'DE'}
+        optim = learner_Opt(model = p_model, **optim_args)
+        resDE = optim()
+        print(resOptim)
+        
+        optim_args = {'algo': 'BO'}
+        optim = learner_Opt(model = p_model, **optim_args)
+        resBO = optim()
+        print(resOptim)
+        

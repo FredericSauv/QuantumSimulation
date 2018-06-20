@@ -62,63 +62,56 @@ class Batch:
     METAPARAMS_INFO = {'_RDM_RUNS': (1, 'int'), '_RDM_FIXSEED': (False, 'bool'),
                       '_OUT_PREFIX': ('res_','str'),'_OUT_FOLDER': (None, 'str'),
                       '_OUT_COUNTER': (None, 'int'), '_OUT_NAME': (None, 'list'),
-                      '_OUT_STORE_CONFIG': (True, 'bool')}
+                      '_OUT_STORE_CONFIG': (True, 'bool'), '_MP_FLAG':(False, 'bool')}
     METAPARAMS_NAME = METAPARAMS_INFO.keys()
     
     def __init__(self, config_object = None, rdm_object = None, procToRun = None, debug = False):
-        """ Init the batch with a config(dico, list of dicos, file or list of files containing
-        the configs )
+        """ Init the batch with a <dic> (it represents one config) OR <list<dico>>
+        (several configs) OR <str:file_path> (onefile = one config) OR
+        <list<str:file_path>> (several configs)
         """
         if(debug):
             pdb.set_trace()
-        self._RDMGEN = rdgen.RandomGenerator.init_random_generator(rdm_object) # not used atm
         self.listConfigs = self._read_configs(config_object) 
         self._init_proc_to_run(procToRun)
 
 
     @classmethod
-    def from_meta_config(cls, metaFile = None, rdm_object = None, procToRun = None, debug = False):
-        """ init the config with a meta_configuration (instead of directly a
-        /several configs). metaconfig is a file on which can be generated 
-        list of configs
+    def from_meta_config(cls, metaFile = None, rdm_object = None, procToRun = None, 
+                         debug = False, dispatch = False):
+        """ init the config with a meta_configuration where a metaconfig is 
+        understood as a file from which can be generated a list of configs.
+        For dispatch = False it will use some general rules to build these configs
+        (provided in parse_meta_configs)
+        If dispatch = True it will use some treatment to create the configs
+        (it should be implemented in _dispatch_configs implemented)
         """
         if(debug):
             pdb.set_trace()
+
         list_configs = cls.parse_meta_config(metaFile)
+        if(dispatch):
+            list_configs = [cls._dispatch_configs(c) for c in list_configs]
         obj = Batch(list_configs, rdm_object, procToRun)
         return obj
-
-    @classmethod
-    def from_meta_with_dispatch(cls, inputFile = None, rdm_object = None, procToRun = None, debug = False):
-        """ Init the Batch object from a meta-config file and some extra processing
-        of the file (._dispatch_configs), it should be implemented in the subclass
-        or add a mechanism to hook it up
-        """
-        obj = cls.from_meta_config(inputFile, rdm_object, procToRun, debug)
-        obj.listConfigs = [obj._dispatch_configs(conf) for conf in obj.listConfigs]
-        return obj
-
-    def _dispatch_configs(self, dico):
-        """ 
-        """
-        raise NotImplementedError()
 
 # ---------------------------
 # MAIN FUNCTIONS
 #   - run_procedures
 #   - save_res
 # ---------------------------
-    def run_procedures(self, config = None, saveFreq = 0, splitRes = False, printInfo = False):
-        """ For each element of listConfigs run procedures (procToRun) and save reults
+    def run_procedures(self, config = None, saveFreq = 0, splitRes = False, printInfo = False, debug=False):
+        """ For each element of listConfigs it will run one procedure (via 
+        self.run_one_procedure which should be implemented) and save the reults
+        
         Arguments:
-        saveFreq:
-            (-1) save at the end / (0) don't save anything/ (1) save each time 
-            / (N)save each N res
-        splitRes
-             (False) only one file /(True):generate a file for each simulations 
-             TODO: add gather all the runs for the same setup
+        + saveFreq: (-1) save at the end / (0) don't save anything/ 
+                    (1) save each time / (N)save each N res
+        +splitRes: (False) only one file /(True):generate a file for each simulations 
         """
-        #pdb.set_trace()
+        #pdb.set_trace()#
+        if(debug):
+            pdb.set_trace()
         if(config is None):
             list_configs = self.listConfigs
         else:
@@ -223,8 +216,8 @@ class Batch:
     
     @classmethod
     def parse_and_save_meta_config(cls, input_file = 'inputfile.txt', output_folder = 'Config'):
-        """ parse an input file generate teh configs and write a file for each of them
-        """
+        """ parse an input file containing a meta-config generate the differnt 
+        configs and write a file for each of them"""
         list_configs = cls.parse_meta_config(input_file)
         for conf in list_configs:
             name_conf = 'config_' + conf['_RES_NAME']
@@ -235,9 +228,9 @@ class Batch:
 
     @classmethod
     def parse_meta_config(cls, inputFile = 'inputfile.txt'):
-        """Parse an input file and generate a list[dicoConfigs] where dicoConfigs are 
-        dictionaries containing a configuration which can be directly used to run the proc
-        """
+        """Parse an input file containing a meta-config and generate a 
+        <list<dict:config>> where config is a dict containing a configuration 
+        which can be directly used to run a procedure"""
         with open(inputFile, 'r') as csvfile:
             reader = csv.reader(csvfile, delimiter = ' ')
             list_values = list([])
@@ -294,7 +287,7 @@ class Batch:
             name_res_list.append(name_res_tmp)
             conf['_OUT_FOLDER'] = dico_meta_filled['_OUT_FOLDER']
             conf['_OUT_STORE_CONFIG'] = dico_meta_filled['_OUT_STORE_CONFIG']
-
+            conf['_MP_FLAG'] = dico_meta_filled['_MP_FLAG']
         return list_configs
     
     @classmethod
@@ -406,7 +399,13 @@ class Batch:
     
 # ---------------------------
 # To be implemented in the subclass
-# ---------------------------
+# ---------------------------            
+    @classmethod
+    def _dispatch_configs(cls, dico):
+        """ 
+        """
+        raise NotImplementedError()
+
     def run_one_procedure(self, conf):
         # should take a config(dico) and return results (packed as a dico too)
         # results can contain 
