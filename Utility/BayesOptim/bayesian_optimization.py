@@ -310,8 +310,7 @@ class BayesianOptimization(object):
         if(self.mp is None):
             pool = None
         else:
-            pool = mp.pool
-
+            pool = self.mp.pool
         # Finding argmax of the acquisition function.
         x_max = acq_max(ac=self.util.utility,
                         gp=self.gp,

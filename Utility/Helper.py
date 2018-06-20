@@ -109,9 +109,9 @@ def save_str(string, file_name, type_write = 'w'):
 
             
 def file_to_dico(file, nested = False, delimiter = ' ', na_character = [''], evfunc = eval):
-    """ Transform a txt file into a dico // expecting only one element
-    """
-    
+    """ Transform a txt file into a dico. Two behaviors (nested=True): 
+        line after line take the first elem as a key and eval the second one 
+        to get the value (nested = False) just eval first line"""
     nbline = 0
     with open(file, 'r', newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter = delimiter)
