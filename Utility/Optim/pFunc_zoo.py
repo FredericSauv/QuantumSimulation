@@ -3,15 +3,128 @@ if(__name__ == '__main__'):
     sys.path.insert(0, '../')
     import Helper as ut
     import pFunc_base as pf
-    from RandomGenerator import RandomGenerator as rg
+    from pFunc_base import Composition, Product, Sum
+    from RandomGenerator import RandomGenerator
 else:
     from .. import Helper as ut
     from . import pFunc_base as pf
-    from .RandomGenerator import RandomGenerator as rg
+    from .pFunc_base import Composition, Product, Sum
+    from .RandomGenerator import RandomGenerator
     
 import numpy as np
 import pdb
 
+#TODO: use nicknames for function
+
+
+class pFunc_parser():
+    """ parse """
+    _DICO_OP = {'**':'Composition', '*':'Product', '+':'Sum', '#':''}    
+    
+    @classmethod
+    def parse(cls, dico_atom, dico_expr):
+        pdb.set_trace
+        parsed = {}
+        for k, v in dico_atom.items():
+            parsed_tmp = cls.parse_atom(v)
+            parsed.update({k:parsed_tmp})
+        
+        for k,v in dico_expr.items():
+            parsed_tmp = cls.parse_expr(v, parsed)
+            parsed.update({k:parsed_tmp})
+
+        final = parsed['final']
+        return final
+    
+    @classmethod
+    def parse_atom(cls, atom):
+        if(not(ut.is_str(atom))):
+            raise SystemError('prse_atom: atom arg should be a string')
+        res = 'self.build_atom_custom_func(' + atom + ')'
+        return res
+    
+    
+    @classmethod
+    def parse_expr(cls, expr, db):
+        """ any expr is written as '$(expr_0,..,expr_n)'
+        if # (e.g. '#(expr)') it means that it is an atomic expression and it is extracted
+            from db
+        if $ in (#,*,**) it is a compound one in this case will parse each sub_expr
+            (recursively) to build it
+        else: fail
+        
+        e.g. expr = '**(#a,*(#c,+(#d,#e)))' with db = {'a':xx,'c':yy,'d':qq,'e':zz}
+        """
+        if(not(ut.is_str(expr))):
+            raise SystemError('prse_atom: atom arg should be a string')
+        op, list_sub_expr = cls._split_op_args(expr)
+        if(op == '#'):
+           res = db[list_sub_expr]
+        
+        elif(op in cls._DICO_OP):
+            parsed_sub = [cls.parse_expr(sub, db) for sub in list_sub_expr]
+            res = cls._apply_operator(op, parsed_sub)
+        else:
+            raise SystemError('operator {0} not recognized'.format(op))
+            
+        return res
+            
+    @classmethod
+    def _split_op_args(cls, expr):
+        """ 'op(expr1, expr)' >> op='**', list_sub_expr ='[expr1,expr2]'
+        Special case when operator is # 
+        '#expr1 >> op='#', list_sub_expr = expr1
+        """
+
+        if(expr[0] == "#"):
+           op = '#'
+           list_sub_expr = expr[1:]
+        else:
+            index = expr.find('(')
+            op = expr[:index]
+            list_sub_expr = cls._split_expressions(expr[index+1:-1])
+        return op, list_sub_expr
+
+    @classmethod
+    def _split_expressions(cls, multi):
+        """ split a string with ',' as a delimiter only if not in a nested exp
+        ression i.e. all the open) are closed
+        e.g. '#(f),**(#(g), #(h))' >> ['#(f)', '**(#(g), #(h))']
+        """
+        counter_nested = 0
+        list_expr = []
+        expr_tmp = ''
+        for char in multi:
+            if(char == ','):
+                if counter_nested == 0:
+                    list_expr.append(expr_tmp)
+                    expr_tmp = ''
+                else:
+                    expr_tmp += (char)
+            else:
+                expr_tmp += (char)
+                if(char == '('):
+                    counter_nested += 1 
+                elif(char == ')'):
+                    counter_nested -= 1
+                    
+        if(len(expr_tmp) > 0):
+            list_expr.append(expr_tmp)
+        return list_expr
+                
+    @classmethod
+    def create_func(cls, str_func):
+        if(not(ut.is_str(str_func))):
+            raise SystemError('prse_atom: atom arg should be a string')
+        
+    @classmethod
+    def _apply_operator(cls, op, list_parsed):
+        beg = cls._DICO_OP[op] + '(list_func = ['
+        res = beg + ','.join(list_parsed) + '])'
+        return res
+            
+            
+    
 class pFunc_factory():
     """ Create on demand parametrized function with complicated / ad-hoc patterns
         Enhance pFunc_base by providing for more flexibility/functionality 
@@ -31,8 +144,39 @@ class pFunc_factory():
     _LIST_CUSTOM_FUNC['LinearFunc'] = ('Linear function', pf.LinearFunc, pf.LinearFunc._LIST_PARAMETERS, [])
     _LIST_CUSTOM_FUNC['ExpRampFunc'] = ('Exponential Ramp', pf.ExpRampFunc,pf.ExpRampFunc._LIST_PARAMETERS, [])
     _LIST_CUSTOM_FUNC['ChebyshevFunc']= ('Chebyshev basis', pf.ChebyshevFunc, pf.ChebyshevFunc._LIST_PARAMETERS, [])
-    _LIST_CUSTOM_FUNC['OwriterYWrap']= ('wrapper: overwritting', pf.OwriterYWrap, pf.OwriterYWrap._LIST_PARAMETERS, [])
-    _LIST_CUSTOM_FUNC['BoundWrap']= ('wrapper: boundaries', pf.BoundWrap, pf.BoundWrap._LIST_PARAMETERS, [])
+    _LIST_CUSTOM_FUNC['OwriterYWrap']= ('wrapper: overwritting', pf.OwriterYWrap, ['ow'],)
+    _LIST_CUSTOM_FUNC['BoundWrap']= ('wrapper: boundaries', pf.BoundWrap, ['bounds'], [])
+
+    def __init__(self, rdm_obj = None, context = None):
+        self.rdm_gen = rdm_obj
+        self.context = context
+    
+    @property
+    def rdm_gen(self):
+        return self._rdm_gen
+    
+    @rdm_gen.setter
+    def rdm_gen(self, rdm_obj):
+        self._rdm_gen = RandomGenerator.init_random_generator(rdm_obj)
+
+    @property
+    def context(self):
+        return self._context
+    
+    @context.setter
+    def context(self, context):
+        if(context is None):
+            self._context = {}
+        elif(ut.is_dico(context)):
+            self._context = context
+        else:
+            SystemError('context should be a dictionnary')
+            
+    def update_context(self, more_context):
+        if(ut.is_dico(more_context)):
+            self._context.update(more_context)
+        else:
+            SystemError('context should be a dictionnary')
 
     @classmethod
     def help(cls, name_func = None):
@@ -40,38 +184,21 @@ class pFunc_factory():
             print ("list of available func is {}".format(cls._LIST_CUSTOM_FUNC.keys()))
         else:
             info = cls._LIST_CUSTOM_FUNC[name_func]
-            print ("for name_func = {}, underlying func = {}, combination of mandatory params is"
-                " ".format(name_func, str(info[1]), info[2]))
+            print(info)
+            print ("for name_func = {0},\n ".format(str(info[0])))
+            print ("underlying func = {0}\n".format(str(info[1])))
+            print ("init params are {0} \n".format(str(info[3])))
+            print ("or at leats: {0} \n".format(str(info[2])))
 
-    @classmethod
-    def build_custom_func(cls, fun_object, **extra_args):
-        """ generate composed functions based on complex expr (<str> or <dict>)
-        '({dico_func1} + {dico_func2}) . {dico_func3})'
-        TODO: probably need to deal with noise at some point e.g. 'noise_om'
-        """
-        if(ut.is_str(fun_object)):
-            try:
-                try:
-                    bf = 'cls.build_atom_custom_func('
-                    af = ",".join([k+'='+str(v) for k, v in extra_args.items()]) + ')'
-                    st = ut.parse_enclose_with_counter(fun_object, before = bf, after = af)
-                    func = eval(st)
-                except:
-                    func = pf.pFunc_base.build_pfunc(fun_object)
-            except:
-                func = eval(fun_object)
-        elif(ut.is_dico(fun_object)):
-            func = cls.build_atom_custom_func(cls, fun_object, **extra_args)
-        
-        else:
-            raise SystemError("build_custom_func can build a function from an "
-                              "object  of tye {0}".format(cls.__class__))
-            
-        return func
-
-
-    @classmethod
-    def build_atom_custom_func(cls, dico_fun, rdm_object = None):
+    def eval_string_from_parse(self, string, context = None):
+        """ eval a string in this environment (string generated 
+        from pFunc_parser.parse)"""
+        return eval(string, None, locals().update(self.context))
+    
+    #-------------------------------------------------------------------------#
+    # build one custom func from a simplified, custom dictionary
+    #-------------------------------------------------------------------------
+    def build_atom_custom_func(self, dico_fun):
         """ built a pFunc_base based on a dico specifying
             + key = 'name_func' which func we are expecting 
             + key = 'paramsXXX' params necessary to gen the function
@@ -80,22 +207,50 @@ class pFunc_factory():
             + key = 'paramsXXX_bounds' (optional) by default they will be set to False
                     i.e. the params are frozen (cf. docstring of pFunc_base)
         """
+        rdm_object = self.rdm_gen
         name_func = dico_fun['name_func']
         if(name_func == 'StepFunc'):
-            func = cls._build_custom_StepFunc(dico_fun)
+            func = self._build_custom_StepFunc(dico_fun)
         elif(name_func == 'FourierFunc'):
-            func = cls._build_custom_FourierFunc(dico_fun, rdm_object = rdm_object)
+            func = self._build_custom_FourierFunc(dico_fun, rdm_object = rdm_object)
         elif(name_func == 'BoundWrap'):
-            func = cls._build_custom_BoundWrap(dico_fun)
+            func = self._build_custom_BoundWrap(dico_fun)
+        elif(name_func == 'OwriterYWrap'):
+            func = self._build_custom_OwriterYWrap(dico_fun)
         else:
-            func = cls._build_custom_Default(dico_fun, name_func = name_func)
+            func = self._build_custom_Default(dico_fun, rdm_object = rdm_object)
         return func
 
-    @classmethod
-    def _build_custom_FourierFunc(cls, dico_source, **extra_args):
+    def _build_custom_BoundWrap(self, dico_fun):
+        """ can provides the bounds as {'bounds':[a,b]}"""
+        info_func = self._LIST_CUSTOM_FUNC['BoundWrap']
+        constructor = info_func[1]
+        bounds = dico_fun.get('bounds')
+        if(bounds is not None):
+            dico_constructor = {'bounds_min':bounds[0], 'bounds_max':bounds[1]}
+            res = constructor(**dico_constructor)
+        else:
+            res = self._build_custom_Default(dico_fun)
+        return res
+    
+    def _build_custom_OwriterYWrap(self, dico_fun):
+        """ can provide all the needed infos as #
+        bounds=[(min1,max1,ow1), (min2,max2,ow2), ..] """
+        info_func = self._LIST_CUSTOM_FUNC['OwriterYWrap']
+        constructor = info_func[1]
+        ow = dico_fun.get('ow')
+        if(ow is not None):
+            bounds = np.array(ow)
+            dico_constructor = {'input_min':bounds[:,0], 'input_max':bounds[:,0], 'output_ow':bounds[:,2]}
+            res = constructor(**dico_constructor)
+        else:
+            res = self._build_custom_Default(dico_fun)
+        return res
+
+    def _build_custom_FourierFunc(self, dico_source, **extra_args):
         """ custom rules to build a FourierFunc """
         pdb.set_trace()
-        info_func = cls._LIST_CUSTOM_FUNC['FourierFunc']
+        info_func = self._LIST_CUSTOM_FUNC['FourierFunc']
         constructor = info_func[1]
         Om = dico_source.get('Om')
         rdm_object = extra_args.get('rdm_object')
@@ -104,7 +259,7 @@ class pFunc_factory():
             T = dico_source['T']
             nb_H = dico_source['nb_H']
             freq_type = dico_source.get('freq_type')
-            Om = cls._gen_frequencies(T, nb_H, freq_type, rdm_object)
+            Om = self._gen_frequencies(T, nb_H, freq_type, rdm_object)
         elif(ut.is_iter(Om)):
             nb_H = len(Om)
         else:
@@ -117,23 +272,21 @@ class pFunc_factory():
         c0 = dico_source.get('c0', 0)
         dico_constructor = {'A':A, 'B':B, 'c0':c0, 'phi':phi, 'Om':Om}
         pdb.set_trace()
-        cls._add_bounds(dico_constructor, dico_source)
+        self._add_bounds(dico_constructor, dico_source)
         return constructor(**dico_constructor)
     
-    @classmethod
-    def _build_custom_Default(cls, dico_source, **extra_args):
-        """ by Default fetch the relevant constructor and pass it dico_source
+    def _build_custom_Default(self, dico_source, **extra_args):
+        """ by Default fetch the relevant constructor and pass dico_source
         as it is"""
-        name_func = extra_args.get('name_func')
-        info_func = cls._LIST_CUSTOM_FUNC[name_func]
+        name_func = dico_source.get('name_func')
+        info_func = self._LIST_CUSTOM_FUNC[name_func]
         constructor = info_func[1]
         return constructor(**dico_source)
 
 
-    @classmethod  
-    def _build_custom_StepFunc(cls, dico_source, **extra_args):
+    def _build_custom_StepFunc(self, dico_source, **extra_args):
         """ custom rules to build a StepFunc """
-        info_func = cls._LIST_CUSTOM_FUNC['StepFunc']
+        info_func = self._LIST_CUSTOM_FUNC['StepFunc']
         constructor = info_func[1]
         Tstep = dico_source.get('Tstep')
         if(Tstep is None):
@@ -147,13 +300,11 @@ class pFunc_factory():
         F = dico_source.get('F', np.zeros(nb_step))
         F0 = dico_source.get('F0', 0)
         dico_constructor = {'F':F, 'F0':F0, 'Tstep':Tstep}
-        cls._add_bounds(dico_constructor, dico_source)
+        self._add_bounds(dico_constructor, dico_source)
         return constructor(**dico_constructor)
     
-    def _build_custom_bounds(cls, dico_source, **extra_args):
 
 
-    @classmethod  
     def _add_bounds(self, dico_target, dico_source):
         """ look (in dico_source) for potentially missing bounds (in dico_target)
         and add them (to dico_target)"""
@@ -164,8 +315,8 @@ class pFunc_factory():
                 dico_update[bounds_name] = dico_source[bounds_name]
         dico_target.update(dico_update)
  
-    @classmethod
-    def _gen_frequencies(cls, T, nb_freq = 1, freq_type = None, random_obj = None):
+    
+    def _gen_frequencies(self, T, nb_freq = 1, freq_type = None):
         """Generate (potentially randomized) frequencies based on 'freq_type'
         'principal' or None om[l] = 2 * Pi * l /T  
         'CRAB' om[l] = 2 * Pi * l * (1 + eps[l]) /T with eps iid U[-0.5, 0.5]  
@@ -175,7 +326,7 @@ class pFunc_factory():
         Om_ref = 2 * np.pi / T
         #dico_args = {'freq_type':freq_type}
         args_rdm = freq_type.split("_")
-        rgen = rg.init_random_generator(random_obj)
+        rgen = self._rdm_gen
 
         if(args_rdm[0] in [None, 'principal']):
             Om = (1 + np.arange(nb_freq)) * Om_ref
@@ -219,19 +370,18 @@ class pFunc_factory():
 # chebyshev with fixed trend and only even coefficients
 #==============================================================================    
 if __name__ == '__main__':
-    x = np.arange(-1, 2, 0.01)
-    xx =np.arange(0, 1, 0.01)
-    A = np.random.sample(2)
-    B = np.random.sample(2)
     
-    # Only function with free params
-    s_f2h = "{'name_func':'FourierFunc', 'T':1, 'nb_H':2, 'A_bounds': None, 'B_bounds': None, 'freq_type':'CRAB'}"
-    s_linear = "{'name_func':'LinearFunc', 'w':1, 'bias':0}"
-    s_sin_scaling = "{'name_func':'FourierFunc', 'Om':[np.pi], 'A': [0], 'B': [1]}"
-    s_bound = "{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}"
-    s_ow = "{'name_func':'OwriterYWrap', 'input_min':[-100, 1], 'input_max':[0, 100], 'output_ow':[0,1]}"
+    expr = '**(#a,*(#b,#c))'
+    db = {'a':'func_a','b':'func_b', 'c':'func_c'}
+    res = pFunc_parser.parse_expr(expr, db)
+    
+    
+    dico_atom = {'ow':"{'name_func':'OwriterYWrap', 'ow':[(-100,0,0),(5,100,1)]}",
+                'bd':"{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}",
+                'pw':"{'name_func':'StepFunc','T':5,'nb_steps':10}"}
+    dico_expr = {'final':'**(#ow,**(#bd,#pw))'}
+    res2 = pFunc_parser.parse(dico_atom, dico_expr)
 
-    str_func = '{0} * ({1} * ({2} * (1+({3} * {4}))))'.format(s_ow, s_bound, s_linear, s_sin_scaling, s_f2h)
-    crab_func = pFunc_factory.build_custom_func(str_func)
-    crab_func.theta
-    
+
+    factory = pFunc_factory(None)
+    res3 = factory.eval_string_from_parse(res2)

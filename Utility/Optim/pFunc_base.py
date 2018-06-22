@@ -12,7 +12,7 @@ if(__name__ == '__main__'):
     sys.path.insert(0, '../')
     import Helper as ut
 else:
-    from .. import Helper as ut
+     from .. import Helper as ut
     
 import numpy as np
 from numpy import array
@@ -36,7 +36,7 @@ class pFunc_base():
         param: an array of elements (in general numerics but still can accomodate non
                 numeric elements .. not advised though)
         
-        param_bounds: r99epresent the bounds associated to the elements of param
+        param_bounds: represent the bounds associated to the elements of param
                 It is thus a list of the same length with elements which can be:
                 **2-uplet**: in this case (min, max), **False**: means the element
                 is fixed if **True** is passed it will result in _DEF_BOUNDS
@@ -58,17 +58,12 @@ class pFunc_base():
     self.__bias = [False]
     
     TODO:
-        + Finish using name (i.e. get attribute and get by name)
+        + Finish using name (i.e. get attribute and get by name) s.t. 
+        it appears in repr + probably use a flag use_name 
         + use of different default bounds (e.g. _DEF_POS_BOUNDS)
         + test (D-CRAB setups)
-        + (Priority)remove Wrapper Wrapped classes.. Not really needed right?
-            e.g. owFunc with ow_X_min ow_X_max ow_Y as params
-            e.g. sinEnveloppeFun is just FourrierFunc with one harmonic etc..
-            Then need toassociate a symbol for composition
-        + use np.clip
-        # TODO: May not need the wrapper workaround but could be implementent as pFunc
-
-
+        + Bug when try to update theta (in the case it's an array of integer
+         >> enforce type (same way as bounds or parameters)
     """
 
     _FLAG_TYPE = 'base'     
@@ -837,7 +832,10 @@ class Composition(pFunc_collec):
     
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
-        """Evaluate the function."""
+        """Evaluate the function by starting from the last function of the list
+        Y is used here to keep track of the input (which is otherwised lost)
+        this feature (workaround) is used in OWYWrapper.. Maybe Y should be renamed 
+        X0"""
         list_pfunc = self._get_one_param('list_func')
         if(Y is None):
             Y =X
@@ -1000,7 +998,7 @@ class OwriterYWrap(pFunc_wrapper):
         
         if(input_min is not None):
             for n, i_min in enumerate(input_min):
-                if (X >= i_min) and (X<=input_max[n]):
+                if (Y >= i_min) and (Y<=input_max[n]):
                     res_func = ow[n]
                     break
 
@@ -1076,11 +1074,11 @@ if __name__ == '__main__':
     
     # Only function with free params
     dico_f2h = {'Om':Om, 'A': A, 'B': B, 'phi':[0,0], 'c0':0,'Om_bounds':False, 
-    'A_bounds': (-1,1), 'B_bounds': (-1,1), 'phi_bounds':False, 'c0_bounds':False}
-    dico_linear = {'w':1, 'bias':0}
-    dico_sin_scaling = {'Om':[om_ref/2], 'A': [0], 'B': [1], 'phi':[0], 'c0':0}
-    dico_bound ={'bounds_min':0, 'bounds_max':1}
-    dico_ow = {'input_min':[-100, 1], 'input_max':[0, 100], 'output_ow':[0,1]}
+    'A_bounds': (-1,1), 'B_bounds': (-1,1), 'phi_bounds':False, 'c0_bounds':False, 'name':'f2h'}
+    dico_linear = {'w':1, 'bias':0, 'name':'guess'}
+    dico_sin_scaling = {'Om':[om_ref/2], 'A': [0], 'B': [1], 'phi':[0],'c0':0 , 'name':'scaling'}
+    dico_bound ={'bounds_min':0, 'bounds_max':1,'name':'bound'}
+    dico_ow = {'input_min':[-100, 1], 'input_max':[0, 100], 'output_ow':[0,1], 'name':'ow'}
            
     
     f2h = FourierFunc(**dico_f2h)
@@ -1090,18 +1088,19 @@ if __name__ == '__main__':
     sin_scaling = FourierFunc(**dico_sin_scaling)
     bound = BoundWrap(**dico_bound)
     ow = OwriterYWrap(**dico_ow)
-
     better = ow *(bound* (guess * (1 + (sin_scaling * f2h))))
     
     better2 = better.clone()
-    
+    better2.theta
+    better2.theta = np.array([1,1,1,1])    
 
-    better.plot_function(xx)    
-    better2.plot_function(xx)
+    better.plot_function(x)    
+    better2.plot_function(x)
 
     print(better2.get_params())
     print(better2.theta)
     
+
     one_name_func = better.all_names[-1]
     better.get_func_by_name(one_name_func)
     

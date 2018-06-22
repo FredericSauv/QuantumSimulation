@@ -237,7 +237,7 @@ class Batch:
             list_keys = list([])
             nbline = 0
             dico_METAPARAMS = {}
-
+            pdb.set_trace()
             for line in reader:
                 nbline += 1
                 if(line in cls.EMPTY_LINE) or (line[0] in cls.LEX_NA):

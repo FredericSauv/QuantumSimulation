@@ -8,11 +8,11 @@
 #============================================================================== 
 import sys
 import pdb
+import copy
 if(__name__ == '__main__'):
     sys.path.append("../../../")
     from QuantumSimulation.Utility import Helper as ut
     from QuantumSimulation.ToyModels import BH1D as bh1d
-    from QuantumSimulation.Utility.Optim import pFunc_base as pf
     from QuantumSimulation.Utility.Optim import pFunc_zoo as pfz
     from QuantumSimulation.Utility.Optim import Learner as learn
     from QuantumSimulation.Utility.Optim import Batch 
@@ -21,15 +21,14 @@ if(__name__ == '__main__'):
     
 else:
     from ..Utility import Helper as ut
-    from ..Utility.Optim import pFunc_base as pf
     from ..Utility.Optim import pFunc_zoo as pfz
     from ..Utility.Optim import Learner as learn
-    from . import ModelBase as mod
     from .ToyModels import BH1D as bh1d
     from QuantumSimulation.Utility.Optim import Batch 
+    from QuantumSimulation.Utility.Optim.RandomGenerator import RandomGenerator 
+    from QuantumSimulation.Utility.Optim.MP import MPCapability 
 
-
-class learner(Batch.Batch):
+class learner1DBH(Batch.Batch):
     """
     Should cope with:
         + management of randomGen and mp
@@ -46,6 +45,12 @@ class learner(Batch.Batch):
         
         model_dico = config['model_dico']
         model_dico.update(dico_update)
+        control = model_dico['control_obj']
+        if(ut.is_str(control)):
+            pdb.set_trace()
+            context = copy.copy(model_dico)
+            factory.eval_string_from_parse(control, rdm_obj = self.random_gen, 
+                                           context = context)
         model = bh1d.BH1D(**model_dico)
         
         optim_dico = config['optim_dico']
@@ -67,11 +72,9 @@ class learner(Batch.Batch):
     @classmethod
     def _dispatch_configs(cls, dico):
         """ AdHoc dispatch rules for the creation of the controller """
+        pdb.set_trace
         model_dico = dico['model_dico']
         testing_dico = dico.get('testing_dico')
-        
-        if('_flag_dispatch' in model_dico):
-            dico['model_dico'] = cls._process_controler(model_dico)
         
         if((testing_dico is not None) and ('_flag_dispatch' in model_dico)):
             dico['testing_dico'] = cls._process_controler(testing_dico)
@@ -80,26 +83,24 @@ class learner(Batch.Batch):
 
     @classmethod
     def _process_controler(cls, dico):
-        """ ad-hoc processing to make description of the controller not too compact 
-        final_func= oa_ow ** oa_bds ** (guess* guess2 * (main_ct+(main_fun*main_fun_2))
+        """ ad-hoc processing to make description of the controller not too long 
+        final_fun c = oa1 ** oa2 ** (guess* guess2 * (mainCt + (main1 * main2))
         where each piece is provided as a dico which can be parsed by pFunc_zoo
         build_atom_custom_func
         """
         pdb.set_trace()
         dico.pop('_flag_dispatch')
-        list_bits = [('main_fun2', pf.Product), ('main_ct', pf.Sum),
-                     ('main_guess', pf.Product), ('main_guess2', pf.Product),
-                     ('oa_bds', pf.Composition), ('oa_ow', pf.Composition)]
-        
-        main_fun = dico.pop('main_fun')
-        res_f = pfz.build_atom_custom_func(main_fun)
-        for key, constr in list_bits:
-            str_constr = dico.pop(key, None)
-            if(key is not None):
-                func_tmp = pfz.build_atom_custom_func(str_constr)
-                res_f = constr(listfunc = [func_tmp, res_f])
+        dico_atom = {}
+        dico_expr = {}
+        for k, v in dico.items():
+            bits = k.split('_')
+            if(bits[0] == 'ctl'):
+                if(bits[1] == 'final'):
+                    dico_expr.update({bits[1]:v})
+                else:
+                    dico_atom.update({bits[1]:v})
 
-        dico['control_obj']=repr(res_f)
+        dico['control_obj']=pfz.pFunc_parser.parse(dico_atom, dico_expr)
             
         
 
@@ -107,24 +108,24 @@ class learner(Batch.Batch):
 #                   TESTING
 #============================================================================== 
 if(__name__ == '__main__'):
-    run_optim = True # examples of optims which run
+    run_optim = False # examples of optims which run
     create_configs = False # example of generating and storing configs from a meta-config
-    create_configs_dispatch=True# example of generating and storing configs from a meta-config and extra-rules
+    create_configs_dispatch=False# example of generating and storing configs from a meta-config and extra-rules
     run_configs = False # run a config
     
     if(run_optim):    
-        import copy
+        
         # Create a model
         fom = ['f2t2:neg_fluence:0.0001_smooth:0.01']
-        fom_test = ['f2t2:neg_fluence:0.0001_smooth:0.01', 'f2t2', 'fluence', 'smooth', 'varN']
         T=5
         
-        s_pwc = "{'name_func':'StepFunc', 'T':5, 'nb_steps':15, 'F_bounds':(0,1)}"
-        s_bound = "{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}"
-        s_ow = "{'name_func':'OwriterYWrap', 'input_min':[-100, 5], 'input_max':[0, 100], 'output_ow':[0,1]}"
-        str_func = '{0} * ({1} * {2})'.format(s_ow, s_bound, s_pwc)
-        controler = pfz.pFunc_factory.build_custom_func(str_func)
-        controler = pf.pFunc_List([controler])
+        factory = pfz.pFunc_factory()
+        
+        pwc = factory.build_atom_custom_func({'name_func':'StepFunc', 'T':T, 'nb_steps':15, 'F_bounds':(0,1)})
+        bounding = factory.build_atom_custom_func({'name_func':'BoundWrap', 'bounds':[0,1]})
+        owing = factory.build_atom_custom_func({'name_func':'OwriterYWrap', 'ow':[(-100,0,1), (T,T+100,1)]})
+        controler = owing * (bounding * pwc)
+       
         dico_simul = {'control_obj':controler, 'L':6, 'Nb':6, 'mu':0, 'T':T, 'dt':0.01, 
                     'flag_intermediate':False, 'setup':'1', 'state_init':'GS_i', 
                     'state_tgt':'GS_f', 'fom':fom, 'fom_print':True, 'track_learning': True}
@@ -152,6 +153,7 @@ if(__name__ == '__main__'):
         print(resNM)
         
         ## Recreate testing
+        fom_test = ['f2t2:neg_fluence:0.0001_smooth:0.01', 'f2t2', 'fluence', 'smooth', 'varN']
         dico_test = copy.copy(dico_simul)
         dico_test['fom']=fom_test
         dico_test['track_learning'] = False
@@ -163,16 +165,18 @@ if(__name__ == '__main__'):
     
     if(create_configs):
         """ take a meta config, generate all the configs and store them """
-        learn.parse_and_save_meta_config('test_meta_config.txt', output_folder = 'test_gen_configs')
+        learner1DBH.parse_and_save_meta_config('test_meta_config.txt', output_folder = 'test_gen_configs')
 
     if(create_configs_dispatch):
-        """ take a meta config, generate all the configs and store them """
-        learn.parse_and_save_meta_config('test_meta_config.txt', output_folder = 'test_gen_configs')
+        """ take a meta config, generate all the configs and store them  TESTED """
+        learner1DBH.parse_and_save_meta_config('test_meta_config_dispatch.txt',
+                     output_folder = 'test_gen_configs', dispatch = True)
     
     if(run_configs):
-        batch = learner('test_gen_configs/res0.txt')
+        batch = learner1DBH('test_gen_configs/res0.txt')
         batch.run_procedures(saveFreq = 1, splitRes = True, printInfo = False)
         
         
         
-        
+        test ={'control_obj':controler,'L':6,'Nb':6,'mu':0,'T':5,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_f','fom':['f2t2:neg_fluence:0.0001_smooth:0.01'],'fom_print':True,'track_learning':True}
+        testing_dico = {'control_obj':controler,'L':6,'Nb':6,'mu':0,'T':5,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_f','fom':['f2t2:neg_fluence:0.0001_smooth:0.01','f2t2','fluence','smooth','varN'],'fom_print':True,'track_learning':True}

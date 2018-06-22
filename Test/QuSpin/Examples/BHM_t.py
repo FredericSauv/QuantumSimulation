@@ -20,7 +20,6 @@ import matplotlib.pylab as plt
 ## Some ad-hoc functions
 ## ================================== ##
 def variance_op(O, V):
-    pdb.set_trace()
     OV = O.dot(V)
     VOOV = np.asscalar(O.matrix_ele(V, OV))
     VOV2 = O.expt_value(V) ** 2
