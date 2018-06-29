@@ -5,12 +5,14 @@ Created on Sun Jun 24 11:15:04 2018
 
 @author: frederic
 """
-
+import sys
+sys.path.append('/home/fred/anaconda3/envs/py36q/lib/python3.6/site-packages')
 import GPy
 import GPyOpt
 import numpy as np
 import matplotlib.pyplot as plt
 
+save_fig = False
 ##================##
 # GPY: Generate sample paths from different kernels
 ##================##
@@ -32,10 +34,26 @@ for l in length_scales:
         plt.plot(X, p)
         plt.xlabel('x')
         plt.ylabel('f(x)')
+        if(save_fig):
+            plt.savefig('plot_GP/mater52_samples_l{0}.pdf'.format(l))
         
 
+rbf = GPy.kern.RBF(input_dim=input_dim)
+for l in length_scales:
+    rbf.lengthscale = l
+    CXX = rbf.K(X, X)
+    path = np.random.multivariate_normal(np.zeros(nb_points), CXX, nb_paths)
+    fig = plt.figure()
+    for p in path:
+        plt.plot(X, p)
+        plt.xlabel('x')
+        plt.ylabel('f(x)')
+        if(save_fig):
+            plt.savefig('plot_GP/rbf_samples_l{0}.pdf'.format(l))
+        
+names = ['Mater52', 'Matern32', 'RBF']
 kernels = [GPy.kern.Matern52(input_dim=input_dim), GPy.kern.Matern32(input_dim=input_dim), GPy.kern.RBF(input_dim=input_dim)]
-for k in kernels:
+for n, k in enumerate(kernels):
     k.lengthscale = 0.1
     CXX = k.K(X, X)
     path = np.random.multivariate_normal(np.zeros(nb_points), CXX, nb_paths)
@@ -44,7 +62,8 @@ for k in kernels:
         plt.plot(X, p)
         plt.xlabel('x')
         plt.ylabel('f(x)')
-        
+        if(save_fig):
+            plt.savefig('plot_GP/kernel_{0}_rbf_samples_l_{0}.pdf'.format(names[n], l))
 
 ##================##
 # GPY: fit the hyperparameters of a GP
@@ -62,7 +81,8 @@ def cost_func(X, noise = None):
 
 X = np.linspace(0.0, 1.0, nb_points)
 Y_ideal = cost_func(X)
-Y_noise = cost_func(X, noise =0.1)
+Y_noise = cost_func(X, noise =0.2)
+
 fig = plt.figure()
 plt.plot(X, Y_ideal, label='f')
 plt.plot(X, Y_noise, label='f_noisy(sig=0.1)')
@@ -78,24 +98,50 @@ m = GPy.models.GPRegression(X_obs, Y_obs, k)
 
 #Plot predictions based on the observations
 m.plot()
-plt.plot(X, Y_ideal,'r--', label = 'f')
+plt.plot(X, Y_ideal,'r--', label = r'$f(x)=cos(\pi x)+sin(4 \pi x)$')
 plt.xlabel('x')
 plt.ylabel('f(x)')
-plt.legend()
+plt.legend('plot_GP/10points_before_fitting.pdf')
 print(m)
 
 #Fit the hyperparameters but first impose some consraints on the hyperparameters
 m.constrain_positive()
 m.optimize()
 m.plot()
-plt.plot(X, Y_ideal,'r--', label = 'f')
+plt.plot(X, Y_ideal,'r--', label = r'$f(x)=cos(\pi x)+sin(4 \pi x)$')
 plt.xlabel('x')
 plt.ylabel('f(x)')
 plt.legend()
 print(m)
-#Next point
-    
-# after 10 
+if(save_fig):
+    plt.savefig('plot_GP/10points_fitting.pdf')
+
+#Next point    
+Y_obs_noisy = cost_func(X_obs, noise=0.2)
+k = GPy.kern.Matern52(input_dim=input_dim)
+m = GPy.models.GPRegression(X_obs, Y_obs_noisy, k)
+
+#Plot predictions based on the observations
+m.plot()
+plt.plot(X, Y_ideal,'r--', label = r'$f(x)=cos(\pi x)+sin(4 \pi x)$')
+plt.xlabel('x')
+plt.ylabel('f(x)')
+plt.legend()
+if(save_fig):
+    plt.savefig('plot_GP/10points_before_fitting_noisy02.pdf')
+print(m)
+
+#Fit the hyperparameters but first impose some consraints on the hyperparameters
+m.constrain_positive()
+m.optimize()
+m.plot()
+plt.plot(X, Y_ideal,'r--', label = r'$f(x)=cos(\pi x)+sin(4 \pi x)$')
+plt.xlabel('x')
+plt.ylabel('f(x)')
+plt.legend()
+print(m)
+if(save_fig):
+    plt.savefig('plot_GP/10points_fitting_noisy02.pdf')
 
 
 
@@ -131,7 +177,7 @@ class my_f(GPyOpt.objective_examples.experiments1d.function1d):
 myf =my_f()
 bounds = [{'name': 'var_1', 'type': 'continuous', 'domain': (0,1)}]
 max_iter = 15
-myOpt = GPyOpt.methods.BayesianOptimization(myf,bounds, exact_feval = True)
+myOpt = GPyOpt.methods.BayesianOptimization(myf,bounds, initial_design_numdata = 7, acquisition_type ='LCB')
 
 #Init (how to select how many we want)
 myOpt.run_optimization()
@@ -142,9 +188,10 @@ sd = np.std(myOpt.Y)
 Y_tmp = (Y_ideal - shift)/sd
 plt.plot(X, Y_tmp, 'r--', label = 'f')
 plt.legend()
+
+if(save_fig):
+    plt.savefig('plot_GP/BO_init.pdf'.format(l))
 print(myOpt.model.model)
-
-
 #Next
 myOpt.run_optimization(1)
 fig = myOpt.plot_acquisition()
@@ -153,33 +200,31 @@ sd = np.std(myOpt.Y)
 Y_tmp = (Y_ideal - shift)/sd
 plt.plot(X, Y_tmp, 'r--', label = 'f')
 plt.legend()
+if(save_fig):
+    plt.savefig('plot_GP/BO_init_plusone.pdf')
 print(myOpt.model.model)
 
 #5 Next
-myOpt.run_optimization(5)
+myOpt.run_optimization(10)
 myOpt.plot_acquisition()
 shift = np.average(myOpt.Y)
 sd = np.std(myOpt.Y)
 Y_tmp = (Y_ideal - shift)/sd
 plt.plot(X, Y_tmp, 'r--', label = 'f')
 plt.legend()
+if(save_fig):
+    plt.savefig('plot_GP/BO_init_pluseleven.pdf')
 print(myOpt.model.model)
 
-#5 Next
-myOpt.run_optimization(5)
-myOpt.plot_acquisition()
-shift = np.average(myOpt.Y)
-sd = np.std(myOpt.Y)
-Y_tmp = (Y_ideal - shift)/sd
-plt.plot(X, Y_tmp, 'r--', label = 'f')
-plt.legend()
-print(myOpt.model.model)
+
+
+
 
 #First optim with noise
 myf =my_f(sd=0.2)
 bounds = [{'name': 'var_1', 'type': 'continuous', 'domain': (0,1)}]
 max_iter = 15
-myOpt = GPyOpt.methods.BayesianOptimization(myf,bounds)
+myOpt = GPyOpt.methods.BayesianOptimization(myf,bounds, initial_design_numdata = 5, acquisition_type ='LCB')
 
 #Init (how to select how many we want)
 myOpt.run_optimization()
@@ -190,17 +235,8 @@ sd = np.std(myOpt.Y)
 Y_tmp = (Y_ideal - shift)/sd
 plt.plot(X, Y_tmp, 'r--', label = 'f')
 plt.legend()
-print(myOpt.model.model)
-
-
-#Next
-myOpt.run_optimization(1)
-fig = myOpt.plot_acquisition()
-shift = np.average(myOpt.Y)
-sd = np.std(myOpt.Y)
-Y_tmp = (Y_ideal - shift)/sd
-plt.plot(X, Y_tmp, 'r--', label = 'f')
-plt.legend()
+if(save_fig):
+    plt.savefig('plot_GP/BO_init_noisy.pdf'.format(l))
 print(myOpt.model.model)
 
 #5 Next
@@ -212,6 +248,8 @@ Y_tmp = (Y_ideal - shift)/sd
 plt.plot(X, Y_tmp, 'r--', label = 'f')
 plt.legend()
 print(myOpt.model.model)
+if(save_fig):
+    plt.savefig('plot_GP/BO_init_plus_six_noisy.pdf'.format(l))
 
 #5 Next
 myOpt.run_optimization(5)
@@ -222,9 +260,12 @@ Y_tmp = (Y_ideal - shift)/sd
 plt.plot(X, Y_tmp, 'r--', label = 'f')
 plt.legend()
 print(myOpt.model.model)
+if(save_fig):
+    plt.savefig('plot_GP/BO_init_plus_eleven_noisy.pdf'.format(l))
 
 myOpt.plot_convergence()
-
+if(save_fig):
+    plt.savefig('plot_GP/BO_convergence_noisy.pdf'.format(l))
 ##================##
 # To tune:
 # Nb points init 
@@ -235,25 +276,5 @@ myOpt.plot_convergence()
 
 ##================##
 
-myBopt = GPyOpt.methods.BayesianOptimization(f=myf,            # function to optimize       
-                                             domain=bounds,        # box-constraints of the problem
-                                             acquisition_type='EI',
-                                             exact_feval = True) # Selects the Expected improvement
 
-
-# Run the optimization
-max_iter = 15     # evaluation budget
-max_time = 60     # time budget 
-eps      = 10e-6  # Minimum allows distance between the las two observations
-
-myBopt.run_optimization(max_iter, max_time, eps)   
-
-myOpt.plot_acquisition()
-shift = np.average(myOpt.Y)
-sd = np.std(myOpt.Y)
-Y_tmp = (Y_ideal - shift)/sd
-plt.plot(X, Y_tmp, 'r--', label = 'f')
-plt.legend()
-
-myOpt.plot
 

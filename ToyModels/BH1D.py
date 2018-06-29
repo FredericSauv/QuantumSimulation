@@ -284,8 +284,8 @@ if(__name__ == '__main__'):
                 'state_tgt':'GS_f', 'fom':fom_name_last}
 
     simul = BH1D(**dico_simul)
-    res_fom = simul.Simulate(fom = fom_name, store = True, debug = False)
-    
+    if(False):
+        res_fom = simul.Simulate(fom = fom_name, store = True, debug = False)
     
     #study Evol of the population in the first energy levels
     if(False):    
@@ -295,26 +295,10 @@ if(__name__ == '__main__'):
         simul.plot_pop_adiab()
         
     #Try the exponential ram        
-    if(True):        
+    if(False):        
         state_t = simul.EvolutionPopAdiab(nb_ev = 5)
         simul.plot_pop_adiab()
     
-    if(False):
-        energy_evol = simul.EvolutionInstEnergies(nb = 5)
-        
-        
-        gap_1 = energy_evol[:, 2] - energy_evol[:, 1]
-        ind_min = np.argmin(gap_1)
-        gap_min = gap_1[ind_min]
-        U_min = energy_evol[ind_min, 0]
-        ratio_min = U_min / (1-U_min)        
-        plt.plot(energy_evol[:, 0], gap_1)
-        print(ratio_min)
-        print(gap_min)
-        
-        #plt.plot(energy_evol[:, 0], energy_evol[:, 3] - energy_evol[:, 2])
-        #plt.plot(energy_evol[:, 0], energy_evol[:, 4] - energy_evol[:, 3])
-        #plt.plot(energy_evol[:, 0], energy_evol[:, 5] - energy_evol[:, 4])
 
     
     

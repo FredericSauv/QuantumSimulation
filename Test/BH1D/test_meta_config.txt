@@ -2,7 +2,7 @@ model_dico {'control_obj':'controler','L':6,'Nb':6,'mu':0,'T':5,'dt':0.01,'flag_
 
 testing_dico {'control_obj':'controler','L':6,'Nb':6,'mu':0,'T':5,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_f','fom':['f2t2:neg_fluence:0.0001_smooth:0.01','f2t2','fluence','smooth','varN'],'fom_print':True,'track_learning':True}
 
-optim_dico {'algo':'NM','init_obj':'uniform_-1_1'} {'algo':'DE'} {'algo':'BO'}
+optim_dico {'algo':'DE'} {'algo':'BO'}
 
 _RDM_RUNS 10
 _RDM_FIXSEED True

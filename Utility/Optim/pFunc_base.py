@@ -9,10 +9,10 @@ Strongly inspired by sklearn.gaussian_process.kernels
 
 if(__name__ == '__main__'):
     import sys
-    sys.path.insert(0, '../')
-    import Helper as ut
+    sys.path.append("../../../")
+    from QuantumSimulation.Utility import Helper as ut
 else:
-     from .. import Helper as ut
+    from .. import Helper as ut
     
 import numpy as np
 from numpy import array
@@ -20,7 +20,6 @@ import numpy.polynomial.chebyshev as cheb
 import matplotlib.pylab as plt
 import pdb 
 
-# import sklearn.gaussian_process.kernels as ker
 
 
 #==============================================================================
@@ -219,10 +218,14 @@ class pFunc_base():
 
             for n, val in enumerate(param):
                 if(bounds[n] not in [False, None]):
-                    if((val<bounds[n][0]) or (val>bounds[n][1])):
-                        raise ValueError('Value %s of parameter %s doesnt comply'
-                                'with bounds %s' % (n, param_name, str(bounds[n])))
-                
+                    if(val<bounds[n][0]): 
+                        print('Value %s of parameter %s doesnt comply'
+                                ' with bounds %s ==> OWritten' % (n, param_name, str(bounds[n])))
+                        param[n] = bounds[n][0]
+                    if(val>bounds[n][1]):
+                        print('Value %s of parameter %s doesnt comply'
+                                ' with bounds %s ==> OWritten' % (n, param_name, str(bounds[n])))
+                        param[n] = bounds[n][1]
     
     def get_params(self, deep = True, bounds = True):
         """Get parameters (and bounds) of the function.
@@ -554,6 +557,10 @@ class pFunc_base():
 
     #-----------------------------------------------------------------------------#
     # Some extra capabilities
+    #     Visualization >> plot_func
+    #     I/O >> func_to_file file_to_func
+    #        >> fluence / smoothness / 
+    #     Fitting >> fit_to_target_func
     #-----------------------------------------------------------------------------#
     def plot_function(self, range_x, **args_plot):
         """ plot the function
@@ -582,15 +589,17 @@ class pFunc_base():
     
 
     @staticmethod
-    def l2_dist(func1, func2):
-        """ 
-        """
-        raise NotImplementedError()
+    def square_dist(func1, func2, range_x):
+        """ avg_x (func1(x) - func2(x))^2 """
+        return np.average(np.square(func1(range_x[:-1]) - func2(range_x[:-1])))
+    
+    def square_dist_to(self, func1, range_x):
+        return pFunc_base.square_dist(self, func1, range_x)
+
 
     @staticmethod
     def l2_norm(func1, range_x):
-        """ 
-        """
+        """ """
         raise NotImplementedError()
     
     @staticmethod
@@ -602,8 +611,36 @@ class pFunc_base():
         if(func_ref is None):
             func_ref = list_func[0]
             
-        l2_dists = [pFunc_base.l2_dist(func_ref, f) for f in list_func] 
+        l2_dists = [pFunc_base.square_dist(func_ref, f) for f in list_func] 
         return l2_dists
+    
+    def fit_to_target_func(self, func_target, list_x, algo = 'DE'):
+        """ fit the free parameters of the functionn to match (in the Least 
+        Square Error sense)
+        TODO: gradient based methods """
+        bounds = self.theta_bounds
+        if not(_is_fully_bounded(bounds)):
+            SystemError("Not implemented if bounds are not well defined")
+            
+        def func_to_fit(params):
+            self.theta = params
+            res = pFunc_base.square_dist(self, func_target, list_x)
+            return res
+        if(algo == 'DE'):
+            import scipy.optimize
+            resDE =  scipy.optimize.differential_evolution(func_to_fit, bounds, popsize=5)
+        else:
+            raise NotImplementedError()
+        print(func_to_fit(resDE['x']))
+                
+    
+    def save_to_file(self, file_name):
+        pFunc_base.save_func_to_file(self, file_name, 'w')
+    
+    @staticmethod
+    def save_a_func_to_file(func, file_name, type_write = 'w'):
+        ut.write_to_file_for_eval(func, file_name, type_write)
+    
 
 class pFunc_fromcallable(pFunc_base):
     """ wrap a callable object (function, lambda function) to have the (min)
@@ -781,9 +818,6 @@ class pFunc_collec(pFunc_base):
         """ Return the index-th <pFunc_base> or <pFunc_collect> of the collection"""
         return self._get_one_param('list_func')[index]
 
-#==============================================================================
-# Implementations
-#==============================================================================   
 class pFunc_List(pFunc_collec):
     def __init__(self, list_func, list_func_bounds = True, **args_func):
         pFunc_collec.__init__(self, list_func, list_func_bounds = True, **args_func)
@@ -802,7 +836,10 @@ class pFunc_List(pFunc_collec):
     
     def __len__(self):
         return self.n_func
-    
+
+#==============================================================================
+# Implementations
+#==============================================================================       
 # --------------------------------------------------------------------------- #
 #   Collections
 #       >> Product  Sum  Composition
@@ -845,7 +882,7 @@ class Composition(pFunc_collec):
         
 
 # --------------------------------------------------------------------------- #
-#   Base functions
+#   Base 
 #       >> IdFunc StepFunc ExpRamp SquareExp FourierFunc 
 #       >> LinearFunc ConstantFunc ChebyshevFun
 # --------------------------------------------------------------------------- #
@@ -972,7 +1009,6 @@ class ChebyshevFunc(pFunc_base):
         res = self._chebFunc(X)
         return res
 
-
 # --------------------------------------------------------------------------- #
 #   Wrapper (cf. pFunc_wrapper docstring)
 #       >> OWriterYWrap BoundWrap 
@@ -1016,8 +1052,17 @@ class BoundWrap(pFunc_wrapper):
         m = self._get_one_param("bounds_min")[0]
         return np.clip(X, m, M)
 
+def eval_with_pFunc(string):
+    """ eval benifying from the classes/methods of this module"""
+    return eval(string)
 
-
+def _is_fully_bounded(list_bounds):
+    res = np.all([_is_a_strict_bound(b) for b in list_bounds])
+    return res
+    
+def _is_a_strict_bound(bound):
+    res = hasattr(bound, '__iter__') and (len(bound) == 2) and (bound[0] < bound[1])
+    return res
 #==============================================================================
 # Some testing
 #==============================================================================

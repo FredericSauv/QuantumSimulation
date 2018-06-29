@@ -1,2 +1,2 @@
 #
-from . import Spin, PeriodicallyDriven
+from . import Spin, PeriodicallyDriven, BH1D

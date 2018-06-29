@@ -11,17 +11,16 @@ import pdb
 from ast import literal_eval as ev
 from sklearn.gaussian_process.kernels import Matern, WhiteKernel, RBF, ConstantKernel
 
-
 if __name__ == '__main__':
     import sys
-    sys.path.append("../../")
-    from Utility import Helper as ut
-    from Utility.Optim import RandomGenerator as rdgen
-    from Utility.Optim.ParametrizedFunctionFactory import *    
+    sys.path.append("../../../")
+    from QuantumSimulation.Utility import Helper as ut
+    from QuantumSimulation.Utility.Optim import RandomGenerator as rdgen
+
 else:
     from .. import Helper as ut
     from . import RandomGenerator as rdgen
-    from .ParametrizedFunctionFactory import * 
+
     
 import importlib as ilib
 ilib.reload(ut)
@@ -78,20 +77,16 @@ class Batch:
 
     @classmethod
     def from_meta_config(cls, metaFile = None, rdm_object = None, procToRun = None, 
-                         debug = False, dispatch = False):
+                         debug = False, extra_processing = False):
         """ init the config with a meta_configuration where a metaconfig is 
         understood as a file from which can be generated a list of configs.
-        For dispatch = False it will use some general rules to build these configs
-        (provided in parse_meta_configs)
-        If dispatch = True it will use some treatment to create the configs
+        If extra_processing = True it will use some treatment to create the configs
         (it should be implemented in _dispatch_configs implemented)
         """
         if(debug):
             pdb.set_trace()
 
         list_configs = cls.parse_meta_config(metaFile)
-        if(dispatch):
-            list_configs = [cls._dispatch_configs(c) for c in list_configs]
         obj = Batch(list_configs, rdm_object, procToRun)
         return obj
 
@@ -215,10 +210,11 @@ class Batch:
         return configs
     
     @classmethod
-    def parse_and_save_meta_config(cls, input_file = 'inputfile.txt', output_folder = 'Config'):
+    def parse_and_save_meta_config(cls, input_file = 'inputfile.txt', 
+             output_folder = 'Config', extra_processing = False):
         """ parse an input file containing a meta-config generate the differnt 
         configs and write a file for each of them"""
-        list_configs = cls.parse_meta_config(input_file)
+        list_configs = cls.parse_meta_config(input_file, extra_processing)
         for conf in list_configs:
             name_conf = 'config_' + conf['_RES_NAME']
             if(not(output_folder is None)):
@@ -227,7 +223,7 @@ class Batch:
             ut.dico_to_text_rep(conf, fileName = name_conf, typeWrite = 'w')
 
     @classmethod
-    def parse_meta_config(cls, inputFile = 'inputfile.txt'):
+    def parse_meta_config(cls, inputFile = 'inputfile.txt', extra_processing = False):
         """Parse an input file containing a meta-config and generate a 
         <list<dict:config>> where config is a dict containing a configuration 
         which can be directly used to run a procedure"""
@@ -237,7 +233,6 @@ class Batch:
             list_keys = list([])
             nbline = 0
             dico_METAPARAMS = {}
-            pdb.set_trace()
             for line in reader:
                 nbline += 1
                 if(line in cls.EMPTY_LINE) or (line[0] in cls.LEX_NA):
@@ -253,6 +248,9 @@ class Batch:
 
             list_configs = [ut.lists2dico(list_keys, l) for l in list_values]           
             list_configs = cls._apply_metaparams(list_configs, dico_METAPARAMS)
+
+        if(extra_processing):
+            list_configs = [cls._processing_meta_configs(c) for c in list_configs]
 
         return list_configs
 
@@ -401,7 +399,7 @@ class Batch:
 # To be implemented in the subclass
 # ---------------------------            
     @classmethod
-    def _dispatch_configs(cls, dico):
+    def _processing_meta_configs(cls, dico):
         """ 
         """
         raise NotImplementedError()

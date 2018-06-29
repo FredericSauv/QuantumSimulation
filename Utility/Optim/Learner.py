@@ -9,10 +9,11 @@ import scipy.optimize as sco
 import numpy as np
 import pdb as pdb
 import importlib as ilib
-
-
+import sys
+sys.path.append('/home/fred/anaconda3/envs/py36q/lib/python3.6/site-packages')
+import GPy
+import GPyOpt
 if(__name__ == '__main__'):
-    import sys
     sys.path.append("../../../")
     from QuantumSimulation.Utility import Helper as ut
     from QuantumSimulation.Utility.Optim.RandomGenerator import  RandomGenerator as rdm
@@ -121,12 +122,17 @@ class learner_Opt(learner_base):
         self._ALGO_INFOS ={
         'NM':({'disp':True, 'maxiter':200, 'ftol':1e-6, 'maxfev':200, 'adaptative':False}, self._run_NM),        
         'NOOPTIM':({}, self._run_NOOPTIM), 
+        'BO2':({'disp':True, 'acq':'EI', 'maxiter':50,'verbose':False, 
+               'kernel':'matern2.5', 'flag_MP':False, 'num_cores':1, 'custom_model': False,
+               'acq_opt_type':'lbfgs', 'initial_design_type':'random'}, self._run_BO2),
         'BO':({'disp':True, 'acq':'ei', 'kappa':5.0, 'maxiter':50,'verbose':False, 'kernel':'matern2.5', 
                'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'acq_iter':50, 'n_warmup':10000}, self._run_BO),
         'DE':({'disp':True, 'maxiter':50, 'popsize':10, 'tol':0.01}, self._run_DE)}
         
         learner_base.__init__(self, model=model, **params_learner)
         
+
+
 
     def _setup_learner_options(self, model, **params_learner):
         """ save main characteristics, fetch default parameters depending on the algo
@@ -171,7 +177,7 @@ class learner_Opt(learner_base):
         splitted here..
         TODO: try to unify everything""" 
         algo = args_optim['algo']
-        if(algo == 'BO'):
+        if(algo in ['BO', 'BO2']):
             init = self._init_params_BO(**args_optim)
         elif(algo == 'NM'):
             init = self._init_params_NM(**args_optim)
@@ -201,7 +207,7 @@ class learner_Opt(learner_base):
         res['bounds'] = self.options_learner['bounds_params']
         model = options['model']
         if(hasattr(model, '_track_calls')):
-            res.update({'extra_'+k: v for k,v in model._info_simulations.items()})
+            res.update({'extra_'+k: v for k,v in model._track_calls.items()})
 
         self._res_optim_raw = res_optim_raw
         self.mp.close_mp()
@@ -218,12 +224,14 @@ class learner_Opt(learner_base):
         callback=None, options={'func': None, 'maxiter': None, 'maxfev': None, 
         'disp': False, 'return_all': False, 'initial_simplex': None, 'xatol': 0.0001, 
         'fatol': 0.0001, 'adaptive': False})"""
-        init = options['params_init']
+        init = options['init_params']
         model = options['model']
         if(len(np.shape(init)) == 2):
             options['initial_simplex'] = init
             init = init[0,:]
-        resultOptim = sco.minimize(model, x0 =init, args = args_call , method='Nelder-Mead', options = options)
+            
+        cost = lambda x:model(x, **args_call)
+        resultOptim = sco.minimize(cost, x0 =init, args = () , method='Nelder-Mead', options = options)
         return resultOptim
 
     def _run_DE(self, options, **args_call):
@@ -303,8 +311,101 @@ class learner_Opt(learner_base):
         # Close pool of processors used (if it exists)
         return resultTest
 
-    def _run_BO_2(self, model, options, **args_call):
-        """ Bayesian optimization using GPYOpt """
+    def _run_BO2(self, options, **args_call):
+        """ Bayesian optimization using GPYOpt 
+        def __init__(self, f, domain = None, constraints = None, cost_withGradients = None, 
+        model_type = 'GP', X = None, Y = None, initial_design_numdata = 5, 
+        initial_design_type='random', acquisition_type ='EI', normalize_Y = True,
+        exact_feval = False, acquisition_optimizer_type = 'lbfgs', model_update_interval=1,
+        evaluator_type = 'sequential',batch_size = 1, num_cores = 1, verbosity=False, 
+        verbosity_model = False, maximize=False, de_duplication=False, **kwargs)
+        
+        
+        def run_optimization(self, max_iter = 0, max_time = np.inf, eps = 1e-8, 
+        context = None, verbosity=False, save_models_parameters= True, 
+        report_file = None, evaluations_file = None, models_file=None):
+        ## NEW PARAMS
+        acq_optim_type
+        initial_design_type='random'
+        
+        """
+        #Init BO
+        model = options['model']
+
+        nb_params = options['nb_params']
+        name_params = [str(i) for i in range(nb_params)]
+        options['name_params'] = name_params        
+        bounds_bo = [{'name': name_params[i], 'type': 'continuous', 
+                   'domain': options['bounds_params'][i]} for i in range(nb_params)]
+        
+        acq = options['acq'] # EI MPI LCB
+        ker = options['kernel'] # matern52 /matern32
+        acq_opt_type = options['acq_opt_type'] #lbfgs DIRECT CMA
+        num_cores = options['num_cores'] # 1-N
+        custom_model = options['custom_model']
+        
+        if(custom_model):
+            if(ker == 'matern52'):
+                
+                kernel = eval('GPy.kern.Matern52(self.input_dim = nb_params)')
+            elif(ker == 'matern32'):
+                kernel = eval('GPy.kern.Matern32(self.input_dim = nb_params)')
+            else:
+                SystemError("Please implement the kernel here")                      
+            model_GP = GPyOpt.models.GPModel(kernel = kernel)
+        else:
+            model_GP = None # Def matern52
+        
+        #Initialization phase
+        init = options['init_params']
+        initial_design_type = options['initial_design_type']
+        def cost(params):
+            return model(np.squeeze(params), **args_call)
+        
+        if(ut.is_int(init)):
+            bo = GPyOpt.methods.BayesianOptimization(cost,bounds_bo, model = model_GP, 
+                acquisition_type=acq, acquisition_optimizer_type = acq_opt_type, 
+                num_cores = num_cores, initial_design_numdata = init, 
+                initial_design_type =initial_design_type)
+        
+        else:
+            X = init
+            print('acquisition of {} points'.format(X.shape[0]))
+            Y = np.array([cost(x) for x in X])
+            bo = GPyOpt.methods.BayesianOptimization(cost,bounds_bo, model = model_GP, 
+                acquisition_type=acq, acquisition_optimizer_type = acq_opt_type, 
+                num_cores = num_cores, X = X, Y =Y)
+
+
+        # Exploration-Exploitation phase
+        maxiter = options['maxiter']
+        bo.run_optimization(maxiter)
+        
+
+        # Exploitation phase
+        #### TODO:
+        bo.acquisition_type = 'User defined acquisition used.'
+        bo_new = GPyOpt.methods.BayesianOptimization(cost, bounds_bo, model = model_GP, 
+                acquisition_type = 'LCB', acquisition_optimizer_type = acq_opt_type, 
+                num_cores = num_cores, X = bo.X, Y =bo.Y, exploration_weight =0.000001)
+        bo_new.run_optimization(15)
+
+        # generate results      
+        optim_params = bo_new.x_opt
+        optim_value_cputed = model(optim_params)
+        optim_value = bo_new.fx_opt
+        nfev = len(bo_new.X)
+        resultTest = {'x': optim_params, 'fun': optim_value, 'fun_ver': optim_value_cputed, 'nfev':nfev, 'nit':nfev, 'sucess':True}
+        resultTest['gp_kernel_optim_names'] = bo_new.model.model.parameter_names()
+        resultTest['gp_kernel_optim_vals'] = bo_new.model.model.param_array
+        resultTest['nb_processes'] = bo_new.num_cores
+        resultTest['nb_cpus'] = self.mp.n_cpus
+        resultTest['X_evol'] = bo_new.X
+        resultTest['Y_best'] = bo_new.Y_best
+        
+        # Close pool of processors used (if it exists)
+        return resultTest
+
         raise NotImplementedError()
 
     def _process_kappa(self, options_GP):
@@ -417,6 +518,24 @@ class learner_Opt(learner_base):
     def help(self):
         raise NotImplementedError
 
+
+
+
+
+
+
+
+#==============================================================================
+# Custom_optim_func
+#==============================================================================
+
+from GPyOpt.acquisitions import AcquisitionLCB
+class AcquisitionExploitation(AcquisitionLCB):
+    """ LCB with kappa = 0"""
+    def __init__(self, model, space, optimizer=None, cost_withGradients=None):
+        AcquisitionLCB.__init__(self, model, space, optimizer, cost_withGradients,exploration_weight=0)
+
+
 #==============================================================================
 # Some testing
 # 6 humps camel function minimal example
@@ -424,8 +543,8 @@ class learner_Opt(learner_base):
 # Opt: array([ 0.08984198, -0.71265648]), 'fun': -1.0316284534898246
 #==============================================================================
 if __name__ == '__main__':
-    test_camel = False
-    test_paramFunc = True
+    test_camel = True
+    test_paramFunc = False
     if(test_camel):
         class Camel_model():
             def __init__(self):
@@ -433,6 +552,7 @@ if __name__ == '__main__':
                 self.params_bounds = [(-3, 3), (-2, 2)]
             
             def __call__(self, params, **args_call):
+                
                 assert(len(params) == 2), "bad dim: expected 2 instead {0}".format(len(params))
                 x1 = params[0]
                 x2 = params[1]
@@ -444,12 +564,18 @@ if __name__ == '__main__':
     
         camel = Camel_model()
         
+        optim_args = {'algo': 'BO2', 'maxiter':25}
+        optim = learner_Opt(model = camel, **optim_args)
+        resOptim = optim()
+        print(resOptim)
+        
+        
         optim_args = {'algo': 'DE', 'init_obj':[0,0]}
         optim = learner_Opt(model = camel, **optim_args)
         resOptim = optim()
         print(resOptim)
         
-        optim_args = {'algo': 'BO'}
+        optim_args = {'algo': 'BO', 'maxiter':25}
         optim = learner_Opt(model = camel, **optim_args)
         resOptim = optim()
         print(resOptim)
@@ -475,13 +601,20 @@ if __name__ == '__main__':
     
         p_model = Param_model(func)
                 
+        optim_args = {'algo': 'BO2', 'maxiter':25}
+        optim = learner_Opt(model = p_model, **optim_args)
+        resBO2 = optim()
+        print(resBO2)
+        
         optim_args = {'algo': 'DE'}
         optim = learner_Opt(model = p_model, **optim_args)
         resDE = optim()
-        print(resOptim)
+        print(resDE)
         
-        optim_args = {'algo': 'BO'}
+        optim_args = {'algo': 'BO', 'maxiter':25}
         optim = learner_Opt(model = p_model, **optim_args)
         resBO = optim()
-        print(resOptim)
+        print(resBO)
+        
+
         

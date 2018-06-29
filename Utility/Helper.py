@@ -9,52 +9,17 @@ csv.field_size_limit(1000000)
 import os 
 import pdb
 import numpy as np
-import numpy.random as rdm
-#from itertools import product as itprod
 from functools import wraps
-from ast import literal_eval as ev
 import matplotlib.pylab as plt
-
+#import numpy.random as rdm
+#from ast import literal_eval as ev
 
 #==============================================================================
-#                   MANIP STRUCTURES (list / dico / text files)
+#                   I/O (write read)
 #==============================================================================
-def CountElementsNestedList(l, ninit = 0):
-    ntotal = ninit
-    nlist = []
-    for el in l:
-        if(isinstance(el, list)):
-            ntotal_nested, nlist_ntested = CountElementsNestedList(el)
-            ntotal += ntotal_nested
-            nlist.append(nlist_ntested)
-        else:
-            ntotal += 1
-            nlist.append(1)
-    return ntotal, nlist
-
-
-def text2dico(file, delimiter = ' ', skip=['']):
-    """
-    Purpose:
-        Transform a txt file into a dico. First element of the line is the key, 
-        and the rest is the value
-    """
-    dicoRes = {}
-    nbline = 0
-    with open(file, 'r') as csvfile:
-        reader = csv.reader(csvfile, delimiter = delimiter)
-        for line in reader:
-            if (line[0] not in skip):
-                nbline += 1
-                assert (len(line)>=2), 'batch input file: not enough args in l.' + str(nbline)                
-                dicoRes[line[0]] = line[1:]
-    return dicoRes
-
-
+## SHOULD BE DEPRECIATED
 def dico2text(dico, fileName = None, typeWrite = 'w', beg = None, end = None):
-    """
-    Purpose:
-        Transform a dico into a text file. First element of the line is the key, 
+    """ Transform a dico into a text file. First element of the line is the key, 
         and the rest is the value
     Parameters:
         + dico - dictionnary to write
@@ -78,7 +43,22 @@ def dico2text(dico, fileName = None, typeWrite = 'w', beg = None, end = None):
             file.write(end)
             file.write("\n")
             
-## NEW FUNCTIONS SHOULD BE USED INSTEAD OF THE OTHERS
+
+def text2dico(file, delimiter = ' ', skip=['']):
+    """ Transform a txt file into a dico. First element of the line is the key, 
+        and the rest is the value
+    """
+    dicoRes = {}
+    nbline = 0
+    with open(file, 'r') as csvfile:
+        reader = csv.reader(csvfile, delimiter = delimiter)
+        for line in reader:
+            if (line[0] not in skip):
+                nbline += 1
+                assert (len(line)>=2), 'batch input file: not enough args in l.' + str(nbline)                
+                dicoRes[line[0]] = line[1:]
+    return dicoRes
+
 def dico_to_text_rep(dico, fileName = None, typeWrite = 'w', beg = None, end = None):
     """
     Parameters:
@@ -96,11 +76,78 @@ def dico_to_text_rep(dico, fileName = None, typeWrite = 'w', beg = None, end = N
         file.write(repr(dico).replace(" ","").replace("\n","").replace("array", "np.array"))
         if(end is not None):
             file.write(end)
+            
+        
+# SHOULD BE USED 
+def write_to_file_for_eval(obj, fileName, typeWrite = 'w'):
+    """ write the representation of an object (after some small alterations) to
+    a file """
+    with open(fileName, typeWrite, newline=None) as file:
+        file.write(custom_repr(obj))
 
-def custom_repr(object):
-    """ remove unwanted space line jump, transform array in np.array"""
-    res = repr(object).replace(" ","").replace("\n","").replace("array", "np.array")
-    return res
+def eval_from_file(file, evfunc = eval):
+    """ open a txt file grasp the first element and eval it"""
+    with open(file, 'r', newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter = ' ')
+        line = reader.__next__()
+        assert (len(line)==1), 'not the right format/size' 
+        evaluated = evfunc(line[0])
+    return evaluated
+
+def custom_repr(obj):
+    """ Represent and remove unwanted spaces, line jump, transform array in np.array"""
+    res = repr(obj).replace(" ","").replace("\n","").replace("array", "np.array")
+    return res          
+
+#change name
+def findFile(nameFile = None, prefix = '', folderName = None):
+    """Find files either with exact name or starting with a prefix, either in 
+    the current directory or in a specified folder. Return a list with the names 
+    of the files found (taking into account the path if a folder was specified)
+    """
+    if (folderName is None):
+        list_all_files = os.listdir()
+        if(nameFile is None):
+            list_files = [f for f in list_all_files if f.startswith(prefix)]
+        else:
+            list_files = [f for f in list_all_files if (f == nameFile)]
+    else:
+        list_all_files = os.listdir(folderName)
+        if(nameFile is None):
+            if(prefix in [None, '']):
+                list_files = [os.path.join(folderName, f) for f in list_all_files]
+            else:
+                len_pref = len(prefix)
+                list_files = [os.path.join(folderName, f) for f in list_all_files if (f[:len_pref] == prefix)]
+        else:
+            list_files = [os.path.join(folderName, f) for f in list_all_files if (f == nameFile)]
+
+    
+    return list_files
+  
+#==============================================================================
+#                   MANIP STRUCTURES (list / dico / text files)
+#==============================================================================
+#def CountElementsNestedList(l, ninit = 0):
+#    ntotal = ninit
+#    nlist = []
+#    for el in l:
+#        if(isinstance(el, list)):
+#            ntotal_nested, nlist_ntested = CountElementsNestedList(el)
+#            ntotal += ntotal_nested
+#            nlist.append(nlist_ntested)
+#        else:
+#            ntotal += 1
+#            nlist.append(1)
+#    return ntotal, nlist
+
+
+
+
+
+
+
+
 
 def save_str(string, file_name, type_write = 'w'):
     """ save a string <str> to a file <filename>"""
@@ -127,6 +174,9 @@ def file_to_dico(file, nested = False, delimiter = ' ', na_character = [''], evf
             assert (len(line)==1), 'not the right format/size' 
             dicoRes = evfunc(line[0])
     return dicoRes
+
+
+
             
 
 def lists2dico(list_keys, list_values):
@@ -143,31 +193,7 @@ def lists2dico(list_keys, list_values):
     return dicoRes
 
 
-def findFile(nameFile = None, prefix = '', folderName = None):
-    """Find files either with exact name or starting with a prefix, either in 
-        the current directory or in a specified folder. Return a list with the 
-        names of the files found (taking into account the path if a folder was specified)
-    
-    """
-    if (folderName is None):
-        list_all_files = os.listdir()
-        if(nameFile is None):
-            list_files = [f for f in list_all_files if f.startswith(prefix)]
-        else:
-            list_files = [f for f in list_all_files if (f == nameFile)]
-    else:
-        list_all_files = os.listdir(folderName)
-        if(nameFile is None):
-            if(prefix in [None, '']):
-                list_files = [os.path.join(folderName, f) for f in list_all_files]
-            else:
-                len_pref = len(prefix)
-                list_files = [os.path.join(folderName, f) for f in list_all_files if (f[:len_pref] == prefix)]
-        else:
-            list_files = [os.path.join(folderName, f) for f in list_all_files if (f == nameFile)]
 
-    
-    return list_files
 
 
 def getStringOrDico(strOrDico):

@@ -12,8 +12,8 @@ import pdb
 
 if(__name__ == '__main__'):
     import sys
-    sys.path.append("../")
-    import Helper as ut
+    sys.path.append("../../../")
+    from QuantumSimulation.Utility import Helper as ut
 else:
     from .. import Helper as ut
 #==============================================================================
@@ -48,7 +48,7 @@ class RandomGenerator(rdm.RandomState):
         elif(ut.is_int(rdm_object)):
             return RandomGenerator(seed = rdm_object)
             
-        elif(rdm_object.__class__ == cls):
+        elif(isinstance(rdm_object,RandomGenerator)):
             return rdm_object
         
         else:

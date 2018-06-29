@@ -1,68 +1,161 @@
 if(__name__ == '__main__'):
     import sys
-    sys.path.insert(0, '../')
-    import Helper as ut
-    import pFunc_base as pf
-    from pFunc_base import Composition, Product, Sum
-    from RandomGenerator import RandomGenerator
+    sys.path.append("../../../")
+    from QuantumSimulation.Utility import Helper as ut
+    from QuantumSimulation.Utility.Optim import pFunc_base as pf
+    from QuantumSimulation.Utility.Optim.pFunc_base import Composition, Product, Sum
+    from QuantumSimulation.Utility.Optim.RandomGenerator import RandomGenerator
 else:
     from .. import Helper as ut
     from . import pFunc_base as pf
     from .pFunc_base import Composition, Product, Sum
     from .RandomGenerator import RandomGenerator
     
+#from collections import OrderedDict
 import numpy as np
 import pdb
 
 #TODO: use nicknames for function
+class pFunc_factory():
+    """ Create on demand parametrized function with complicated / ad-hoc patterns
+        Enhance pFunc_base by providing for more flexibility/functionality 
+        when building the function
+
+        e.g.1 when building a FourierFunc, doesn't have to provide A and B (which should be 
+        provided when using the constructor FourierFunc) - if not found they will be taken as np.zeros
+        e.g.2 can provide a list of fixed parameters removing the need to provide their bounds
+        e.g.3 some randomization cabilities are provided for the choice of frequencies 
+    """
+
+    # <str>key: (<str>:infos, <class>:constructor, <list<list<str>>>: params mandatory, <list<str>>: params optional)
+    _LIST_CUSTOM_FUNC = {} 
+    _LIST_CUSTOM_FUNC['StepFunc'] = ('StepFunction', pf.StepFunc, [['Tstep'],['T', 'nb_steps']], ['F', 'F0'])
+    _LIST_CUSTOM_FUNC['FourierFunc'] = ('Fourier basis', pf.FourierFunc, [['Om'], ['T', 'nb_H']],['c0', 'phi', 'A', 'B', 'freq_type'])
+    _LIST_CUSTOM_FUNC['ConstantFunc'] = ('Constant function', pf.ConstantFunc, [['c0']],[])
+    _LIST_CUSTOM_FUNC['OwriterYWrap']= ('wrapper: overwritting', pf.OwriterYWrap, ['ow'], [])
+    _LIST_CUSTOM_FUNC['BoundWrap']= ('wrapper: boundaries', pf.BoundWrap, ['bounds'], [])
+    _LIST_CUSTOM_FUNC['LinearFunc'] = ('Linear function', pf.LinearFunc, pf.LinearFunc._LIST_PARAMETERS, [])
+    _LIST_CUSTOM_FUNC['ExpRampFunc'] = ('Exponential Ramp', pf.ExpRampFunc,pf.ExpRampFunc._LIST_PARAMETERS, [])
+    _LIST_CUSTOM_FUNC['ChebyshevFunc']= ('Chebyshev basis', pf.ChebyshevFunc, pf.ChebyshevFunc._LIST_PARAMETERS, [])
 
 
-class pFunc_parser():
-    """ parse """
-    _DICO_OP = {'**':'Composition', '*':'Product', '+':'Sum', '#':''}    
+    _PARSING_DICO_OP = {'**':'Composition', '*':'Product', '+':'Sum', '#':''}  
+
+    def __init__(self, rdm_obj = None, context = None):
+        self.rdm_gen = rdm_obj
+        self.context = context
+
+    @classmethod
+    def help(cls, name_func = None):
+        if(name_func is None):
+            print ("list of available func is {}".format(cls._LIST_CUSTOM_FUNC.keys()))
+        else:
+            info = cls._LIST_CUSTOM_FUNC[name_func]
+            print(info)
+            print ("for name_func = {0},\n ".format(str(info[0])))
+            print ("underlying func = {0}\n".format(str(info[1])))
+            print ("init params are {0} \n".format(str(info[3])))
+            print ("or at leats: {0} \n".format(str(info[2])))
+               
+    @property
+    def rdm_gen(self):
+        return self._rdm_gen
+    
+    @rdm_gen.setter
+    def rdm_gen(self, rdm_obj):
+        self._rdm_gen = RandomGenerator.init_random_generator(rdm_obj)
+
+    @property
+    def context(self):
+        return self._context
+    
+    @context.setter
+    def context(self, context):
+        if(context is None):
+            self._context = {}
+        elif(ut.is_dico(context)):
+            self._context = context
+        else:
+            SystemError('context should be a dictionnary')
+            
+    def update_context(self, more_context):
+        if(ut.is_dico(more_context)):
+            self._context.update(more_context)
+        else:
+            SystemError('context should be a dictionnary')
+
+    #-------------------------------------------------------#
+    #                    EVALUATIN ZONE
+    #-------------------------------------------------------#
+    def eval_string(self, string, context = None):
+        """ eval a string in this environment (string generated 
+        from pFunc_parser.parse)"""
+        if context is None:
+            context = self.context
+        return eval(string, None, locals().update(context))
+
+      
+    #-------------------------------------------------------#
+    #                    PARSING ZONE
+    #-------------------------------------------------------#
+    def parse_and_eval(self, dico_atom, dico_compounds):
+        """ Parse and evaluate. This is a (state-dependent) method as
+        the evaluation may depend on the state of the random generator 
+        and the attribute 
+
+        Warning: each functions created are independent..may be messy 
+        Not used so far.. Think about it
+        """
+        dico_parsed = self.parse(dico_atom, dico_compounds)
+        dico_evaluated = {k:self.eval_string(v) for k,v in dico_parsed}
+        return dico_evaluated
+
     
     @classmethod
-    def parse(cls, dico_atom, dico_expr):
+    def parse(cls, dico_atom, dico_compounds):
+        """  parse dico of expressions (either atomic i.e. can be cretaed on their
+        own or compounds i.e. rely on other expressions) and return a dico with
+        a string which can be eval to a function"""
         pdb.set_trace
         parsed = {}
         for k, v in dico_atom.items():
             parsed_tmp = cls.parse_atom(v)
             parsed.update({k:parsed_tmp})
         
-        for k,v in dico_expr.items():
-            parsed_tmp = cls.parse_expr(v, parsed)
+        for k,v in dico_compounds.items():
+            parsed_tmp = cls.parse_compound(v, parsed)
             parsed.update({k:parsed_tmp})
 
-        final = parsed['final']
-        return final
+        return parsed
     
     @classmethod
     def parse_atom(cls, atom):
+        """ parse atomic expression simply append """
         if(not(ut.is_str(atom))):
             raise SystemError('prse_atom: atom arg should be a string')
-        res = 'self.build_atom_custom_func(' + atom + ')'
+        res = 'self.build_atom_func(' + atom + ')'
         return res
     
     
     @classmethod
-    def parse_expr(cls, expr, db):
-        """ any expr is written as '$(expr_0,..,expr_n)'
-        if # (e.g. '#(expr)') it means that it is an atomic expression and it is extracted
-            from db
-        if $ in (#,*,**) it is a compound one in this case will parse each sub_expr
-            (recursively) to build it
-        else: fail
+    def parse_compound(cls, expr, db_atom):
+        """ Parse compound expressions (based on some atomic expressions defined in db_atom)
+
+        Compound expressions follow the syntax either 
+            '#expr' if expr is an atomic expression
+            '$(expr_0,..,expr_n)' where $ is an operator (#, *, **, +) acting on expr_0 to _n
         
         e.g. expr = '**(#a,*(#c,+(#d,#e)))' with db = {'a':xx,'c':yy,'d':qq,'e':zz}
         """
         if(not(ut.is_str(expr))):
             raise SystemError('prse_atom: atom arg should be a string')
+        
         op, list_sub_expr = cls._split_op_args(expr)
         if(op == '#'):
-           res = db[list_sub_expr]
+           res = db_atom[list_sub_expr]
         
-        elif(op in cls._DICO_OP):
-            parsed_sub = [cls.parse_expr(sub, db) for sub in list_sub_expr]
+        elif(op in cls._PARSING_DICO_OP):
+            parsed_sub = [cls.parse_compound(sub, db_atom) for sub in list_sub_expr]
             res = cls._apply_operator(op, parsed_sub)
         else:
             raise SystemError('operator {0} not recognized'.format(op))
@@ -75,7 +168,6 @@ class pFunc_parser():
         Special case when operator is # 
         '#expr1 >> op='#', list_sub_expr = expr1
         """
-
         if(expr[0] == "#"):
            op = '#'
            list_sub_expr = expr[1:]
@@ -112,93 +204,21 @@ class pFunc_parser():
             list_expr.append(expr_tmp)
         return list_expr
                 
-    @classmethod
-    def create_func(cls, str_func):
-        if(not(ut.is_str(str_func))):
-            raise SystemError('prse_atom: atom arg should be a string')
-        
+
     @classmethod
     def _apply_operator(cls, op, list_parsed):
-        beg = cls._DICO_OP[op] + '(list_func = ['
+        beg = cls._PARSING_DICO_OP[op] + '(list_func = ['
         res = beg + ','.join(list_parsed) + '])'
         return res
-            
-            
+        
+
+
     
-class pFunc_factory():
-    """ Create on demand parametrized function with complicated / ad-hoc patterns
-        Enhance pFunc_base by providing for more flexibility/functionality 
-        when building the function
-
-        e.g.1 when building a FourierFunc, doesn't have to provide A and B (which should be 
-        provided when using the constructor FourierFunc) - if not found they will be taken as np.zeros
-        e.g.2 can provide a list of fixed parameters removing the need to provide their bounds
-        e.g.3 some randomization cabilities are provided for the choice of frequencies 
-    """
-
-    # <str>key: (<str>:infos, <class>:constructor, <list<list<str>>>: params mandatory, <list<str>>: params optional)
-    _LIST_CUSTOM_FUNC = {} 
-    _LIST_CUSTOM_FUNC['StepFunc'] = ('StepFunction', pf.StepFunc, [['Tstep'],['T', 'nb_steps']], ['F', 'F0'])
-    _LIST_CUSTOM_FUNC['FourierFunc'] = ('Fourier basis', pf.FourierFunc, [['Om'], ['T', 'nb_H']],['c0', 'phi', 'A', 'B', 'freq_type'])
-    _LIST_CUSTOM_FUNC['ConstantFunc'] = ('Constant function', pf.ConstantFunc, [['c0']])
-    _LIST_CUSTOM_FUNC['LinearFunc'] = ('Linear function', pf.LinearFunc, pf.LinearFunc._LIST_PARAMETERS, [])
-    _LIST_CUSTOM_FUNC['ExpRampFunc'] = ('Exponential Ramp', pf.ExpRampFunc,pf.ExpRampFunc._LIST_PARAMETERS, [])
-    _LIST_CUSTOM_FUNC['ChebyshevFunc']= ('Chebyshev basis', pf.ChebyshevFunc, pf.ChebyshevFunc._LIST_PARAMETERS, [])
-    _LIST_CUSTOM_FUNC['OwriterYWrap']= ('wrapper: overwritting', pf.OwriterYWrap, ['ow'],)
-    _LIST_CUSTOM_FUNC['BoundWrap']= ('wrapper: boundaries', pf.BoundWrap, ['bounds'], [])
-
-    def __init__(self, rdm_obj = None, context = None):
-        self.rdm_gen = rdm_obj
-        self.context = context
-    
-    @property
-    def rdm_gen(self):
-        return self._rdm_gen
-    
-    @rdm_gen.setter
-    def rdm_gen(self, rdm_obj):
-        self._rdm_gen = RandomGenerator.init_random_generator(rdm_obj)
-
-    @property
-    def context(self):
-        return self._context
-    
-    @context.setter
-    def context(self, context):
-        if(context is None):
-            self._context = {}
-        elif(ut.is_dico(context)):
-            self._context = context
-        else:
-            SystemError('context should be a dictionnary')
-            
-    def update_context(self, more_context):
-        if(ut.is_dico(more_context)):
-            self._context.update(more_context)
-        else:
-            SystemError('context should be a dictionnary')
-
-    @classmethod
-    def help(cls, name_func = None):
-        if(name_func is None):
-            print ("list of available func is {}".format(cls._LIST_CUSTOM_FUNC.keys()))
-        else:
-            info = cls._LIST_CUSTOM_FUNC[name_func]
-            print(info)
-            print ("for name_func = {0},\n ".format(str(info[0])))
-            print ("underlying func = {0}\n".format(str(info[1])))
-            print ("init params are {0} \n".format(str(info[3])))
-            print ("or at leats: {0} \n".format(str(info[2])))
-
-    def eval_string_from_parse(self, string, context = None):
-        """ eval a string in this environment (string generated 
-        from pFunc_parser.parse)"""
-        return eval(string, None, locals().update(self.context))
-    
-    #-------------------------------------------------------------------------#
-    # build one custom func from a simplified, custom dictionary
-    #-------------------------------------------------------------------------
-    def build_atom_custom_func(self, dico_fun):
+    #-------------------------------------------------------#
+    #                    BUILDING ZONE
+    # Helps to build function from a dico
+    #-------------------------------------------------------#
+    def build_atom_func(self, dico_fun):
         """ built a pFunc_base based on a dico specifying
             + key = 'name_func' which func we are expecting 
             + key = 'paramsXXX' params necessary to gen the function
@@ -241,7 +261,7 @@ class pFunc_factory():
         ow = dico_fun.get('ow')
         if(ow is not None):
             bounds = np.array(ow)
-            dico_constructor = {'input_min':bounds[:,0], 'input_max':bounds[:,0], 'output_ow':bounds[:,2]}
+            dico_constructor = {'input_min':bounds[:,0], 'input_max':bounds[:,1], 'output_ow':bounds[:,2]}
             res = constructor(**dico_constructor)
         else:
             res = self._build_custom_Default(dico_fun)
@@ -373,15 +393,15 @@ if __name__ == '__main__':
     
     expr = '**(#a,*(#b,#c))'
     db = {'a':'func_a','b':'func_b', 'c':'func_c'}
-    res = pFunc_parser.parse_expr(expr, db)
+    res = pFunc_factory.parse_compound(expr, db)
     
     
     dico_atom = {'ow':"{'name_func':'OwriterYWrap', 'ow':[(-100,0,0),(5,100,1)]}",
                 'bd':"{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}",
-                'pw':"{'name_func':'StepFunc','T':5,'nb_steps':10}"}
+                'pw':"{'name_func':'StepFunc','T':5,'nb_steps':10,'F_bounds':(0,1)}"}
     dico_expr = {'final':'**(#ow,**(#bd,#pw))'}
-    res2 = pFunc_parser.parse(dico_atom, dico_expr)
+    res2 = pFunc_factory.parse(dico_atom, dico_expr)
 
 
     factory = pFunc_factory(None)
-    res3 = factory.eval_string_from_parse(res2)
+    res3 = factory.eval_string(res2['final'])

@@ -11,8 +11,9 @@ import matplotlib.pylab as plt
 import pdb
 from functools import partial
 import operator as op
+import copy
 # import importlib as ilib
-# import time
+import time
 
 if(__name__ == '__main__'):
     sys.path.append("../../")
@@ -385,7 +386,7 @@ class cModel_base(model_base):
 
     @staticmethod
     def _smoothness(func, time):
-        """ Smoothness as avg <([f(x) - f(x + dx)]/dx ** 2> """
+        """ Smoothness as avg <([f(x) - f(x + dx)]/dx) ** 2> """
         step = np.diff(time)
         diff_val_square = np.square(np.diff(func(time)))
         res = np.sum(np.array(diff_val_square / step))
@@ -412,6 +413,7 @@ class pcModel_base(cModel_base):
         cModel_base.__init__(self, **args_model)
         self._flag_track_calls_void = True
 
+
     @property
     def n_params(self):
         return self.control_fun.n_theta
@@ -429,8 +431,8 @@ class pcModel_base(cModel_base):
             res = control.clone()
             
         elif(isinstance(control, pf.pFunc_base)):
-            res = pf.pFunc_List(list_func = [control])
-            
+            res = pf.pFunc_List(list_func = [control]).clone()
+
         elif ut.is_list(control):
             res = [self._process_atom_control_function(c) for c in control]
             res = pf.pFunc_List(res)
@@ -465,8 +467,10 @@ class pcModel_base(cModel_base):
         """ model(params) >> fom (just one value)
         Should be used at some point but first need to implement logs"""
         self._aggregated_nb_call += 1
-        self.update_control_parameters(params, **args_call)
-        res_tmp = self.Simulate(**args_call)
+        args_call_dupl = copy.copy(args_call)
+        track = args_call_dupl.pop('track_learning', False)
+        self.update_control_parameters(params, **args_call_dupl)
+        res_tmp = self.Simulate(**args_call_dupl)
         if(self._fom_print):
             print(res_tmp)
         if(ut.is_iter(res_tmp)):
@@ -474,8 +478,10 @@ class pcModel_base(cModel_base):
         else:
             res = res_tmp
 
-        if args_call.get('track_learning'):
+        if track:
             if self._flag_track_calls_void:
+                if(not(hasattr(self, '_timer'))):
+                    self._timer = time
                 self._track_time_init = self._timer.time()
                 self._track_fom = None
                 self._flag_track_calls_void = False
@@ -483,7 +489,7 @@ class pcModel_base(cModel_base):
                 self._track_calls = {'history_nev_fun':[], 'history_time_fun':[],
                     'history_func_fun':[], 'best_fun':None, 'best_fun_full':None}
                                 
-            best = self._track_calls.best_fun
+            best = self._track_calls['best_fun']
             if (best is None) or (best > res):
                 time_elapsed = self._timer.time() - self._track_time_init
                 self._track_calls['best_fun'] = res
