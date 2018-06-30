@@ -9,6 +9,7 @@
 import sys
 import pdb
 import copy
+import numpy as np
 if(__name__ == '__main__'):
     sys.path.append("../../../")
     from QuantumSimulation.Utility import Helper as ut
@@ -30,7 +31,7 @@ class learner1DBH(Batch.Batch):
         + management of randomGen and mp
         + testing
         + dispatching i.e. more flexibility in creating the controler
-        + 
+    TODO: noise in the test through seed_noise = [(), ..., ()]
     """
     def run_one_procedure(self, config):
         """ 
@@ -40,6 +41,7 @@ class learner1DBH(Batch.Batch):
         dico_update ={'rdm_obj': self.random_gen, 'mp_obj':self.mp}
         
         model_dico = config['model_dico']
+        track_learning = model_dico.pop('track_learning', False)
         model_dico.update(dico_update)
         self._build_control(model_dico)
         model = bh1d.BH1D(**model_dico)
@@ -47,7 +49,10 @@ class learner1DBH(Batch.Batch):
         optim_dico = config['optim_dico']
         optim_dico.update(dico_update)
         optim = Learner.learner_Opt(model = model, **optim_dico)        
-        res = optim()
+        res = optim(track_learning = track_learning)
+        control_fun = model.control_fun.clone()
+        control_fun.theta = res['params']
+        res['func'] = repr(control_fun)
         del model_dico['rdm_obj']
         del model_dico['mp_obj']
         del optim_dico['rdm_obj']
@@ -59,7 +64,7 @@ class learner1DBH(Batch.Batch):
             self._build_control(testing_dico)
             model_test = bh1d.BH1D(**testing_dico)
             optim_params = res['params']
-            res_test = model_test(optim_params)
+            res_test = model_test(optim_params, trunc_res = False)
             res['test_fom'] = res_test
             res['test_params'] = optim_params
             del testing_dico['rdm_obj']
@@ -127,6 +132,27 @@ class learner1DBH(Batch.Batch):
                             'pw':"{'name_func':'StepFunc','T':T,'F_bounds':(0,1),'nb_steps':"+ str(nb_params)+"}"}
                 dico_expr = {'final':'**(#ow,**(#bd,#pw))'}
              
+            elif(shortcut[:12] == 'owbds01_crab'):
+                nb_params = int(shortcut[12:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                
+                dico_atom = {'ow':"{'name_func':'OwriterYWrap', 'ow':[(-100,0,0),(T,100+T,1)]}",
+                            'bd':"{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}",
+                            'guess':"{'name_func':'LinearFunc', 'bias':0, 'w':1/T}",
+                            'rfour':"{'name_func':'FourierFunc','T':T,freq_type:'CRAB','A_bounds':(-1,1),'B_bounds':(-1,1),'nb_H':"+ str(int(nb_params/2))+"}",
+                            'scale':"{'name_func':'FourierFunc','A':[0], 'B':[1],Om:[np.pi/T]}",
+                            'ct':"{'name_func':'ConstantFunc', 'c0':[1]}"                            
+                            }
+                dico_expr = {'final':'**(#ow,**(#bd,+(#ct,*(#scale,#rfour))))'}
+            
+            elif(shortcut[:14] == 'owbds01_trfour'):
+                nb_params = int(shortcut[14:])
+                dico_atom = {'ow':"{'name_func':'OwriterYWrap', 'ow':[(-100,0,0),(T,100+T,1)]}",
+                            'bd':"{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}",
+                            'trend':"{'name_func':'LinearFunc', 'bias':0, 'w':1/T}",
+                            'sinfour':"{'name_func':'FourierFunc','T':T,freq_type:'principal','B_bounds':(-1,1),'nb_H':"+ str(nb_params)+"}"}
+                dico_expr = {'final':'**(#ow,**(#bd,+(#trend,#sinfour)))'}
             
             else:
                  raise SystemError('implement more shotcuts here')

@@ -24,7 +24,8 @@ class pFunc_factory():
         e.g.1 when building a FourierFunc, doesn't have to provide A and B (which should be 
         provided when using the constructor FourierFunc) - if not found they will be taken as np.zeros
         e.g.2 can provide a list of fixed parameters removing the need to provide their bounds
-        e.g.3 some randomization cabilities are provided for the choice of frequencies 
+        e.g.3 some randomization cabilities are provided for the choice of frequencies
+    TODO: move the shortcuts here
     """
 
     # <str>key: (<str>:infos, <class>:constructor, <list<list<str>>>: params mandatory, <list<str>>: params optional)

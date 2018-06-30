@@ -64,7 +64,7 @@ class ShiftedAndScaled():
         self._constraints = constraints
         self.UpdateSaS(self._constraints)
 
-    def UpdateSaS(self, constraints = None, typeSS = None):
+    def UpdateSaS(self, ### = None, typeSS = None):
         if (constraints is None):
             constraints = self._constraints
         if (typeSS is None):

@@ -463,7 +463,7 @@ class pcModel_base(cModel_base):
             self.control_fun[index_control].theta = params
 
 
-    def __call__(self, params, **args_call):
+    def __call__(self, params, trunc_res = True, **args_call):
         """ model(params) >> fom (just one value)
         Should be used at some point but first need to implement logs"""
         self._aggregated_nb_call += 1
@@ -473,7 +473,7 @@ class pcModel_base(cModel_base):
         res_tmp = self.Simulate(**args_call_dupl)
         if(self._fom_print):
             print(res_tmp)
-        if(ut.is_iter(res_tmp)):
+        if(trunc_res and ut.is_iter(res_tmp)):
             res = res_tmp[0]
         else:
             res = res_tmp
@@ -487,7 +487,7 @@ class pcModel_base(cModel_base):
                 self._flag_track_calls_void = False
                 
                 self._track_calls = {'history_nev_fun':[], 'history_time_fun':[],
-                    'history_func_fun':[], 'best_fun':None, 'best_fun_full':None}
+                    'history_func_fun':[], 'best_fun':None, 'best_fun_full':None, 'history_params_fun':[]}
                                 
             best = self._track_calls['best_fun']
             if (best is None) or (best > res):
@@ -497,6 +497,7 @@ class pcModel_base(cModel_base):
                 self._track_calls['history_nev_fun'].append([self._aggregated_nb_call, res])
                 self._track_calls['history_time_fun'].append([time_elapsed, res])
                 self._track_calls['history_func_fun'].append([repr(self.control_fun), res])
+                self._track_calls['history_func_fun'].append([params, res])
 
         return res
 

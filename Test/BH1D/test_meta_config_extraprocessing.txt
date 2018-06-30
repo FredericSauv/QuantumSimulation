@@ -1,0 +1,14 @@
+model_dico {'L':5,'Nb':5,'mu':0,'T':10,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_f','fom':['f2t2:neg_fluence:0.0001_smooth:0.005'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_pwc4'}
+
+testing_dico {'L':5,'Nb':5,'mu':0,'T':10,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_f','fom':['f2t2:neg_fluence:0.0001_smooth:0.005','f2t2','fluence','smooth','varN'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_pwc4'}
+
+optim_dico {'algo':'NM','init_obj':'uniform_-1_1','nfev':100} {'algo':'BO2','maxiter':10,'num_cores':4,'init_obj':4,'acq':'EI'} {'algo':'DE','popsize':1,'maxiter':2} {'algo':'BO','maxiter':10}
+
+_RDM_RUNS 10
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'TestBatch'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False

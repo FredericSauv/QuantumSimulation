@@ -57,6 +57,7 @@ class pFunc_base():
     self.__bias = [False]
     
     TODO:
+        + implement power
         + Finish using name (i.e. get attribute and get by name) s.t. 
         it appears in repr + probably use a flag use_name 
         + use of different default bounds (e.g. _DEF_POS_BOUNDS)

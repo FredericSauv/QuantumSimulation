@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Do everything except submitting jobs.. For testing purposes
 # relies on some assumption on where the files are stored
 
 # 2 inputs: Where the metaconfig file is stored (relative to run_bash_array)
