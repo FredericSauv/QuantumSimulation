@@ -34,7 +34,7 @@ else:
         else:
             output_f = 'Config'
         learner1DBH.parse_and_save_meta_config(file_input, output_folder = output_f
-                                               , extra_processing = True)
+                                    , extra_processing = True, update_rules = True)
 
     elif(type_task == "run_one_config"):
         batch = learner1DBH(file_input)
