@@ -3,7 +3,7 @@ testing_dico {'L':5,'Nb':5,'mu':0,'T':4.889428431607287,'dt':0.01,'flag_intermed
 _RDM_RUNS 1
 _RDM_FIXSEED True
 _OUT_PREFIX 'benchmark'
-_OUT_FOLDER 'TestBenchmark'
+_OUT_FOLDER 'Output/Test'
 _OUT_COUNTER 0
 _OUT_NAME None
 _OUT_STORE_CONFIG True

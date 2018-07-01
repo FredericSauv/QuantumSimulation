@@ -7,7 +7,7 @@ optim_dico {'algo':'NM','init_obj':'uniform_-1_1','nfev':5,'_FLAG_NAME':'NM1m1'}
 _RDM_RUNS 1
 _RDM_FIXSEED True
 _OUT_PREFIX 'res'
-_OUT_FOLDER 'Output/BH1D/test'
+_OUT_FOLDER 'Output/Test'
 _OUT_COUNTER 0
 _OUT_NAME None
 _OUT_STORE_CONFIG True

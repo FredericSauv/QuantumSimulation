@@ -11,7 +11,7 @@ nb_cpus=${4:-1}
 mem=${5:-32}
 
 # Where the final results are going to be stored
-output_path="$WORK/Res/BH1D/""${output_folder}"
+output_path="$WORK/ResBH1D/""${output_folder}"
 mkdir -p "$output_path"
 
 # amend (such that it points to the right output place) and store the meta 
