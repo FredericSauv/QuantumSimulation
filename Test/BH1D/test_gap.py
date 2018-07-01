@@ -9,7 +9,7 @@ BH1D.info()
 
 # Create a 1D BH chain linearly driven, evolve the GS of H(t=0) to T
 # observe psi(T) avg(Var(n_i)) F(psi(T), GS_MI) etc..
-list_size = [5, 10, 15, 20]
+list_size = [5]
 
 # [0.64252758733132032, 0.37735824340287805]
 # [8.5510983763132753, 4.6369785794814016]
@@ -31,11 +31,12 @@ for l in list_size:
     dico_simul['Nb'] = l
     simul = BH1D(**dico_simul)
     #res_fom = simul.Simulate(fom = fom_name, store = True, debug = False)
-    energy_evol = simul.EvolutionInstEnergies(nb = 2)
-    gap_1 = energy_evol[:, 2] - energy_evol[:, 1]
-    ind_min = np.argmin(gap_1)
-    gap_min = gap_1[ind_min]
-    U_min = energy_evol[ind_min, 0]
+    energy_evol = simul.EvolutionInstEnergies(nb = 5)
+    gap = energy_evol[:, 2:] - energy_evol[:, 1][:, None]
+    ind_min = np.unravel_index(np.argmin(gap, axis=None), gap.shape)
+    gap_min = gap[ind_min]
+    U_min = gap[ind_min[0]]
     ratio_min = U_min / (1-U_min)        
     list_energy_gap.append(gap_min)
     list_ratio_gap.append(ratio_min)
+    

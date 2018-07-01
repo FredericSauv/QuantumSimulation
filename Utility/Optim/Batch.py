@@ -8,6 +8,7 @@ import csv
 import os
 import pathlib
 import pdb
+import copy
 from ast import literal_eval as ev
 from sklearn.gaussian_process.kernels import Matern, WhiteKernel, RBF, ConstantKernel
 
@@ -77,11 +78,12 @@ class Batch:
 
     @classmethod
     def from_meta_config(cls, metaFile = None, rdm_object = None, procToRun = None, 
-                         debug = False, extra_processing = False):
+                         debug = False, extra_processing = False, update_rules = False):
         """ init the config with a meta_configuration where a metaconfig is 
         understood as a file from which can be generated a list of configs.
         If extra_processing = True it will use some treatment to create the configs
         (it should be implemented in _dispatch_configs implemented)
+        
         """
         if(debug):
             pdb.set_trace()
@@ -211,10 +213,10 @@ class Batch:
     
     @classmethod
     def parse_and_save_meta_config(cls, input_file = 'inputfile.txt', 
-             output_folder = 'Config', extra_processing = False):
+             output_folder = 'Config', extra_processing = False, update_rules=False):
         """ parse an input file containing a meta-config generate the differnt 
         configs and write a file for each of them"""
-        list_configs = cls.parse_meta_config(input_file, extra_processing)
+        list_configs = cls.parse_meta_config(input_file, extra_processing, update_rules)
         for conf in list_configs:
             name_conf = 'config_' + conf['_RES_NAME']
             if(not(output_folder is None)):
@@ -223,10 +225,15 @@ class Batch:
             ut.dico_to_text_rep(conf, fileName = name_conf, typeWrite = 'w')
 
     @classmethod
-    def parse_meta_config(cls, inputFile = 'inputfile.txt', extra_processing = False):
+    def parse_meta_config(cls, inputFile = 'inputfile.txt', extra_processing = False, update_rules = False):
         """Parse an input file containing a meta-config and generate a 
         <list<dict:config>> where config is a dict containing a configuration 
-        which can be directly used to run a procedure"""
+        which can be directly used to run a procedure
+        extra_processing >>
+        update_rules >> for a key with several elements the first one serve as
+        a reference and the other elements contain only updates of the reference 
+        (works only if elements are dict)
+        """
         with open(inputFile, 'r') as csvfile:
             reader = csv.reader(csvfile, delimiter = ' ')
             list_values = list([])
@@ -244,6 +251,14 @@ class Batch:
                     assert (len(line)>=2), 'batch input file: not enough args in l.' + str(nbline) 
                     list_keys.append(line[0]) 
                     ev_tmp = [ev(line[i]) for i in range(1,len(line))]
+
+                    if(update_rules):
+                        ref_value = copy.copy(ev_tmp[0])
+                        ev_tmp_new = []
+                        for ev_i in ev_tmp:
+                            in_progress = ut.merge_dico(ref_value, ev_i, update_type = 0, copy = True)
+                            ev_tmp_new.append(copy.copy(in_progress))
+                        ev_tmp = ev_tmp_new
                     list_values = ut.cartesianProduct(list_values, ev_tmp, ut.appendList) 
 
             list_configs = [ut.lists2dico(list_keys, l) for l in list_values]           
@@ -262,19 +277,20 @@ class Batch:
         """
         #Parse Metaparameters cast them to the right type and use def value
         dico_meta_filled = cls._parse_metaparams(dico_meta)
-                     
         #MANAGEMENT OF RANDOM RUNS
-        nb_rdm_run, fix_seed = dico_meta_filled['_RDM_RUNS'], dico_meta_filled['_RDM_FIXSEED']
-        if(nb_rdm_run > 1):
-            nb_run = range(nb_rdm_run)
-            if(fix_seed):
-                seeds = rdgen.RandomGenerator.gen_seed(nb = nb_rdm_run)
-            else:
-                seeds = [None for _ in range(nb_rdm_run)]
-            random_bits = [{'_RDM_RUN':n, '_RDM_SEED': seeds[n]} for n in nb_run]
-            for conf in list_configs:
-                conf['_ID_DET'] = rdgen.RandomGenerator.gen_seed()
-            list_configs = ut.cartesianProduct(list_configs, random_bits, ut.add_dico)
+        nb_rdm_run = dico_meta_filled.get('_RDM_RUNS', 1)
+        fix_seed = dico_meta_filled.get('_RDM_FIXSEED', False)
+        runs = range(nb_rdm_run)
+        if(fix_seed):
+            seeds = rdgen.RandomGenerator.gen_seed(nb = nb_rdm_run)
+            if(nb_rdm_run == 1):
+                seeds = [seeds]
+        else:
+            seeds = [None for _ in runs]
+        random_bits = [{'_RDM_RUN':n, '_RDM_SEED': seeds[n]} for n in runs]
+        for conf in list_configs:
+            conf['_ID_DET'] = rdgen.RandomGenerator.gen_seed()
+        list_configs = ut.cartesianProduct(list_configs, random_bits, ut.add_dico)
         
         #GENERATE RESULTS NAME AND INCLUDE THEM IN CONFIGS DICO
         name_res_list = []
