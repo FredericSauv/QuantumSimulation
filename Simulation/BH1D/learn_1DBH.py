@@ -142,12 +142,12 @@ class learner1DBH(Batch.Batch):
             bds = "{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}"
             linear = "{'name_func':'LinearFunc', 'bias':0, 'w':1/T}"
             one = "{'name_func':'ConstantFunc', 'c0':[1]}"
-            sinpi = "{'name_func':'FourierFunc','A':[0], 'B':[1],Om:[np.pi/T]}"
+            sinpi = "{'name_func':'FourierFunc','A':[0], 'B':[1],'Om':[np.pi/T]}"
             
             #tunable
-            sinfour = "{'name_func':'FourierFunc','T':T,freq_type:'principal','B_bounds':%s,'nb_H':%s}"
+            sinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','B_bounds':%s,'nb_H':%s}"
             pwc = "{'name_func':'StepFunc','T':T,'F_bounds':%s,'nb_steps':%s}"
-            rfour ="{'name_func':'FourierFunc','T':T,freq_type:'CRAB','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
+            rfour ="{'name_func':'FourierFunc','T':T,'freq_type':'CRAB','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
             
             if(shortcut[:11] == 'owbds01_pwc'):
                 nb_params = int(shortcut[11:])
@@ -160,7 +160,7 @@ class learner1DBH(Batch.Batch):
                     SystemError('nb_params = {} while it should be even'.format(nb_params))
                 dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
-                dico_expr = {'final':'**(#ow,**(#bd,+(#ct,*(#scale,#rfour))))'}
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#rfour)))))'}
             
             elif(shortcut[:14] == 'owbds01_trfour'):
                 nb_params = int(shortcut[14:])

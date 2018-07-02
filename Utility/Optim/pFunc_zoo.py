@@ -117,7 +117,6 @@ class pFunc_factory():
         """  parse dico of expressions (either atomic i.e. can be cretaed on their
         own or compounds i.e. rely on other expressions) and return a dico with
         a string which can be eval to a function"""
-        pdb.set_trace
         parsed = {}
         for k, v in dico_atom.items():
             parsed_tmp = cls.parse_atom(v)
@@ -137,7 +136,7 @@ class pFunc_factory():
         res = 'self.build_atom_func(' + atom + ')'
         return res
     
-    
+    eval_string
     @classmethod
     def parse_compound(cls, expr, db_atom):
         """ Parse compound expressions (based on some atomic expressions defined in db_atom)
@@ -228,18 +227,17 @@ class pFunc_factory():
             + key = 'paramsXXX_bounds' (optional) by default they will be set to False
                     i.e. the params are frozen (cf. docstring of pFunc_base)
         """
-        rdm_object = self.rdm_gen
         name_func = dico_fun['name_func']
         if(name_func == 'StepFunc'):
             func = self._build_custom_StepFunc(dico_fun)
         elif(name_func == 'FourierFunc'):
-            func = self._build_custom_FourierFunc(dico_fun, rdm_object = rdm_object)
+            func = self._build_custom_FourierFunc(dico_fun)
         elif(name_func == 'BoundWrap'):
             func = self._build_custom_BoundWrap(dico_fun)
         elif(name_func == 'OwriterYWrap'):
             func = self._build_custom_OwriterYWrap(dico_fun)
         else:
-            func = self._build_custom_Default(dico_fun, rdm_object = rdm_object)
+            func = self._build_custom_Default(dico_fun)
         return func
 
     def _build_custom_BoundWrap(self, dico_fun):
@@ -270,17 +268,15 @@ class pFunc_factory():
 
     def _build_custom_FourierFunc(self, dico_source, **extra_args):
         """ custom rules to build a FourierFunc """
-        pdb.set_trace()
         info_func = self._LIST_CUSTOM_FUNC['FourierFunc']
         constructor = info_func[1]
         Om = dico_source.get('Om')
-        rdm_object = extra_args.get('rdm_object')
         
         if(Om is None):
             T = dico_source['T']
             nb_H = dico_source['nb_H']
             freq_type = dico_source.get('freq_type')
-            Om = self._gen_frequencies(T, nb_H, freq_type, rdm_object)
+            Om = self._gen_frequencies(T, nb_H, freq_type)
         elif(ut.is_iter(Om)):
             nb_H = len(Om)
         else:
@@ -292,7 +288,6 @@ class pFunc_factory():
         B = dico_source.get('B', np.zeros(nb_H))
         c0 = dico_source.get('c0', 0)
         dico_constructor = {'A':A, 'B':B, 'c0':c0, 'phi':phi, 'Om':Om}
-        pdb.set_trace()
         self._add_bounds(dico_constructor, dico_source)
         return constructor(**dico_constructor)
     
@@ -347,7 +342,7 @@ class pFunc_factory():
         Om_ref = 2 * np.pi / T
         #dico_args = {'freq_type':freq_type}
         args_rdm = freq_type.split("_")
-        rgen = self._rdm_gen
+        rgen = self._rdm_gen #Use this rdamgen (provided or created at init of the factory)
 
         if(args_rdm[0] in [None, 'principal']):
             Om = (1 + np.arange(nb_freq)) * Om_ref

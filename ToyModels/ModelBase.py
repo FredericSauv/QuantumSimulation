@@ -487,7 +487,7 @@ class pcModel_base(cModel_base):
                 self._flag_track_calls_void = False
                 
                 self._track_calls = {'history_nev_fun':[], 'history_time_fun':[],
-                    'history_func_fun':[], 'best_fun':None, 'best_fun_full':None, 'history_params_fun':[]}
+                    'history_func_fun':[], 'best_fun':None, 'best_fun_full':None, 'history_nev_params':[]}
                                 
             best = self._track_calls['best_fun']
             if (best is None) or (best > res):

@@ -11,8 +11,8 @@ optim_type = 'BO2'
 fom = ['f2t2:neg_fluence:0.0001_smooth:0.005']
 T=10
 dico_simul = {'L':5, 'Nb':5, 'mu':0, 'T':T, 'dt':0.01, 'flag_intermediate':False, 
-              'setup':'1', 'state_init':'GS_i', 'state_tgt':'GS_f', 'fom':fom, 
-              'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_trfour10'}
+              'setup':'1', 'state_init':'GS_i', 'state_tgt':'GS_inf', 'fom':fom, 
+              'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_crab20'}
 dico_simul = learner1DBH._process_controler(dico_simul)
 dico_simul['control_obj'] = learner1DBH._build_control_from_string(dico_simul['control_obj'], None, context_dico = dico_simul)
 model = bh1d.BH1D(**dico_simul)
@@ -20,7 +20,7 @@ model = bh1d.BH1D(**dico_simul)
 
 if(optim_type == 'BO2'):
     #BO
-    optim_args = {'algo': 'BO2', 'maxiter':100, 'num_cores':4, 'init_obj':50, 'acq':'EI'}
+    optim_args = {'algo': 'BO2', 'maxiter':350, 'num_cores':6, 'init_obj':100, 'acq':'EI'}
     optim = Learner.learner_Opt(model = model, **optim_args)
     resBO2 = optim(track_learning=True)
     resBO2['last_func'] = model.control_fun
@@ -72,3 +72,5 @@ dico_test_linear = copy.copy(dico_test)
 dico_test_linear['control_obj'] = linear
 model_test_linear = bh1d.BH1D(**dico_test_linear)
 res_test_linear = model_test_linear([])
+
+
