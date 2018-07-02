@@ -202,7 +202,7 @@ class learner_Opt(learner_base):
         res['fun'] = res_optim_raw['fun']                    
         res['nfev'] = res_optim_raw.get('nfev') 
         res['nit'] = res_optim_raw.get('nit')
-        res['sucess'] = res_optim_raw.get('sucess')
+        res['success'] = res_optim_raw.get('success')
         res['init'] = self.options_learner['init_params']
         res['bounds'] = self.options_learner['bounds_params']
         model = options['model']
@@ -321,7 +321,7 @@ class learner_Opt(learner_base):
         verbosity_model = False, maximize=False, de_duplication=False, **kwargs)
         
         
-        def run_optimization(self, max_iter = 0, max_time = np.inf, eps = 1e-8, 
+        def run_optimization(self, maxiter = 0, max_time = np.inf, eps = 1e-8, 
         context = None, verbosity=False, save_models_parameters= True, 
         report_file = None, evaluations_file = None, models_file=None):
         ## NEW PARAMS

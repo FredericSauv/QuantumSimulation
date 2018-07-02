@@ -10,6 +10,7 @@ import sys
 import pdb
 import copy
 import numpy as np
+from functools import partial
 if(__name__ == '__main__'):
     sys.path.append("../../../")
     from QuantumSimulation.Utility import Helper as ut
@@ -79,6 +80,7 @@ class learner1DBH(Batch.Batch):
             res['test_params'] = optim_params
             del testing_updated['rdm_obj']
             del testing_updated['mp_obj']
+            config['testing_dico'] = testing_updated
         return res
     
     
@@ -196,11 +198,146 @@ class learner1DBH(Batch.Batch):
         
     @classmethod
     def evaluator(expr):
-        return pFunc_base.eval_with_pFunc(expr)
+        return pFunc_base.pFunc_base.eval_with_pFunc(expr)
+    # ----------------------------------------------------------------------- #
+    # Reading results aera:
+    # (from parent): read_res // collect_res
+    # process_list_res
+    #
+    # collect = {'collec1': list_res}
+    # list_res =[res_run1, ..., res_runN]
+    # ----------------------------------------------------------------------- #
+    @classmethod
+    def collect_and_process_res(cls, key_path = [], nameFile = None, allPrefix = 'res_', 
+                                folderName = None, printing = False, ideal_evol = False):
+        collect = learner1DBH.collect_res(key_path, nameFile, allPrefix, folderName)
+        process = learner1DBH.process_collect_res(collect, printing, ideal_evol)
+        
+        return process
     
     @classmethod
-    def extract_one_res(cls, name):
-        res = ut.eval_from_file(name, evfunc = pFunc_base.eval_with_pFunc)
+    def process_collect_res(cls, collect_res, printing = False, ideal_evol = False):
+        dico_processed = {k: learner1DBH.process_list_res(v) for k, v in collect_res.items()}
+        return dico_processed
+        
+    @classmethod
+    def process_list_res(cls, list_res, printing = False, ideal_evol = False):
+        """ Take a list of N res(runs) and extract interesting informations (stats)
+        packaged as a dico with the following entries:
+            + evol_fom_stats: stats (over the N runs) of the fom vs the number 
+                                of evaluations
+            + evol_ideal_fom_stats x
+            + 
+            + optimal_functions : 
+            + optimal_function_stats: stats of the value of the driving function
+                                    over time
+            + optimal_fom_stats x
+            + optimal_fun1_stats x
+        """
+        #Path (in the nested structure of the res)
+        path_optim_fev_fom = ['extra_history_nev_fun']
+        path_optim_func = ['func']
+        path_optim_fun = ['fun']
+        path_test_fom = ['test_fom']
+        path_test_fom_names = ['test_fom_names']
+        path_test_t = ['config', 'testing_dico', 'T']
+        path_test_t_bis = ['config', 'model_dico', 'T']
+        
+        
+        # evol of fom (measured) over number of func evaluation
+        optim_fev_fom = [np.array(ut.extract_from_nested(run, path_optim_fev_fom)) for run in list_res]
+        evol_fom_stats = ut.merge_and_stats_TS(optim_fev_fom)
+        # optim_fev_params = [np.array(ut.extract_from_nested(run, path_optim_fev_fom)) for run in list_res]
+
+        #opt function computed between 0,T
+        try:
+            list_T = [ut.extract_from_nested(run, path_test_t) for run in list_res]
+        except:
+            list_T = [ut.extract_from_nested(run, path_test_t_bis) for run in list_res]
+        list_array_T = [np.arange(0, T, T/100) for T in list_T]
+        list_optim_func = [pFunc_base.pFunc_base.build_pfunc(ut.extract_from_nested(run, path_optim_func)) for run in list_res]
+        optim_func_TS = [np.c_[list_array_T[n], func(list_array_T[n])] for n, func in enumerate(list_optim_func)]
+        optim_func_stats = ut.merge_and_stats_TS(optim_func_TS)
+
+        # stats (avg, mini, maxi, std, avg_pstd, avg_mstd) of the optimal fom
+        test_fom_names = [ut.extract_from_nested(run, path_test_fom_names) for run in list_res]
+        test_fom_names_ref = test_fom_names[0]
+        assert np.all([(t == test_fom_names_ref) for t in test_fom_names]), "can't mix different fom..."
+        test_fom = np.array([ut.extract_from_nested(run, path_test_fom) for run in list_res]).T
+        test_fom_stats = [ut.get_stats(l_fom, dico_output = True) for l_fom in test_fom]
+        fun = np.array([ut.extract_from_nested(run, path_optim_fun) for run in list_res])
+        fun_stats = ut.get_stats(fun, dico_output = True)
+        
+
+        if(printing):
+            print('FUN:  (avg, min, max)')
+            print(fun_stats[:3])
+            print('TESTED RES:FUN0  (should be the same as above if no noise)')
+            print(test_fom_stats[0, :3])
+            print('TESTED RES:FUN1')
+            print(test_fom_stats[1, :3])
+
+        #populate dico res
+        dico_res = {}
+        dico_res['nb_runs'] = len(list_res)
+        dico_res['ev_fom'] = evol_fom_stats
+        dico_res['funcplot_stats'] = optim_func_stats
+        dico_res['funcplot_TS'] = optim_func_TS
+        dico_res['best_fom'] = fun_stats
+        dico_res['test_fom'] = test_fom_stats[0]
+        for n, name_fom in enumerate(test_fom_stats[1:]):
+            dico_res['test_' + test_fom_names_ref[n+1]] = test_fom_stats[(n+1)]   
+        
+        # evol of fom (ideal: testing environment) over number of func evaluation
+        if(ideal_evol):
+            pdb.set_trace()
+            name_fom, ideal_nev_foms, dist_params = learner1DBH.ideal_learning_from_list_res(list_res)
+            ideal_nev_foms_stats = [ut.merge_and_stats_TS(one_fom) for one_fom in ideal_nev_foms]
+            dist_params_stats = ut.merge_and_stats_TS(dist_params)
+            dico_res['ev_distparams'] = dist_params_stats
+            dico_res['ev_idealfom'] = ideal_nev_foms_stats[0]
+            
+            for n, one_fom_stats in enumerate(ideal_nev_foms_stats[1:]):
+                dico_res['ev_ideal'+name_fom[n+1]] = one_fom_stats   
+
+
+        return dico_res
+    
+    
+    
+    @classmethod
+    def ideal_learning(run):
+        """ Compute the fom (under testing conditions) for the different functions 
+        found along optimization and also the distance between parameters
+        """
+        testing_dico = run['testing_dico']
+        names_fom = testing_dico['fom']
+        model_tmp = bh1d.BH1D(**testing_dico)
+        try:
+            evol_params = run['extra_history_nev_params']
+            res = [[p[0], model_tmp(p[1])] for p in evol_params]
+            res_params = [[p[0], p[1]] for p in evol_params]
+            res_params_dist = [np.array([par[0], np.square(par[1] - res_params[n][1])]) for n, par in enumerate(res_params[1:])]
+        except:
+            print("can't find extra_history_params_fun keys in the res.. no ideal learning possible")
+            res = []
+        return names_fom, res, res_params_dist
+        
+    @classmethod
+    def ideal_learning_from_list_res(list_res):
+        pdb.set_trace()
+        tmp = [learner1DBH.ideal_learning(res) for res in list_res]
+        nb_run = len(list_res)
+        nb_fom = len(tmp[0][1])
+        res = [[np.array([tmp[r][:,0], tmp[r][:,1+n]]) for r in range(nb_run)] for n in range(nb_fom)]
+        return res
+
+    @classmethod
+    def runSimul(dico_simul, params):
+        """ from a dico containing the parameters of the simulations and a control 
+            function get the results of the simulation"""
+        model_tmp = bh1d.BH1D(**dico_simul)
+        res = model_tmp(params)
         return res
 
 #==============================================================================

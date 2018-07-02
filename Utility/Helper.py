@@ -141,8 +141,18 @@ def findFile(nameFile = None, prefix = '', folderName = None):
 #            nlist.append(1)
 #    return ntotal, nlist
 
-
-
+# test_nested = {'a':{'aa':5, 'bb':7}, 'b':22}
+def print_nested_keys(nested_struct, padding = '+', nesting_max = None):
+    try:
+        if((nesting_max is None) or(nesting_max > 0)):
+            keys = nested_struct.keys()
+            if(nesting_max is not None):
+                nesting_max -= 1
+            for k in keys:
+                print(padding+k)
+                print_nested_keys(nested_struct[k], padding + padding, nesting_max)
+    except:
+        pass
 
 
 
@@ -1012,13 +1022,13 @@ def merge_and_stats_TS(listTS, dico=True):
     stats = np.array([np.concatenate(([ind], get_stats(ts))) for ind, ts in merged_TS])
     if(dico):
         res = {'index':stats[:,0], 'avg': stats[:,1],'min':stats[:,2], 'max': stats[:,3]
-        ,'std':stats[:,4], 'avg_pstd': stats[:,5],'avg_mstd':stats[:,6]}
+        ,'std':stats[:,4], 'avg_pstd': stats[:,5],'avg_mstd':stats[:,6], 'n': stats[:,7]}
     else:
         res = stats
     return res
 
 
-def get_stats(list_val):
+def get_stats(list_val, dico_output = False):
     """ from a list of value get the stats defined in this order:
         [avg, mini, maxi, std, avg_pstd, avg_mstd]
     """
@@ -1028,7 +1038,12 @@ def get_stats(list_val):
     std = np.std(list_val)
     avg_pstd = avg + std
     avg_mstd = avg - std
-    return [avg, mini, maxi, std, avg_pstd, avg_mstd]
+    n = len(list_val)
+    if(dico_output):
+        res = {'avg':avg,'min':mini,'max':maxi,'std':std,'avg_pstd':avg_pstd,'avg_mstd':avg_mstd, 'n':n, 'index':None}
+    else:
+        res = [avg, mini, maxi, std, avg_pstd, avg_mstd, n]
+    return res
     
     
 def find_from_index_TS(index, TS, rule='lower'):
@@ -1051,7 +1066,7 @@ def find_from_index_TS(index, TS, rule='lower'):
     
     
 
-def plot_from_stats(stats, dico_plot = {}, plot = None, return_plot = False, save = False):
+def plot_from_stats(stats, dico_plot = {}, plot = None, return_plot = False, save_fig = False):
     """ from a stats create some plots
     stats = [[index, avg, mini, maxi, std, avg_pstd, avg_mstd],...]
     """
@@ -1087,9 +1102,22 @@ def plot_from_stats(stats, dico_plot = {}, plot = None, return_plot = False, sav
         ax_plt.plot(indices, yavg, dashes=[6, 2], color = color)
 
     elif(component == 'finalerror'):
-        err_minus = np.array([yavg[-1] - ymin[-1]])
-        err_plus = np.array([ymax[-1] - yavg[-1]])
-        yavg = np.array([yavg[-1]])
+        if(len(np.shape(yavg)) == 0):
+            avg = yavg
+        else:
+            avg = yavg[-1]
+        if(len(np.shape(ymin)) == 0):
+            mini = ymin
+        else:
+            mini = yavg[-1]
+        if(len(np.shape(ymax)) == 0):
+            maxi = ymax
+        else:
+            maxi = ymax[-1]
+
+        err_minus = np.array([avg - mini])
+        err_plus = np.array([maxi - avg])
+        yavg = np.array([avg])
         x = np.array([stats.get('label_nb', 1)])
         ax_plt.errorbar(x, yavg, yerr=[err_minus, err_plus], fmt=shape, color = color, ecolor=color, capthick=2, label = legend)
                 
@@ -1109,14 +1137,15 @@ def plot_from_stats(stats, dico_plot = {}, plot = None, return_plot = False, sav
                 ax_plt.plot(indices, func_wrap(stats[c]))
 
     apply_dico_plot(None, ax_plt, dico_plot)
-    save_plot(fig, save)
+    if(is_str(save_fig)):
+        fig.savefig(save_fig)
     
     if return_plot:
         return (fig, ax_plt)
 
     
     
-def plot_from_list_stats(list_stats, dico_main, dico_inset = None, save = False):
+def plot_from_list_stats(list_stats, dico_main, dico_inset = None, save_fig = False):
     """ from a LIST of stats create some custom plots
     stats = [[index, avg, mini, maxi, std, avg_pstd, avg_mstd],...]
     """
@@ -1172,8 +1201,9 @@ def plot_from_list_stats(list_stats, dico_main, dico_inset = None, save = False)
     apply_dico_plot(fig, ax_plt, dico_main)
     if(inset_flag):
         apply_dico_plot(fig, ax_plt2, dico_inset)
-
-    save_plot(fig, save_plot)
+    
+    if(is_str(save_fig)):
+        fig.savefig(save_fig)
 
 def apply_dico_plot(fig, axis, dico_plot):
     ylim = dico_plot.get('ylim')

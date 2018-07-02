@@ -536,7 +536,6 @@ class pFunc_base():
     @classmethod
     def build_pfunc(cls, representation):
         """ Build a function from a str / dico / potentially add others """
-        pdb.set_trace()
         if ut.is_str(representation):
             try:
                 func = eval(representation)

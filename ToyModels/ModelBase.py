@@ -497,7 +497,7 @@ class pcModel_base(cModel_base):
                 self._track_calls['history_nev_fun'].append([self._aggregated_nb_call, res])
                 self._track_calls['history_time_fun'].append([time_elapsed, res])
                 self._track_calls['history_func_fun'].append([repr(self.control_fun), res])
-                self._track_calls['history_func_fun'].append([params, res])
+                self._track_calls['history_nev_params'].append([self._aggregated_nb_call, params])
 
         return res
 
@@ -558,6 +558,9 @@ class pcModel_qspin(pcModel_base):
             elif(state_obj == 'GS_f'):
                 #GS at t = T
                 _, state_res = self._H.eigsh(time = self.T, k=1, which='SA',maxiter=1E10) 
+            elif(state_obj == 'GS_inf'):
+                #GS at t = 5*T (to use with owritten functions)
+                _, state_res = self._H.eigsh(time = 5 * self.T, k=1, which='SA',maxiter=1E10) 
             elif(state_obj == 'uniform'):
                 #GS at t = T
                 state_res = np.random.uniform(-1, 1, size=basis.Ns)
