@@ -1,0 +1,14 @@
+model_dico {'L':5,'Nb':5,'mu':0,'T':4.889428431607287,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['f2t2:neg_fluence:0.0001'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_crab2','_FLAG_NAME':'CRAB2_1T'} {'T':2.4447142158036437,'_FLAG_NAME':'CRAB2_05T'} {'T':9.778856863214575,'_FLAG_NAME':'CRAB2_2T'} {'T':14.668285294821862,'_FLAG_NAME':'CRAB2_3T'} {'ctl_shortcut':'owbds01_crab4','T':4.889428431607287,'_FLAG_NAME':'CRAB4_1T'} {'T':2.4447142158036437,'_FLAG_NAME':'CRAB4_05T'} {'T':9.778856863214575,'_FLAG_NAME':'CRAB4_2T'} {'T':14.668285294821862,'_FLAG_NAME':'CRAB4_3T'} {'ctl_shortcut':'owbds01_crab6','T':4.889428431607287,'_FLAG_NAME':'CRAB6_1T'} {'T':2.4447142158036437,'_FLAG_NAME':'CRAB6_05T'} {'T':9.778856863214575,'_FLAG_NAME':'CRAB6_2T'} {'T':14.668285294821862,'_FLAG_NAME':'CRAB6_3T'}
+
+testing_dico {'fom':['f2t2:neg_fluence:0.0001_smooth','f2t2','fluence','smooth','varN']}
+
+optim_dico {'algo':'NM','init_obj':'uniform_0_1','maxfev':None,'maxiter':None,'_FLAG_NAME':'NM01'} {'algo':'DE','popsize':3,'maxiter':None,'init_obj':None,'_FLAG_NAME':'DE3'} {'algo':'DE','popsize':5,'maxiter':None,'init_obj':None,'_FLAG_NAME':'DE5'} {'algo':'BO2','maxiter':350,'num_cores':1,'init_obj':30,'acq':'EI','_FLAG_NAME':'BO350EI'} {'algo':'BO2','maxiter':350,'num_cores':1,'init_obj':30,'acq':'LCB','_FLAG_NAME':'BO350LCB'}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
