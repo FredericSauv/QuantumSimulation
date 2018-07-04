@@ -13,6 +13,7 @@ import sys
 sys.path.append('/home/fred/anaconda3/envs/py36q/lib/python3.6/site-packages')
 import GPy
 import GPyOpt
+import copy
 if(__name__ == '__main__'):
     sys.path.append("../../../")
     from QuantumSimulation.Utility import Helper as ut
@@ -195,14 +196,16 @@ class learner_Opt(learner_base):
         options = self.options_learner
         algo_run = self._ALGO_INFOS[options['algo']][1]
         res_optim_raw = algo_run(options, **args_call)
-        
+
+        res_optim_duplicate = copy.copy(res_optim_raw)
         ## populate res
         res = {'name_algo': options['algo']}
-        res['params'] = res_optim_raw['x']
-        res['fun'] = res_optim_raw['fun']                    
-        res['nfev'] = res_optim_raw.get('nfev') 
-        res['nit'] = res_optim_raw.get('nit')
-        res['success'] = res_optim_raw.get('success')
+        res['params'] = res_optim_duplicate.pop('x')
+        res['fun'] = res_optim_duplicate.pop('fun')                    
+        res['nfev'] = res_optim_duplicate.pop('nfev', None) 
+        res['nit'] = res_optim_duplicate.pop('nit', None)
+        res['success'] = res_optim_duplicate.pop('success', 'None')
+        res['opt_more'] = res_optim_duplicate
         res['init'] = self.options_learner['init_params']
         res['bounds'] = self.options_learner['bounds_params']
         model = options['model']
