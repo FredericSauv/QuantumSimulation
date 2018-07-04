@@ -404,6 +404,7 @@ class learner_Opt(learner_base):
         resultTest['nb_processes'] = bo_new.num_cores
         resultTest['nb_cpus'] = self.mp.n_cpus
         resultTest['X_evol'] = bo_new.X
+        resultTest['Y_evol'] = bo_new.Y
         resultTest['Y_best'] = bo_new.Y_best
         
         # Close pool of processors used (if it exists)
