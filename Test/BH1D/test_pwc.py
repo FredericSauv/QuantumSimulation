@@ -9,10 +9,10 @@ optim_type = 'BO2'
 
 # Create a model
 fom = ['f2t2:neg_fluence:0.0001_smooth:0.005']
-T=10
+T=9.778856863214575
 dico_simul = {'L':5, 'Nb':5, 'mu':0, 'T':T, 'dt':0.01, 'flag_intermediate':False, 
-              'setup':'1', 'state_init':'GS_i', 'state_tgt':'GS_f', 'fom':fom, 
-              'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_pwc40'}
+              'setup':'1', 'state_init':'GS_i', 'state_tgt':'GS_inf', 'fom':fom, 
+              'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_pwc15'}
 dico_simul = learner1DBH._process_controler(dico_simul)
 dico_simul['control_obj'] = learner1DBH._build_control_from_string(
 dico_simul['control_obj'], None, context_dico = dico_simul)
@@ -21,7 +21,7 @@ model = bh1d.BH1D(**dico_simul)
 
 if(optim_type == 'BO2'):
     #BO
-    optim_args = {'algo': 'BO2', 'maxiter':650, 'num_cores':4, 'init_obj':100, 'acq':'EI'}
+    optim_args = {'algo': 'BO2', 'maxiter':350, 'num_cores':4, 'init_obj':100, 'acq':'EI'}
     optim = Learner.learner_Opt(model = model, **optim_args)
     resBO2 = optim(track_learning=True)
     resBO2['last_func'] = model.control_fun
@@ -36,7 +36,7 @@ if(optim_type == 'DE'):
     res = resDE
 
 if(optim_type == 'BO'):
-    optim_args = {'algo': 'BO', 'maxiter':250}
+    optim_args = {'algo': 'BO', 'maxiter':350, 'init_obj':50}
     optim = Learner.learner_Opt(model = model, **optim_args)
     resBO = optim()
     resBO['last_func'] = model.control_fun

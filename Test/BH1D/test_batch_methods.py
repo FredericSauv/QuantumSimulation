@@ -30,5 +30,5 @@ if(run_configs):
     batch.run_procedures(saveFreq = 1, splitRes = True, printInfo = False)
     
 if(read_res):
-    res = learner1DBH.extract_one_res('TestBatch/res10.txt')
-    res_bench = learner1DBH.extract_one_res('TestBenchmark/benchmark1.txt')
+    res = learner1DBH.read_res('TestBatch/res10.txt')
+    res_bench = learner1DBH.read_res('TestBenchmark/benchmark1.txt')
