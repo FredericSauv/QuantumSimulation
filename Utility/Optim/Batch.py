@@ -388,7 +388,7 @@ class Batch:
         res = ut.eval_from_file(name, evfunc = pFunc_base.eval_with_pFunc)
         return res
     
-    
+
     @classmethod
     def read_res(cls, nameFile = None, allPrefix = 'res_', folderName = None):
         """ Extract result(s) stored in a (several) txt file (s) and return them  

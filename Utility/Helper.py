@@ -5,7 +5,7 @@ Created on Thu Jul 27 13:51:45 2017
 @author: fs
 """
 import csv
-csv.field_size_limit(1000000)
+csv.field_size_limit(100000000)
 import os 
 import pdb
 import numpy as np
@@ -93,6 +93,25 @@ def eval_from_file(file, evfunc = eval):
         assert (len(line)==1), 'not the right format/size' 
         evaluated = evfunc(line[0])
     return evaluated
+
+def eval_from_file_supercustom(file, evfunc = eval):
+    """ workaround for a bug"""
+    with open(file, 'r', newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter = ' ')
+        line = reader.__next__()
+        assert (len(line)==1), 'not the right format/size' 
+        string = parse_supercustom(line[0])
+        evaluated = evfunc(string)
+    return evaluated
+
+def parse_supercustom(string):
+    if(string.find("'name_algo':'BO2'") == -1):
+        beg, tmp = string.split(",'opt_more'")
+        garbage, end = tmp.split(",'init':")
+        res = beg + ",'init':" + end
+    else:
+        res = string
+    return res
 
 def custom_repr(obj):
     """ Represent and remove unwanted spaces, line jump, transform array in np.array"""

@@ -205,7 +205,8 @@ class learner_Opt(learner_base):
         res['nfev'] = res_optim_duplicate.pop('nfev', None) 
         res['nit'] = res_optim_duplicate.pop('nit', None)
         res['success'] = res_optim_duplicate.pop('success', 'None')
-        res['opt_more'] = res_optim_duplicate
+        if(options['algo'][:2] == 'BO'):
+            res['opt_more'] = res_optim_duplicate
         res['init'] = self.options_learner['init_params']
         res['bounds'] = self.options_learner['bounds_params']
         model = options['model']
