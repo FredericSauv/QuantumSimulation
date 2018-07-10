@@ -10,8 +10,9 @@ import numpy as np
 import pdb as pdb
 import importlib as ilib
 import sys
-sys.path.insert(0,'../../../GPyOpt')
-sys.path.append('/home/fred/Desktop/GPyOpt')
+sys.path.insert(0,'../../../')
+sys.path.insert(0,'../../../../')
+sys.path.append('/home/fred/Desktop/GPyOpt/')
 sys.path.append('/home/fred/anaconda3/envs/py36q/lib/python3.6/site-packages')
 import GPy
 import GPyOpt
