@@ -10,6 +10,8 @@ import numpy as np
 import pdb as pdb
 import importlib as ilib
 import sys
+sys.path.insert(0,'../../../GPyOpt')
+sys.path.append('/home/fred/Desktop/GPyOpt')
 sys.path.append('/home/fred/anaconda3/envs/py36q/lib/python3.6/site-packages')
 import GPy
 import GPyOpt
@@ -125,9 +127,11 @@ class learner_Opt(learner_base):
         'NOOPTIM':({}, self._run_NOOPTIM), 
         'BO2':({'disp':True, 'acq':'EI', 'maxiter':50,'verbose':False, 
                'kernel':'matern2.5', 'flag_MP':False, 'num_cores':1, 'custom_model': False,
-               'acq_opt_type':'lbfgs', 'initial_design_type':'random'}, self._run_BO2),
+               'acq_opt_type':'lbfgs', 'initial_design_type':'random', 'optim_num_anchor':10, 
+               'optim_num_samples':10000, 'initial_design_type':'random', 'acquisition_jitter':0,
+               'acquisition_weight':2, 'exploit_steps':15}, self._run_BO2),
         'BO':({'disp':True, 'acq':'ei', 'kappa':5.0, 'maxiter':50,'verbose':False, 'kernel':'matern2.5', 
-               'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'acq_iter':50, 'n_warmup':10000}, self._run_BO),
+               'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'gp_acq_iter':50, 'gp_n_warmup':10000}, self._run_BO),
         'DE':({'disp':True, 'maxiter':50, 'popsize':10, 'tol':0.01}, self._run_DE)}
         
         learner_base.__init__(self, model=model, **params_learner)
@@ -347,10 +351,14 @@ class learner_Opt(learner_base):
         acq_opt_type = options['acq_opt_type'] #lbfgs DIRECT CMA
         num_cores = options['num_cores'] # 1-N
         custom_model = options['custom_model']
+        optim_num_anchor = options['optim_num_anchor'] #nb of anchor points use for the optimization of the acq function
+        optim_num_samples = options['optim_num_samples'] #nb of initial points use for the optimization of the acq function
+        acquisition_jitter = options['acquisition_jitter']
+        acquisition_weight = options['acquisition_weight']
+        
         
         if(custom_model):
             if(ker == 'matern52'):
-                
                 kernel = eval('GPy.kern.Matern52(self.input_dim = nb_params)')
             elif(ker == 'matern32'):
                 kernel = eval('GPy.kern.Matern32(self.input_dim = nb_params)')
@@ -370,7 +378,9 @@ class learner_Opt(learner_base):
             bo = GPyOpt.methods.BayesianOptimization(cost,bounds_bo, model = model_GP, 
                 acquisition_type=acq, acquisition_optimizer_type = acq_opt_type, 
                 num_cores = num_cores, initial_design_numdata = init, 
-                initial_design_type =initial_design_type)
+                initial_design_type =initial_design_type, 
+                optim_num_anchor = optim_num_anchor, optim_num_samples = optim_num_samples,
+                acquisition_jitter = acquisition_jitter, acquisition_weight = acquisition_weight)
         
         else:
             X = init
@@ -378,7 +388,9 @@ class learner_Opt(learner_base):
             Y = np.array([cost(x) for x in X])
             bo = GPyOpt.methods.BayesianOptimization(cost,bounds_bo, model = model_GP, 
                 acquisition_type=acq, acquisition_optimizer_type = acq_opt_type, 
-                num_cores = num_cores, X = X, Y =Y)
+                num_cores = num_cores, X = X, Y =Y, optim_num_anchor = optim_num_anchor, 
+                optim_num_samples = optim_num_samples, acquisition_jitter = acquisition_jitter, 
+                acquisition_weight = acquisition_weight)
 
 
         # Exploration-Exploitation phase
@@ -388,11 +400,16 @@ class learner_Opt(learner_base):
 
         # Exploitation phase
         #### TODO:
-        bo.acquisition_type = 'User defined acquisition used.'
+        exploit_steps = options['exploit_steps']
         bo_new = GPyOpt.methods.BayesianOptimization(cost, bounds_bo, model = model_GP, 
                 acquisition_type = 'LCB', acquisition_optimizer_type = acq_opt_type, 
-                num_cores = num_cores, X = bo.X, Y =bo.Y, exploration_weight =0.000001)
-        bo_new.run_optimization(15)
+                num_cores = num_cores, X = bo.X, Y =bo.Y, acquisition_weight = 0.0001,
+                optim_num_anchor = optim_num_anchor, optim_num_samples = optim_num_samples)
+        bo_new.run_optimization(exploit_steps)
+
+        if(_still_potentially_better(bo_new)):
+            print('2nd round of exploitation')
+            bo_new.run_optimization(exploit_steps)
 
         # generate results      
         optim_params = bo_new.x_opt
@@ -407,6 +424,7 @@ class learner_Opt(learner_base):
         resultTest['X_evol'] = bo_new.X
         resultTest['Y_evol'] = bo_new.Y
         resultTest['Y_best'] = bo_new.Y_best
+        resultTest['still_potentially_better'] = _still_potentially_better(bo_new)
         
         # Close pool of processors used (if it exists)
         return resultTest
@@ -526,7 +544,11 @@ class learner_Opt(learner_base):
 
 
 
-
+def _still_potentially_better(bo, nb_last = 5, nb_thr = 2, accept_thr = 1e-7):
+    last_Y = np.squeeze(bo.Y[-(nb_last+1):])
+    nb_better = np.sum(np.diff(last_Y)<-accept_thr)
+    return nb_better >= nb_thr
+    
 
 
 
@@ -569,18 +591,20 @@ if __name__ == '__main__':
     
         camel = Camel_model()
         
-        optim_args = {'algo': 'BO2', 'maxiter':25}
+        optim_args = {'algo': 'BO2', 'maxiter':25, 'optim_num_samples':100000, 
+                      'optim_num_anchor':15, 'initial_design_type':'latin',
+                      'acquisition_jitter':0.0001}
         optim = learner_Opt(model = camel, **optim_args)
         resOptim = optim()
         print(resOptim)
         
         
-        optim_args = {'algo': 'DE', 'init_obj':[0,0]}
-        optim = learner_Opt(model = camel, **optim_args)
-        resOptim = optim()
-        print(resOptim)
+        #optim_args = {'algo': 'DE', 'init_obj':[0,0]}
+        #optim = learner_Opt(model = camel, **optim_args)
+        #resOptim = optim()
+        #print(resOptim)
         
-        optim_args = {'algo': 'BO', 'maxiter':25}
+        optim_args = {'algo': 'BO', 'maxiter':25, 'gp_acq_iter':50,'acq':'ei'}
         optim = learner_Opt(model = camel, **optim_args)
         resOptim = optim()
         print(resOptim)
