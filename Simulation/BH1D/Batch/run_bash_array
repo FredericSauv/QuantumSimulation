@@ -42,10 +42,12 @@ cat >to_qsub <<ScriptEnd
 #PBS -J ${Beg}-${End} 
 #PBS -l walltime=${walltime}:00:00,select=1:ncpus=${nb_cpus}:mem=${mem}gb
 
-cp -r \$HOME/Testing/QuantumSimulation/ .
-cp -r \$HOME/Testing/GPyOpt/GPyOpt/ .
+cp -r $HOME/Testing/QuantumSimulation .
+cp -r \$HOME/Testing/GPyOpt/GPyOpt .
+
 module load anaconda3/personal
 source activate py36q
+export PYTHONPATH="\$(pwd):$PYTHONPATH"
 cd QuantumSimulation/Simulation/BH1D/Batch
 pbsexec python run_batch.py "run_one_config" "${config_store_name}\${PBS_ARRAY_INDEX}.txt"
 

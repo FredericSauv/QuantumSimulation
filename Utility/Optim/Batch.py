@@ -90,7 +90,8 @@ class Batch:
         if(debug):
             pdb.set_trace()
 
-        list_configs = cls.parse_meta_config(metaFile)
+        list_configs = cls.parse_meta_config(metaFile, extra_processing = extra_processing, 
+                                             update_rules = update_rules)
         obj = Batch(list_configs, rdm_object, procToRun)
         return obj
 
