@@ -93,7 +93,7 @@ class learner1DBH(Batch.Batch):
                       self.random_gen, model_dico)
 
 # ---------------------------
-#   COLLECTING RESULTS ## WORKAROUND BUGS
+#   COLLECTING RESULTS ## WORKAROUND BUGS ## SHOULDN'T BE USED
 # ---------------------------
     @classmethod
     def eval_from_onefile_bug(cls, name):
@@ -264,12 +264,17 @@ class learner1DBH(Batch.Batch):
     # (from parent): read_res // collect_res
     # process_list_res
     #
-    # collect = {'collec1': list_res}
-    # list_res =[res_run1, ..., res_runN]
+    # collect = {'collec1': list_res} i.e. a collection is a dict with keys being
+    #           
+    # list_res =[res1, ..., resN]
+    #
+    # res is a nested structure containing a lot of info about one run
     # ----------------------------------------------------------------------- #
     @classmethod
     def collect_and_process_res(cls, key_path = [], nameFile = None, allPrefix = 'res_', 
                                 folderName = None, printing = False, ideal_evol = False):
+        """ Collect a list of res in **folderName** strating with **allPrefix**
+        group them by configurations specified by **key_path**"""
         collect = learner1DBH.collect_res(key_path, nameFile, allPrefix, folderName)
         process = learner1DBH.process_collect_res(collect, printing, ideal_evol)
         
@@ -304,9 +309,16 @@ class learner1DBH(Batch.Batch):
         path_test_t_bis = ['config', 'model_dico', 'T']
         
         
-        # evol of fom (measured) over number of func evaluation
-        optim_fev_fom = [np.array(ut.extract_from_nested(run, path_optim_fev_fom)) for run in list_res]
-        evol_fom_stats = ut.merge_and_stats_TS(optim_fev_fom)
+        # evolution of fom (measured) over the aggregated number of func evaluations
+        optim_fev_fom = [ut.try_extract_from_nested(run, path_optim_fev_fom) for run in list_res]
+        is_none = [o is None for o in optim_fev_fom] 
+        if(np.sum(is_none) > 0):
+            print(str(np.sum(is_none)) + ' without extra_history_nev_fun')
+            optim_fev_fom = [o for o in optim_fev_fom if o is not None]
+        if(len(optim_fev_fom) > 0):
+            evol_fom_stats = ut.merge_and_stats_TS(optim_fev_fom)
+        else:
+            evol_fom_stats = None
         # optim_fev_params = [np.array(ut.extract_from_nested(run, path_optim_fev_fom)) for run in list_res]
 
         #opt function computed between 0,T
