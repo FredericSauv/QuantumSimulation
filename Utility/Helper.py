@@ -396,6 +396,12 @@ def extract_from_nested(nested_structure, path = []):
 
     return res
 
+def try_extract_from_nested(nested_structure, path = []):
+    try:
+        res = extract_from_nested(nested_structure, path)
+    except:
+        res = None
+    return res
 
 def is_x_in_y(x, y, tol=0):
     """ depending on the shape of test if x == y, x in [y[0], y[1]] """
@@ -459,7 +465,7 @@ def reduceFunToFirstOutput(fun):
     return funWrapped
 
 
-def ArrayToDicoInputWrapper(fun, index2NameFun = None):
+def ArrayToDicoInputWrapper(fun, index2NameFun = None, **args_call):
     """ Transform a function taking array as input to a function taking named 
     args as input
     i.e. cost('0'=2, '1'=5, '2'=1) = fun([2,5,1])
@@ -469,14 +475,14 @@ def ArrayToDicoInputWrapper(fun, index2NameFun = None):
     if(index2NameFun is None):
         def cost(**args):
             list_args = [args[str(i)] for i in range(len(args))]
-            res = fun(np.array(list_args))
+            res = fun(np.array(list_args), **args_call)
             if(isinstance(res, list)):
                 res = res[0]
             return -res
     else:
         def cost(**args):
             list_args = [args[index2NameFun(i)] for i in range(len(args))]
-            res = fun(np.array(list_args))
+            res = fun(np.array(list_args), **args_call)
             if(isinstance(res, list)):
                 res = res[0]
             return -res        
@@ -1029,9 +1035,9 @@ def merge_TS(listTS):
     """take a list of TS compute the union of their indices and extend each TS 
     such that 
     """
-    list_index = [el[:,0] for el in listTS]
+    list_index = [np.array(el)[:,0] for el in listTS]
     unique_index = np.unique([el for l in list_index for el in l])
-    res = [[ind, np.array([find_from_index_TS(ind, ts) for ts in listTS])] for ind in unique_index]
+    res = [[ind, np.array([find_from_index_TS(ind, np.array(ts)) for ts in listTS])] for ind in unique_index]
     return res
 
 def merge_and_stats_TS(listTS, dico=True):
@@ -1049,7 +1055,7 @@ def merge_and_stats_TS(listTS, dico=True):
 
 def get_stats(list_val, dico_output = False):
     """ from a list of value get the stats defined in this order:
-        [avg, mini, maxi, std, avg_pstd, avg_mstd]
+        [avg, mini, maxi, std, avg_pstd, avg_mstd, n]
     """
     avg = np.average(list_val)
     mini = np.min(list_val)
@@ -1087,7 +1093,7 @@ def find_from_index_TS(index, TS, rule='lower'):
 
 def plot_from_stats(stats, dico_plot = {}, plot = None, return_plot = False, save_fig = False):
     """ from a stats create some plots
-    stats = [[index, avg, mini, maxi, std, avg_pstd, avg_mstd],...]
+    stats = {'index':, 'avg', 'mini', 'maxi', 'std', 'avg_pstd', 'avg_mstd', 'n'}
     """
     # Get attributes of the graph
     if(plot is None):
@@ -1102,6 +1108,11 @@ def plot_from_stats(stats, dico_plot = {}, plot = None, return_plot = False, sav
 
     # Get data
     indices = stats['index']
+    try:
+        nb_TS_used = stats['n']
+        print(str(nb_TS_used) + ' dataset were used to get the stats')
+    except:
+        pass
     if(func_wrap is None):
         func_wrap = idFun1V
     ymin = func_wrap(stats['min'])
