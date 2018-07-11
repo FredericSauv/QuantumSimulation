@@ -280,7 +280,7 @@ class learner_Opt(learner_base):
         bounds_bo = {name_params[i]: options['bounds_params'][i] for i in range(nb_params)}
         options['random_state'] = self.rdm_gen
         options['name_params'] = name_params
-        cost = ut.ArrayToDicoInputWrapper(model)
+        cost = ut.ArrayToDicoInputWrapper(model, **args_call)
         bo = BayesianOptimization(cost, bounds_bo, **options)
         acq = options['acq']
         
