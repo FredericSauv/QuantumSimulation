@@ -63,7 +63,13 @@ class model_base:
                      'state_init':('<string/np.array> Initial state',None)}
     
     def __init__(self, **args_model):
-        """ """
+        """ Attributes:
+            
+        -- noise -- 
+            noise input {'name_noise':<callable> or <string> <list<string>>,..}
+            where a string can be used to generate a random value i.e. uniform_0_1
+            cf. RandomGenerator.gen_rdmfunc_from_string
+            """
         self._ss = None # underlying state space
         self._H = None # Hamiltonian
         self._rdmgen = None #random generator
