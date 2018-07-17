@@ -38,7 +38,8 @@ class pFunc_factory():
     _LIST_CUSTOM_FUNC['LinearFunc'] = ('Linear function', pf.LinearFunc, pf.LinearFunc._LIST_PARAMETERS, [])
     _LIST_CUSTOM_FUNC['ExpRampFunc'] = ('Exponential Ramp', pf.ExpRampFunc,pf.ExpRampFunc._LIST_PARAMETERS, [])
     _LIST_CUSTOM_FUNC['ChebyshevFunc']= ('Chebyshev basis', pf.ChebyshevFunc, pf.ChebyshevFunc._LIST_PARAMETERS, [])
-
+    _LIST_CUSTOM_FUNC['PowerFunc']= ('PowerFunc', pf.PowerFunc, pf.PowerFunc._LIST_PARAMETERS, [])
+    _LIST_CUSTOM_FUNC['LogisticFunc']= ('LogisticFunc', pf.LogisticFunc, pf.LogisticFunc._LIST_PARAMETERS, [])
 
     _PARSING_DICO_OP = {'**':'Composition', '*':'Product', '+':'Sum', '#':''}  
 
@@ -246,7 +247,7 @@ class pFunc_factory():
         constructor = info_func[1]
         bounds = dico_fun.get('bounds')
         if(bounds is not None):
-            dico_constructor = {'bounds_min':bounds[0], 'bounds_max':bounds[1]}
+            dico_constructor = {'bounds_min':bounds[0], 'b_build_control_from_stringounds_max':bounds[1]}
             res = constructor(**dico_constructor)
         else:
             res = self._build_custom_Default(dico_fun)
