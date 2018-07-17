@@ -5,14 +5,14 @@ from QuantumSimulation.ToyModels import BH1D as bh1d
 from QuantumSimulation.Utility.Optim import Learner, pFunc_base
 import copy
 
-optim_type = 'BO2'
+optim_type = 'BO'
 
 # Create a model
 fom = ['f2t2:neg_fluence:0.0001_smooth:0.005']
 T=9.778856863214575
 dico_simul = {'L':5, 'Nb':5, 'mu':0, 'T':T, 'dt':0.01, 'flag_intermediate':False, 
               'setup':'1', 'state_init':'GS_i', 'state_tgt':'GS_inf', 'fom':fom, 
-              'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_pwc15'}
+              'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_pwc5'}
 dico_simul = learner1DBH._process_controler(dico_simul)
 dico_simul['control_obj'] = learner1DBH._build_control_from_string(
 dico_simul['control_obj'], None, context_dico = dico_simul)
@@ -36,7 +36,7 @@ if(optim_type == 'DE'):
     res = resDE
 
 if(optim_type == 'BO'):
-    optim_args = {'algo': 'BO', 'maxiter':350, 'init_obj':50}
+    optim_args = {'algo': 'BO', 'maxiter':5, 'init_obj':15}
     optim = Learner.learner_Opt(model = model, **optim_args)
     resBO = optim()
     resBO['last_func'] = model.control_fun

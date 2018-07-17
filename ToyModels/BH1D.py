@@ -49,8 +49,8 @@ class BH1D(mod.pcModel_qspin):
     def __init__(self, **args_model):
         """ Initialize the simulations of the driven BH  """
         mod.pcModel_qspin.__init__(self, **args_model)
-        self._setup_basis(**args_model)
-        self._setup_H(**args_model)
+        #self._setup_basis(**args_model)
+        #self._setup_H(**args_model)
         self._FLAG_STORE = args_model.get('flag_store', False)
         self._setup_fom_bh1d_bricks(**args_model)
         self.state_init = args_model['state_init']
