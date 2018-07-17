@@ -9,6 +9,8 @@ import os
 import pathlib
 import pdb
 import copy
+import numpy as np
+import matplotlib.pylab as plt
 from ast import literal_eval as ev
 from sklearn.gaussian_process.kernels import Matern, WhiteKernel, RBF, ConstantKernel
 
@@ -17,12 +19,12 @@ if __name__ == '__main__':
     sys.path.append("../../../")
     from QuantumSimulation.Utility import Helper as ut
     from QuantumSimulation.Utility.Optim import RandomGenerator as rdgen
-    from QuantumSimulation.Utility.Optim import pFunc_base 
+    from QuantumSimulation.Utility.Optim import pFunc_base, pFunc_zoo
 
 else:
     from .. import Helper as ut
     from . import RandomGenerator as rdgen
-    from . import pFunc_base
+    from . import pFunc_base, pFunc_zoo
 
     
 import importlib as ilib
@@ -44,7 +46,7 @@ ilib.reload(ut)
 #    -
 # ThinkAbout:
 #  - Management of random generator state // seeds number are gen but not used 
-#  -
+#  - remove procToRun
 #==============================================================================
 class Batch:
     """
@@ -67,7 +69,7 @@ class Batch:
                       '_OUT_STORE_CONFIG': (True, 'bool'), '_MP_FLAG':(False, 'bool')}
     METAPARAMS_NAME = METAPARAMS_INFO.keys()
     
-    def __init__(self, config_object = None, rdm_object = None, procToRun = None, debug = False):
+    def __init__(self, config_object = None, rdm_object = None, debug = False):
         """ Init the batch with a <dic> (it represents one config) OR <list<dico>>
         (several configs) OR <str:file_path> (onefile = one config) OR
         <list<str:file_path>> (several configs)
@@ -75,7 +77,6 @@ class Batch:
         if(debug):
             pdb.set_trace()
         self.listConfigs = self._read_configs(config_object) 
-        self._init_proc_to_run(procToRun)
 
 
     @classmethod
@@ -427,8 +428,220 @@ class Batch:
 
     def extractFromDico(dico, listRes = [], listParams = [], dicoConstraints = {}):
         raise NotImplementedError()
+
+
+
+        
+    # ----------------------------------------------------------------------- #
+    # More capabilities to aggregate results
+    #
+    # STRUCTURE OF THE RESULTS
+    # collect = {'collec1': list_res} i.e. a collection is a dict with keys being
+    # list_res =[res1, ..., resN]
+    # res is a nested structure containing a lot of info about one run
+    #
+    # METHODS (MAIN)
+    # ++ collect_and_process_res
+    # ++ collection_get_best
+    # ++ list_res_get_best
+    # ++ one_res_study_convergence
+    # ++ list_res_study_convergnce
+    # ----------------------------------------------------------------------- #
+    #PATH IN RES STRUCTURE
+    _P_HISTO_EV_FUN = ['extra_history_nev_fun'] #_path_optim_fev_fom
+    _P_BEST_FUNC = ['func'] # path_optim_func
+    _P_BEST_FUN = ['fun']   # path_optim_fun 
+    _P_TEST_FOM = ['test_fom'] # path_test_fom 
+    _P_TEST_FOM_NAMES = ['test_fom_names'] #path_test_fom_names
+    _P_TEST_T = ['config', 'testing_dico', 'T'] # path_test_t
+    _P_MODEL_T = ['config', 'model_dico', 'T'] #path_test_t_bis
+    _P_NAME_RES = ['config', '_RES_NAME'] #path_name
+         
+        
         
     
+    @classmethod
+    def collect_and_process_res(cls, key_path = [], nameFile = None, allPrefix = 'res_', 
+                                folderName = None, printing = False, ideal_evol = False):
+        """ Collect a list of res in **folderName** strating with **allPrefix**
+        group them by configurations specified by **key_path**"""
+        collection = cls.collect_res(key_path, nameFile, allPrefix, folderName)
+        dico_configs = cls._process_collection_res(collection, printing, ideal_evol)
+        
+        return dico_configs
+    
+    @classmethod
+    def _process_collection_res(cls, collection, printing = False, ideal_evol = False):
+        dico_processed = {k: cls._process_list_res(v) for k, v in collection.items()}
+        return dico_processed
+        
+    
+    @classmethod
+    def _list_res_get_evol_fom_stats(cls, list_res):
+        optim_fev_fom = [ut.try_extract_from_nested(run, cls._P_HISTO_EV_FUN) for run in list_res]
+        is_none = [o is None for o in optim_fev_fom] 
+        if(np.sum(is_none) > 0):
+            print(str(np.sum(is_none)) + ' without extra_history_nev_fun')
+            optim_fev_fom = [o for o in optim_fev_fom if o is not None]
+        if(len(optim_fev_fom) > 0):
+            evol_fom_stats = ut.merge_and_stats_TS(optim_fev_fom)
+        else:
+            evol_fom_stats = None
+        return evol_fom_stats
+
+    @classmethod
+    def _list_res_get_optim_func_TS(cls, list_res):
+        try:
+            list_T = [ut.extract_from_nested(run, cls._P_TEST_T) for run in list_res]
+        except:
+            list_T = [ut.extract_from_nested(run, cls._P_MODEL_T) for run in list_res]
+        list_array_T = [np.arange(0, T, T/1000) for T in list_T]
+        list_optim_func = [pFunc_base.pFunc_base.build_pfunc(ut.extract_from_nested(run, cls._P_BEST_FUNC)) for run in list_res]
+        optim_func_TS = [np.c_[list_array_T[n], func(list_array_T[n])] for n, func in enumerate(list_optim_func)]
+        return optim_func_TS
+
+    @classmethod
+    def _list_res_get_fom_names(cls, list_res):
+        test_fom_names = [ut.extract_from_nested(run, cls._P_TEST_FOM_NAMES) for run in list_res]
+        test_fom_names_ref = test_fom_names[0]
+        assert np.all([(t == test_fom_names_ref) for t in test_fom_names]), "can't mix different fom..."
+        return test_fom_names_ref
+
+    @classmethod
+    def _list_res_get_test_fom_stats(cls, list_res):
+        test_fom = np.array([ut.extract_from_nested(run, cls._P_TEST_FOM) for run in list_res]).T
+        test_fom_stats = [ut.get_stats(l_fom, dico_output = True) for l_fom in test_fom]
+        return test_fom_stats
+
+    @classmethod
+    def _list_res_get_fun_stats(cls, list_res):
+        """ Stats on the values of the best value of fom found during optim """
+        fun = np.array([ut.extract_from_nested(run, cls._P_BEST_FUN) for run in list_res])
+        fun_stats = ut.get_stats(fun, dico_output = True)
+        return fun_stats
+
+    @classmethod
+    def _process_list_res(cls, list_res, printing = False, ideal_evol = False):
+        """ Take a list of N res(runs) and extract interesting informations (stats)
+        packaged as a dico with the following entries:
+            + evol_fom_stats: stats (over the N runs) of the fom vs the number 
+                                of evaluations
+            + evol_ideal_fom_stats x
+            + 
+            + optimal_functions : 
+            + optimal_function_stats: stats of the value of the driving function
+                                    over time
+            + optimal_fom_stats x
+            + optimal_fun1_stats x
+        """
+        # evolution of observed fom over the aggregated number of func evaluations
+        evol_fom_stats = cls._list_res_get_evol_fom_stats(list_res)
+        #optimal functions 
+        optim_func_TS = cls._list_res_get_optim_func_TS(list_res)
+        optim_func_stats = ut.merge_and_stats_TS(optim_func_TS)        
+        # stats (avg, mini, maxi, std, avg_pstd, avg_mstd) of the optimal fom
+        test_fom_names = cls._list_res_get_fom_names(list_res)
+        test_fom_stats = cls._list_res_get_test_fom_stats(list_res)
+        fun_stats = cls._list_res_get_fun_stats(list_res)
+
+        if(printing):
+            print('FUN:  (avg, min, max)')
+            print(fun_stats[:3])
+            print('TESTED RES:FUN0  (should be the same as above if no noise)')
+            print(test_fom_stats[0, :3])
+            print('TESTED RES:FUN1')
+            print(test_fom_stats[1, :3])
+
+        #populate dico res
+        dico_res = {}
+        dico_res['nb_runs'] = len(list_res)
+        dico_res['ev_fom'] = evol_fom_stats
+        dico_res['funcplot_stats'] = optim_func_stats
+        dico_res['funcplot_TS'] = optim_func_TS
+        dico_res['best_fom'] = fun_stats
+        dico_res['test_fom'] = test_fom_stats[0]
+        for n, name_fom in enumerate(test_fom_stats[1:]):
+            dico_res['test_' + test_fom_names[n+1]] = test_fom_stats[(n+1)]   
+        
+        
+        # evol of fom (ideal: testing environment) over number of func evaluation
+        if(ideal_evol):
+            pdb.set_trace()
+            dico_ideal = cls._list_res_get_ideal_evol(list_res)
+            dico_res.update(dico_ideal)
+    
+
+        return dico_res
+    
+    @classmethod
+    def _list_res_get_ideal_evol(cls, list_res):
+        raise NotImplementedError()
+
+
+    @classmethod
+    def collection_get_best(cls, dico_simul, path_criterion, test = 'min', filt = None, return_value = False):
+        """ dico_simul = {'name_simul':list_runs}
+            list_runs = [run1, ..., run30]
+        """
+        best = np.inf
+        res_best = None
+        mult_coeff = -1 if (test == 'max') else 1
+
+        for k, list_res in dico_simul.items():
+            if(filt(k)): 
+                res_tmp, val = cls.list_res_get_best(list_res, path_criterion, test = 'min', filt = None, return_value = False)
+                tmp = val * mult_coeff
+                if(tmp < best):
+                    res_best = res_tmp
+                    best = tmp
+        best *= mult_coeff
+        print(best)
+        if return_value:
+            return (res_best, best)
+        else:
+            return res_best
+
+    @classmethod
+    def list_res_get_best(cls, list_res, path_criterion, test = 'min', filt = None, return_value = False):
+        """ Find and return the best res in a list of res """
+        best = np.inf
+        index_best =[None]
+        mult_coeff = -1 if (test == 'max') else 1
+        for n, run in enumerate(list_res):
+            tmp = mult_coeff * ut.extract_from_nested(run, path_criterion)
+            if tmp < best:
+                best = tmp 
+                index_best[1] = n
+        
+        best *= mult_coeff  
+        res_best = copy.copy(list_res[index_best[0]])
+        if return_value:
+            return (res_best, best)
+        else:
+            return res_best
+
+    @classmethod     
+    def one_res_study_convergence(cls, res):
+        """  works only when res contains"""
+        path_X = ['test_more', 'X_evol']
+        path_Y = ['test_more', 'Y_evol']
+        path_nbinit = ['config', 'optim_dico', 'init_obj']
+
+        try:
+            X = ut.extract_from_nested(res, path_X)
+            Y = ut.extract_from_nested(res, path_Y)
+            nbinit = ut.extract_from_nested(res, path_nbinit)
+            study_convergence(X, Y, beg = nbinit, end = 15)
+        except:
+            print("couldn't build the graph the underlying data are probably missing")
+        
+        
+    @classmethod     
+    def list_res_study_convergence(cls, res):
+        """  works only when res contains"""
+        pass
+        
+        
 # ---------------------------
 # To be implemented in the subclass
 # ---------------------------            
@@ -441,23 +654,280 @@ class Batch:
     def run_one_procedure(self, conf):
         # should take a config(dico) and return results (packed as a dico too)
         # results can contain 
-        res = self._procToRun(conf)
-        return res
+        raise NotImplementedError()
 
-    def _init_proc_to_run(self, proc = None):
-        """If None return Id function
-        """
-        if proc is None:
-            self._procToRun = ut.idFun1V # idfunction
-        else:
-            self.attach_proc(proc)
-            
-    def attach_proc(self, proc):
-        """ Update the procedure to run
-        """
-        self._procToRun = proc
+
         
+        
+        
+def dist(x, y):
+    """ Compute distances between two vectors (or two list of vectors)
+    """
+    xx, yy = np.squeeze(x), np.squeeze(y)
+    shape_xx, shape_yy = np.shape(xx), np.shape(yy)
+    if (shape_xx != shape_yy):
+        raise SystemError("shape  of x {0} different from shape of y {1}".format(shape_xx, shape_yy))
+    diff = xx - yy
+    if(len(shape_xx)==1):
+        res = np.square(np.dot(diff, diff))
+    elif(len(shape_xx)==2):
+        res = np.array([dist(d) for d in diff])
+    else:
+        raise NotImplementedError
+    return res
+        
+def get_dist_successive(X, n_ev = None):
+    """ For a list of X compute the successive distances btween Xs """
+    distance = [dist(x_n, X[n-1]) for n, x_n in enumerate(X[1:])]
+    
+    if(n_ev is None):
+        n_ev = np.arange(1, len(X)+1)
+    return [np.array([0]+n_ev), np.array([0]+distance)]
+    
+def get_best_so_far(Y, n_ev=None):
+    """ aggregated MIN value of Y (list)"""
+    best_tmp = np.Inf
+    n_best = []
+    y_best = []
+    if(n_ev is None):
+        n_ev = np.arange(1, len(Y)+1)
+    for n, y_n in enumerate(Y):
+        if (y_n < best_tmp):
+            best_tmp = y_n
+            n_best.append(n_ev[n])
+            y_best.append(y_n)
+    return [np.array(n_best), np.array(y_best)]
 
+def study_convergence(X, Y, end = 0, beg = 0):
+    """ X and Y are respectively a list of parameters and values 
+    plot 
+    """
+    if(len(X) != len(Y)):
+        SystemError("X and Y should have the same length")
+    nb_obs = len(X)
+    nev, dist = get_dist_successive(X)
+    nevbest, Ybest = get_best_so_far(Y)
+    distbest = dist[np.array([n in nevbest for n in nev])]
+    fig, (ax1, ax2) = plt.subplots(1,2)
+    ax1.plot(nev, dist, 'b')
+    ax1.scatter(nevbest, distbest, color = 'b')
+    ax1.axvspan(0, beg, alpha=0.5, color='grey')
+    ax1.axvspan(nb_obs-end, nb_obs, alpha=0.5, color='green')        
+    ax2.plot(nevbest, Ybest)  
+    ax2.axvspan(0, beg, alpha=0.5, color='grey')
+    ax2.axvspan(nb_obs-end, nb_obs, alpha=0.5, color='green')
+        
+        
+#==============================================================================
+#                   BATCH CLASS
+# Add some ad-hoc capabilities to deal with parametrized functions for the 
+# controls of the model
+#==============================================================================
+class BatchParametrizedControler(Batch):
+    """
+    Batch:
+        * parse an input file to create a list of configurations to run
+        * run it According to some procedures (funcProc)
+        * save results 
+    """
+    def __init__(self, config_object = None, rdm_object = None, debug = False):
+        """ Init the batch with a <dic> (it represents one config) OR <list<dico>>
+        (several configs) OR <str:file_path> (onefile = one config) OR
+        <list<str:file_path>> (several configs)
+        """
+        Batch.__init__(self, config_object, rdm_object, debug)
+
+# ---------------------------
+#   ADHOC METHODS TO DEAL WITH THE PARAMETRIZED FUNCTIONS
+# ---------------------------    
+    def _build_control(self, model_dico):
+        """ if the control_object is a string evaluate it if not do nothing"""
+        control = model_dico['control_obj']
+        if(ut.is_str(control)):
+            model_dico['control_obj'] = type(self)._build_control_from_string(control,
+                      self.random_gen, model_dico)
+
+            
+    @classmethod
+    def _build_control_from_string(cls, control, random_gen=None, context_dico = None):
+        if(context_dico is not None):
+            context = {k:v for k, v in context_dico.items() if k not in 
+                       ['control_obj', 'random_obj', 'mp_obj']}
+        else:
+            context = None
+    
+        if(random_gen is None):
+            random_gen = rdgen.RandomGenerator()
+        
+        func_factory = pFunc_zoo.pFunc_factory(random_gen, context)
+        built_control = func_factory.eval_string(control)
+        return built_control
+    
+        
+    @classmethod
+    def _processing_meta_configs(cls, dico):
+        """ AdHoc processing rules when dealing with meta configs: 
+        helps to create the controler    
+        """
+        model_dico = dico.get('model_dico')
+        if(model_dico is not None):
+            dico['model_dico'] = cls._process_controler(model_dico)
+
+        testing_dico = dico.get('testing_dico')
+        if(testing_dico is not None):
+            dico['testing_dico'] = cls._process_controler(testing_dico)
+    
+        return dico
+
+    @classmethod
+    def _process_controler(cls, dico):
+        """ ad-hoc processing to make description of the controller not too long 
+        (1) retrieve all the keys starting with ctl_
+        (1a) ctl_final is the expression of the controler
+        (1b) otherss are the definition of bricks involved in ctl_final
+        They are parsed by pFunc_parser
+        
+        e.g. dico = {'ctl_a':xxx, 'ctl_b':yyy, 'ctl_c':zzz, 'ctl_final':"*(#a, +(#b, #c))"}
+        """
+        dico_processed = copy.copy(dico)
+        
+        if('ctl_shortcut' in dico):
+            print('use of shortcut')
+            shortcut = dico['ctl_shortcut']
+            
+            # no free params
+            ow = "{'name_func':'OwriterYWrap', 'ow':[(-100,0,0),(T,100+T,1)]}"
+            bds = "{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}"
+            linear = "{'name_func':'LinearFunc', 'bias':0, 'w':1/T}"
+            one = "{'name_func':'ConstantFunc', 'c0':[1]}"
+            half = "{'name_func':'ConstantFunc', 'c0':[0.5]}"
+            mone = "{'name_func':'ConstantFunc', 'c0':[-1]}"
+            sinpi = "{'name_func':'FourierFunc','A':[0], 'B':[1],'Om':[np.pi/T]}"
+            pow15 = "{'name_func':'PowerFunc','power':1.5}"
+            sqrt  = "{'name_func':'PowerFunc','power':0.5}"
+            # square = "{'name_func':'PowerFunc','power':2}"
+    
+            
+            #tunable
+            four = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
+            sinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','B_bounds':%s,'nb_H':%s}"
+            pwc = "{'name_func':'StepFunc','T':T,'F_bounds':%s,'nb_steps':%s}"
+            rfour ="{'name_func':'FourierFunc','T':T,'freq_type':'CRAB','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
+            logis = "{'name_func':'LogisticFunc','L':2,'k':%s,'x0':0}"
+            
+            
+            if(shortcut[:11] == 'owbds01_pwc'):
+                nb_params = int(shortcut[11:])
+                dico_atom = {'ow':ow,'bd':bds,'pwc':pwc %('(0,1)',nb_params)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwc))'}
+
+            elif(shortcut[:12] == 'owbds01_crab'):
+                # Crab parametrization f(t) = g(t) * (1+alpha(t)*(four series))
+                # with g(t) a linear guess, alpha(t) a sine s.t alpha(0) = alpha(T) = 0
+                # and the four series used randomized frequencies
+                nb_params = int(shortcut[12:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                            'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#rfour)))))'}
+             
+            elif(shortcut[:13] == 'owbds01_Ccrab'):
+                # Custom Crab parametrization f(t) = g(t) * (1 + alpha(t)* erf((four series)))
+                # slightly different from the normal one (cf. before)
+                # additional erf function (logistic function such that the four 
+                # series is bounded) alpha(t) is sine ** 1.5
+                nb_params = int(shortcut[13:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                k = 4 /nb_params
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                             'powscale':pow15, 'ctm':mone,'logis': logis%(str(k)),
+                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(**(#powscale,#scale),**(+(#logis,#ctm),#rfour))))))'}
+    
+            elif(shortcut[:14] == 'owbds01_crfour'):
+                # Crab parametrization w/o randomized freq
+                nb_params = int(shortcut[14:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                            'four':four%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#four)))))'}
+             
+            elif(shortcut[:15] == 'owbds01_Ccrfour'):
+                # Custom Crab parametrization w/o randomized freq
+                nb_params = int(shortcut[15:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                k = 4 /nb_params
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                             'powscale':pow15, 'ctm':mone,'logis': logis%(str(k)),
+                             'four':four%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(**(#powscale,#scale),**(+(#logis,#ctm),#four))))))'}
+    
+            
+            elif(shortcut[:14] == 'owbds01_trevfour'):
+                #trend and fourier (sine part only)
+                nb_params = int(shortcut[14:])
+                dico_atom = {'ow':ow,'bd':bds,'trend':linear, 'sinfour':sinfour%('(-1,1)', nb_params)}
+                dico_expr = {'final':'**(#ow,**(#bd,+(#trend,#sinfour)))'}
+                        
+            elif(shortcut[:14] == 'owbds01_linear'):
+                dico_atom = {'ow':ow,'bd':bds,'lin':linear}
+                dico_expr = {'final':'**(#ow,**(#bd,#lin))'}
+            
+            elif(shortcut[:14] == 'owbds01_wrfour'):
+                #wrapped fourier
+                dico_atom = {'ow':ow,'bd':bds,'lin':linear}
+                dico_expr = {'final':'**(#ow,**(#bd,#lin))'}
+                        
+            elif(shortcut[:13] == 'owbds01_cfred'):
+                # Custom parametrization f(t) = g(t)  + alpha(t)* erf((four series)))
+                # slightly different from the normal one (cf. before)
+                # additional erf function (logistic function such that the four 
+                # series is bounded) alpha(t) = sine ** 0.5
+                nb_params = int(shortcut[13:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                k = 4 /nb_params
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                             'powscale':sqrt, 'ctm':mone,'logis': logis%(str(k)), 'half':half,
+                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,+(#guess,*(*(#half,**(#powscale,#scale)),**(+(#logis,#ctm),#rfour)))))'}
+                        
+            
+            else:
+                 raise SystemError('implement more shotcuts here')
+            
+            dico_processed['control_obj'] = pFunc_zoo.pFunc_factory.parse(dico_atom, dico_expr)['final']
+        
+        else:
+            dico_atom = {}
+            dico_expr = {}
+            list_keys_to_remove = []
+            for k, v in dico_processed.items():
+                bits = k.split('_')
+                if(bits[0] == 'ctl'):
+                    list_keys_to_remove.append(k)
+                    if(bits[1] == 'final'):
+                        dico_expr.update({bits[1]:v})
+                    else:
+                        dico_atom.update({bits[1]:v})
+                    
+    
+            for k in list_keys_to_remove:
+                del dico_processed[k]
+            if('final' in dico_expr):
+                dico_processed['control_obj'] = pFunc_zoo.pFunc_factory.parse(dico_atom, dico_expr)['final']
+        return dico_processed
+        
+    @classmethod
+    def evaluator(expr):
+        return pFunc_base.pFunc_base.eval_with_pFunc(expr)
 
 
 #==============================================================================
