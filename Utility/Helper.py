@@ -1110,7 +1110,7 @@ def plot_from_stats(stats, dico_plot = {}, plot = None, return_plot = False, sav
     indices = stats['index']
     try:
         nb_TS_used = stats['n']
-        print(str(nb_TS_used) + ' dataset were used to get the stats')
+        print(str(np.min(nb_TS_used)) + ' dataset were used to get the stats')
     except:
         pass
     if(func_wrap is None):
