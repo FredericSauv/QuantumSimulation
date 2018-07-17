@@ -414,7 +414,15 @@ class ControlledSpin(mod.Models):
         if (coeff_finer is not None):
             state_finer = self.EvolutionPWCH(T, state_init,time_step / int(coeff_finer))
             state_trunc = state_finer[slice(0, len(state_finer), coeff_finer)]
-            comp_resolution = fhs.fidelity_avg(state_t, state_trunc)
+            #workaround they can be a small mismatch in the final index
+            if(len(state_t) > len(state_trunc)):
+                state_t_trunc = state_t[:len(state_trunc)]
+            elif(len(state_t) < len(state_trunc)):
+                state_trunc = state_trunc[:len(state_t)]
+                state_t_trunc = state_t
+            else:
+                state_t_trunc = state_t    
+            comp_resolution = fhs.fidelity_avg(state_t_trunc, state_trunc)
             print('Multiplying by '+str(coeff_finer)+ ' the time step --> Fidelity = ' + str(comp_resolution))
                         
         return state_t, state_adiab_t, energies_adiab_t, state_trunc, comp_adiab, comp_resolution

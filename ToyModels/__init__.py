@@ -1,2 +1,2 @@
 #
-from . import ControlledSpin, ToyModel
+from . import ControlledSpin, ToyModel, TwoLevels

@@ -4,27 +4,29 @@
 Created on Tue Jan 23 20:19:38 2018
 
 @author: fred
+************ DEPRECIATED **************
 """
 import sys
 
-sys.path.append('../../')
+sys.path.append('../../../')
 #sys.path.append('../Utility/BayesianOptimization-master/')
 import QuantumSimulation.ToyModels.ControlledSpin as cspin
-import QuantumSimulation.Simulation.ControlledSpinOptim as cspinopt
+import QuantumSimulation.Simulation.Spin.ControlledSpinOptim as cspinopt
+import QuantumSimulation.Utility.Optim.ParametrizedFunctionFactory as pfun
+import QuantumSimulation.Utility.Helper as ut
 import importlib as ilib
 import matplotlib.pylab as plt
 import numpy as np
 import copy
-import QuantumSimulation.Utility.ParametrizedFunctionFactory as pfun
-import QuantumSimulation.Utility.Utility as ut
+
 import pdb
 
 
 #==============================================================================
 # SETUP 1 T
 #==============================================================================
-setup = 1
-T = 2
+TQSL = np.pi/np.sqrt(2)
+T = TQSL*2
 dt = 0.01
 fT = 1
 setup = '1Q1'
@@ -36,18 +38,16 @@ break
 #------------------------------------------------------------------------------
 #                   Parameters simulation / optim 
 #------------------------------------------------------------------------------
-ilib.reload(cspin)
-ilib.reload(pfun)
 funToTest = pfun.LinearFunc([fT/(T-dt), 0])
 model = cspin.ControlledSpin(controlFun = funToTest, setup = setup, state_init = state_init, state_target = state_target, T=T, dt=dt)
-res_constant = model.Simulate(T, time_step = dt, method = 'testing', fom = 'lstf2t', store = True)
+res_constant = model.Simulate(T, time_step = dt, fom = 'last:f2t2', store = True, method = 'testing')
 
 ## Some plots
 st_tgt = model.state_tgt
 st = model.state_PWCH
 st_ad = model.state_ADIAB
 en_ad = model.energies_ADIAB
-adiabaticity = model.fidelity_distance_t(st, st_ad)
+adiabaticity = model._ss.fidelity(st, st_ad)
 
 # Instantaneous eigen values
 #plt.plot(np.real(en_ad[:,0]))
@@ -57,14 +57,13 @@ adiabaticity = model.fidelity_distance_t(st, st_ad)
 plt.plot(adiabaticity)
 
 # pop in o and 1 (should add +/-)
-pb = model.probaFromState(st)
+pb = model._ss.probaFromState(st)
 plt.plot(pb[:,0])
 plt.plot(pb[:,1])
 
 # Fidelity over time (to ensure that the last point is the max)
 fidelity_t = [model.fidelity_distance(st_tgt, s) for s in st]
 plt.plot(fidelity_t)
-ham
 
 #------------------------------------------------------------------------------
 #                   Optim - Fourrier Series - CRAB 
@@ -80,7 +79,7 @@ control = {'func':'fourFixedCt', 'c0':1, 'constraints':[[0,1], [T,1]], 'constrai
 
 paramsSim = {'setup': setup, 'target_state_name':state_target, 'init_state_name':state_init, 
              'overall': overall, 'guess': guess, 'control': control, 'dt': dt, 
-             'T': T, 'fom_name': 'lstf2tNeg_fluence0.2', 'print': False,}
+             'T': T, 'fom_name': 'lst:f2tNeg_fluence0.2', 'print': False,}
 
 paramsOptim = {'algo': 'NM', 'name_res': None, 'nb_params' :  nb_parameters, 
                'params_init':'uniform_-2_2', 'params_bound':'range_-1_1', 'nm_maxiter':650,
