@@ -21,7 +21,7 @@ model = bh1d.BH1D(**dico_simul)
 
 if(optim_type == 'BO2'):
     #BO
-    optim_args = {'algo': 'BO2', 'maxiter':350, 'num_cores':4, 'init_obj':100, 'acq':'EI'}
+    optim_args = {'algo': 'BO2', 'maxiter':30, 'num_cores':1, 'init_obj':10, 'exploit_steps':30,'acq':'EI'}
     optim = Learner.learner_Opt(model = model, **optim_args)
     resBO2 = optim(track_learning=True)
     resBO2['last_func'] = model.control_fun
@@ -29,7 +29,7 @@ if(optim_type == 'BO2'):
     res = resBO2
 
 if(optim_type == 'DE'):
-    optim_args = {'algo': 'DE', 'popsize':5, 'maxiter':75}
+    optim_args = {'algo': 'DE', 'popsize':5, 'maxiter':3}
     optim = Learner.learner_Opt(model = model, **optim_args)
     resDE = optim()
     print(resDE)
