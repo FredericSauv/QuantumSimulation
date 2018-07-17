@@ -35,7 +35,8 @@ else:
 class model_base:
     """Base class for (quantum) models i.e. define what a model / simulation is.
     A model is comprised of an Hamiltonian (self._H), an underlying state space
-    (self._ss), time characteristics s.a horizon self.T, ). 
+    (self._ss), time characteristics (i.e. horizon self.T, ), and computing some
+    figure of merits (fom)
     
     Evolving the system: from an initial state (self.state_init) make it evolve according 
     to an Hamiltonian (self._H) up to final time (horizon self.T) while recording intermediate
@@ -393,10 +394,14 @@ class cModel_base(model_base):
     @staticmethod
     def _smoothness(func, time):
         """ Smoothness as avg <([f(x) - f(x + dx)]/dx) ** 2> """
-        step = np.diff(time)
-        diff_val_square = np.square(np.diff(func(time)))
+        time_copy = time.copy()
+        
+        time_copy[0] = time_copy[0]-1e-6
+        time_copy[-1] = time_copy[-1]+1e-6
+        step = np.diff(time_copy)
+        diff_val_square = np.square(np.diff(func(time_copy)))
         res = np.sum(np.array(diff_val_square / step))
-        res = res/(time[-1] - time[0])
+        res = res/(time_copy[-1] - time_copy[0])
         return res
     
     @staticmethod
@@ -430,8 +435,7 @@ class pcModel_base(cModel_base):
     
     #TODO: Use pFunc_collec instead of list
     def _process_control_function(self, control):
-        """ delegate everything to the capability of pFunc_zoo.pFunc_factory 
-        store the dico (as a list of dicos allowing to rebuild the function) """
+        """ clone the function passed  """
         
         if(isinstance(control, pf.pFunc_List)):
             res = control.clone()
@@ -685,7 +689,10 @@ class pcModel_qspin(pcModel_base):
         """ Get the <nb> lowest energies of the Hamiltonian <H> at a time <time>
         args = (time <numeric> or <list>, nb=2 <integer>, H = self.H <QuSpin.Hamiltonian>)
         """
-        res, _ = self._H.eigsh(time = time, k=nb, which='SA',maxiter=1E10)
+        if(nb < self._H.Ns):
+            res, _ = self._H.eigsh(time = time, k=nb, which='SA',maxiter=1E10)
+        else:
+            res, _ = self._H.eigh(time = time)
         return res    
     
 
@@ -696,7 +703,11 @@ class pcModel_qspin(pcModel_base):
         """
         n_t = len(time)
         assert(state_t.shape[1] == n_t), "pb dim"
-        eigen_t = [self._H.eigsh(time=t, k=nb_ev, which='SA',maxiter=1E10) for t in time]
+        if(nb_ev < self._H.Ns):
+            eigen_t = [self._H.eigsh(time=t, k=nb_ev, which='SA',maxiter=1E10) for t in time]
+        else:
+            eigen_t = [self._H.eigh(time=t) for t in time]
+            
         proj_ev = [[pcModel_qspin._h_ip(state_t[:, t], eigen_t[t][1][:, n]) for n in range(nb_ev)] for t in range(n_t) ]
         return np.square(np.abs(np.array(proj_ev)))
     
