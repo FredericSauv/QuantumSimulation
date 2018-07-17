@@ -60,10 +60,12 @@ class pFunc_base():
         + implement power
         + Finish using name (i.e. get attribute and get by name) s.t. 
         it appears in repr + probably use a flag use_name 
-        + use of different default bounds (e.g. _DEF_POS_BOUNDS)
+        + use of different default bounds (e.g. _DEF_POS_BOUNDS) - maybe not
         + test (D-CRAB setups)
-        + Bug when try to update theta (in the case it's an array of integer
+        + Bug when try to update theta (in the case it's an array of integer) with a float
          >> enforce type (same way as bounds or parameters)
+        + default paarmeters for functions
+        + ENFORCE TYPE
     """
 
     _FLAG_TYPE = 'base'     
@@ -456,7 +458,7 @@ class pFunc_base():
    
 
     #-----------------------------------------------------------------------------#
-    # IO
+    # standard operations between pFunc
     #-----------------------------------------------------------------------------#
     def __add__(self, b):
         if not isinstance(b, pFunc_base):
@@ -464,6 +466,15 @@ class pFunc_base():
                 bFunc = pFunc_fromcallable(b)
             else:
                 bFunc = ConstantFunc(c0 = b, c0_bounds = False)
+            return Sum([self, bFunc])
+        return Sum([self, b])
+    
+    def __sub__(self, b):
+        if not isinstance(b, pFunc_base):
+            if(ut.is_callable(b)):
+                bFunc = pFunc_fromcallable(b) * (-1)
+            else:
+                bFunc = ConstantFunc(c0 = -b, c0_bounds = False)
             return Sum([self, bFunc])
         return Sum([self, b])
 
@@ -475,7 +486,7 @@ class pFunc_base():
                 bFunc = ConstantFunc(c0 = b, c0_bounds = False)
             return Sum([bFunc, self])
         return Sum([b, self])
-
+    
     def __mul__(self, b):
         if not isinstance(b, pFunc_base):
             if(ut.is_callable(b)):
@@ -505,8 +516,12 @@ class pFunc_base():
         return res
 
     def __pow__(self, b):
-        raise NotImplementedError()
-    
+        if(type(b) in [int, float]):
+            bFunc = PowerFunc(power=b)
+            res = Composition([bFunc, self])
+        else:
+            raise SystemError("{1} not allowed with power operations" .format(type(b)))
+        return res
 
 #    def __eq__(self, b):
 #        """ doesn't deal well with the type pFunc_fromcllable"""
@@ -558,7 +573,6 @@ class pFunc_base():
     #-----------------------------------------------------------------------------#
     # Some extra capabilities
     #     Visualization >> plot_func
-    #     I/O >> func_to_file file_to_func
     #        >> fluence / smoothness / 
     #     Fitting >> fit_to_target_func
     #-----------------------------------------------------------------------------#
@@ -591,7 +605,8 @@ class pFunc_base():
     @staticmethod
     def square_dist(func1, func2, range_x):
         """ avg_x (func1(x) - func2(x))^2 """
-        return np.average(np.square(func1(range_x[:-1]) - func2(range_x[:-1])))
+        res = np.average(np.square(np.squeeze(func1(range_x)) - np.squeeze(func2(range_x))))
+        return res
     
     def square_dist_to(self, func1, range_x):
         return pFunc_base.square_dist(self, func1, range_x)
@@ -614,33 +629,47 @@ class pFunc_base():
         l2_dists = [pFunc_base.square_dist(func_ref, f) for f in list_func] 
         return l2_dists
     
-    def fit_to_target_func(self, func_target, list_x, algo = 'DE'):
+    def fit_to_target_func(self, func_target, list_x, algo = 'DE', copy = False, **args_optim):
         """ fit the free parameters of the functionn to match (in the Least 
         Square Error sense)
         TODO: gradient based methods """
-        bounds = self.theta_bounds
-        if not(_is_fully_bounded(bounds)):
-            SystemError("Not implemented if bounds are not well defined")
+        if (copy):
+            func_to_fit = self.clone()
+        else:
+            func_to_fit = self
             
-        def func_to_fit(params):
-            self.theta = params
-            res = pFunc_base.square_dist(self, func_target, list_x)
+        bounds = func_to_fit.theta_bounds
+        if not(_is_fully_bounded(bounds)):
+            SystemError("Can't fit with unknown bounds")
+            
+        def SquareErrors(params):
+            func_to_fit.theta = params
+            res = pFunc_base.square_dist(func_to_fit, func_target, list_x)
             return res
+        
         if(algo == 'DE'):
             import scipy.optimize
-            resDE =  scipy.optimize.differential_evolution(func_to_fit, bounds, popsize=5)
+            resDE =  scipy.optimize.differential_evolution(SquareErrors, bounds, **args_optim)
         else:
             raise NotImplementedError()
         print(func_to_fit(resDE['x']))
+        return func_to_fit
                 
-    
+    #-----------------------------------------------------------------------------#
+    # I/O
+    #-----------------------------------------------------------------------------#
     def save_to_file(self, file_name):
-        pFunc_base.save_func_to_file(self, file_name, 'w')
+        pFunc_base.save_a_func_to_file(self, file_name, 'w')
     
     @staticmethod
     def save_a_func_to_file(func, file_name, type_write = 'w'):
         ut.write_to_file_for_eval(func, file_name, type_write)
     
+    @staticmethod
+    def read_func_from_file(file_name):
+        evaluator = lambda ev: eval(ev)    
+        func1 = ut.eval_from_file(file_name, evfunc = evaluator)
+        return func1
 
 class pFunc_fromcallable(pFunc_base):
     """ wrap a callable object (function, lambda function) to have the (min)
@@ -864,8 +893,9 @@ class Sum(pFunc_collec):
         return np.sum(pFunc_collec.__call__(self, X, Y = Y, eval_gradient = eval_gradient))
  
 class Composition(pFunc_collec):
-    """Composition of several pFuncs (<pFunc_base> or <pFunc_collec>) 
-    [f1, f2, c1](t) >> f1(f2(c1(t)))) """
+    """Composition of several pFuncs (<pFunc_base> or <pFunc_collec>)
+    g = Composition(list_func = [f1, f2, f3])
+    >>> g(x) = f1(f2(f3(x)))) """
     
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
@@ -887,8 +917,8 @@ class Composition(pFunc_collec):
 #       >> LinearFunc ConstantFunc ChebyshevFun
 # --------------------------------------------------------------------------- #
 class IdFunc(pFunc_base):
-    """ params : {'F' = [f_1, .., f_N], 'Tstep' = [T_1, .., T_N], F0 = f_0}
-    f(t) = (1) f_0 (if t<t_1)  (2) f_n (t in [t_(n-1), t_n[) (3) f_N (if t>=T_N) 
+    """ params : {}
+    >> f(x) = x
     """     
     _LIST_PARAMETERS = []
     _NB_ELEM_PER_PARAMS = []
@@ -898,9 +928,20 @@ class IdFunc(pFunc_base):
         """ identity"""
         return X
 
+class PowerFunc(pFunc_base):
+    """ PowerFunc(power=p)
+    >> f(x) = x ** p 
+    """
+    _LIST_PARAMETERS = ['power']
+    _NB_ELEM_PER_PARAMS = [1]
+
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """ identity"""
+        return X ** self._get_one_param('power')[0]
+
 class StepFunc(pFunc_base):
     """ params : {'F' = [f_1, .., f_N], 'Tstep' = [T_1, .., T_N], F0 = f_0}
-    f(t) = (1) f_0 (if t<t_1)  (2) f_n (t in [t_(n-1), t_n[) (3) f_N (if t>=T_N) 
+    >> f(t) = (1) f_0 (if t<t_1)  (2) f_n (t in [t_(n-1), t_n[) (3) f_N (if t>=T_N) 
     """     
     _LIST_PARAMETERS = ['F', 'F0', 'Tstep']
     _NB_ELEM_PER_PARAMS = ['a', 1, 'a']
@@ -934,9 +975,19 @@ class ExpRampFunc(pFunc_base):
         res = a * (1 - np.exp(X / T * l)) / (1 - np.exp(l)) 
         return res
 
-class SquareExponentialFunc(pFunc_base):
-    """ params : {'a' = ymax, 'mu':T, 'l' = l} >> ymax^2 exp^{(x-mu)^2/l^2} """
-    pass
+class GRBF(pFunc_base):
+    """ Gaussian Radial Basis Functions params : {'A':, 'x0':, 'l' = l} 
+    >> f(x) = sum A[k] exp^{(x-x0[k])^2/(2*l^2)} """
+    _LIST_PARAMETERS = ['A', 'x0', 'l']
+    _NB_ELEM_PER_PARAMS = ['a', 'a', 'a']
+    
+    @ut.extend_dim_method(0, True)
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """         
+        """
+        res = np.dot(self.__A, np.exp(np.square(self.__x0 - X)/(2*np.square(self.__l))))
+        return res
+
 
 class FourierFunc(pFunc_base):
     """ params :{'A' = [a_1, .., a_N], 'B' = [b_1, .., b_N], 'omegas' = [om_0, 
@@ -965,7 +1016,21 @@ class LinearFunc(pFunc_base):
 
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
-        """         
+        """                     elif(shortcut[:13] == 'owbds01_Ccrab'):
+                # Custom Crab parametrization f(t) = g(t) * (1 + alpha(t)* erf((four series)))
+                # slightly different from the normal one (cf. before)
+                # additional erf function (logistic function such that the four 
+                # series is bounded) alpha(t) is sine ** 1.5
+                nb_params = int(shortcut[13:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                k = 4 /nb_params
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                             'powscale':pow15, 'ctm':mone,'logis': logis%(str(k)),
+                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(**(#powscale,#scale),**(+(#logis,#ctm),#rfour))))))'}
+
         """
         w, bias = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
         res = bias[0] + w[0] * X
@@ -1008,6 +1073,22 @@ class ChebyshevFunc(pFunc_base):
         """
         res = self._chebFunc(X)
         return res
+
+class LogisticFunc(pFunc_base):
+    """ params = {'L':1, 'k':1, 'x0':0)
+    >> f(t) = L / (1 + e^{-k(x-x0)})
+    """
+    _LIST_PARAMETERS = ['L', 'x0', 'k']
+    _NB_ELEM_PER_PARAMS = [1, 1, 1]
+
+    @ut.extend_dim_method(0, True)
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """         
+        """
+        L, x0, k = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
+        res = L[0]/(1+np.exp(-k[0]*(X-x0[0])))
+        return res
+
 
 # --------------------------------------------------------------------------- #
 #   Wrapper (cf. pFunc_wrapper docstring)
@@ -1111,7 +1192,7 @@ if __name__ == '__main__':
 # --------------------------------------------------------------------------- #
     T = 1
     x = np.arange(-1, 2, 0.01)
-    xx =np.arange(0, 1, 0.01)
+    xx =np.arange(-0.02, 1.02, 0.01)
     om_ref = 2 * np.pi / T
     Om = [2 * np.pi/T, 4 * np.pi/T]
     A = np.random.sample(2)
@@ -1128,8 +1209,6 @@ if __name__ == '__main__':
     
     f2h = FourierFunc(**dico_f2h)
     guess = LinearFunc(**dico_linear) 
-    
-
     sin_scaling = FourierFunc(**dico_sin_scaling)
     bound = BoundWrap(**dico_bound)
     ow = OwriterYWrap(**dico_ow)
@@ -1148,7 +1227,76 @@ if __name__ == '__main__':
 
     one_name_func = better.all_names[-1]
     better.get_func_by_name(one_name_func)
-    
+
+# --------------------------------------------------------------------------- #
+#    Logistic
+# --------------------------------------------------------------------------- #
     
 
+    # Only function with free params
+    T = 1
+    N_params = 2
+    A = np.random.uniform(-1, 1, N_params)
+    B = np.random.uniform(-1, 1, N_params)
+    phi = np.zeros(N_params) 
+    om_ref = 2 * np.pi / T 
+    Om = np.arange(1, N_params +1) * om_ref
+    
+    dico_f2h = {'Om':Om, 'A': A, 'B': B, 'phi':phi, 'c0':0,'Om_bounds':False, 
+    'A_bounds': (-1,1), 'B_bounds': (-1,1), 'phi_bounds':False, 'c0_bounds':False, 'name':'f2h'}
+    dico_linear = {'w':1/T, 'bias':0, 'name':'guess'}
+    dico_sin_scaling = {'Om':[om_ref/2], 'A': [0], 'B': [1], 'phi':[0],'c0':0 , 'name':'scaling'}
+    dico_bound ={'bounds_min':0, 'bounds_max':1,'name':'bound'}
+    dico_ow = {'input_min':[-100, 1], 'input_max':[0, 100], 'output_ow':[0,1], 'name':'ow'}
+    dico_logis = {'L':3,'k':2/N_params,'x0':0}
 
+    
+    
+    f2h = FourierFunc(**dico_f2h)
+    guess = LinearFunc(**dico_linear)
+    sin_scaling = FourierFunc(**dico_sin_scaling)
+    sqrt_sin_scaling = sin_scaling ** 0.5
+    bound = BoundWrap(**dico_bound)
+    ow = OwriterYWrap(**dico_ow)
+    logis = LogisticFunc(**dico_logis)
+    #f2h.plot_function(xx)
+    #(guess * (1 + sin_scaling**2 *Composition(list_func =[logis-1, f2h]))).plot_function(xx)
+    
+
+    better = ow *(bound* (guess * (1 + (sin_scaling**1.5 * Composition(list_func =[logis-1, f2h])))))
+    better.plot_function(xx)
+    guess.plot_function(xx)
+    
+    
+    # FredParam
+    T = 1
+    N_params = 2
+    A = np.random.uniform(-1, 1, N_params)
+    B = np.random.uniform(-1, 1, N_params)
+    phi = np.zeros(N_params) 
+    om_ref = 2 * np.pi / T 
+    Om = np.arange(1, N_params +1) * om_ref
+    
+    dico_f2h = {'Om':Om, 'A': A, 'B': B, 'phi':phi, 'c0':0,'Om_bounds':False, 
+    'A_bounds': (-1,1), 'B_bounds': (-1,1), 'phi_bounds':False, 'c0_bounds':False, 'name':'f2h'}
+    dico_linear = {'w':1/T, 'bias':0, 'name':'guess'}
+    dico_sin_scaling = {'Om':[om_ref/2], 'A': [0], 'B': [1], 'phi':[0],'c0':0 , 'name':'scaling'}
+    dico_bound ={'bounds_min':0, 'bounds_max':1,'name':'bound'}
+    dico_ow = {'input_min':[-100, 1], 'input_max':[0, 100], 'output_ow':[0,1], 'name':'ow'}
+    dico_logis = {'L':2,'k':4/N_params,'x0':0}
+
+    f2h = FourierFunc(**dico_f2h)
+    guess = LinearFunc(**dico_linear)
+    sin_scaling = FourierFunc(**dico_sin_scaling) ** 0.5
+    bound = BoundWrap(**dico_bound)
+    ow = OwriterYWrap(**dico_ow)
+    logis = LogisticFunc(**dico_logis)
+    #(logis-1).plot_function(np.arange(-6,6))
+    #f2h.plot_function(xx)
+    #(guess * (1 + sin_scaling**2 *Composition(list_func =[logis-1, f2h]))).plot_function(xx)
+    #Composition(list_func =[logis-1, f2h]).plot_function(xx)
+
+    better = ow *(bound* (guess + ((sin_scaling**0.5) *0.5 * Composition(list_func =[logis-1, f2h]))))
+    better.plot_function(xx)
+    guess.plot_function(xx)
+    
