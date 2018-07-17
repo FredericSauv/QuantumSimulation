@@ -130,10 +130,10 @@ class learner_Opt(learner_base):
                'kernel':'matern2.5', 'flag_MP':False, 'num_cores':1, 'custom_model': False,
                'acq_opt_type':'lbfgs', 'initial_design_type':'latin', 'optim_num_anchor':50, 
                'optim_num_samples':100000, 'acquisition_jitter':0.001,
-               'acquisition_weight':2, 'exploit_steps':15}, self._run_BO2),
+               'acquisition_weight':2, 'exploit_steps':15, 'noisy_mode':False}, self._run_BO2),
         'BO':({'disp':True, 'acq':'ei', 'kappa':5.0, 'maxiter':50,'verbose':False, 'kernel':'matern2.5', 
                'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'gp_acq_iter':50, 'gp_n_warmup':10000}, self._run_BO),
-        'DE':({'disp':True, 'maxiter':50, 'popsize':10, 'tol':0.01}, self._run_DE)}
+        'DE':({'disp':True, 'maxiter':500, 'popsize':10, 'tol':0.01}, self._run_DE)}
         
         learner_base.__init__(self, model=model, **params_learner)
         
@@ -206,6 +206,7 @@ class learner_Opt(learner_base):
         ## populate res
         res = {'name_algo': options['algo']}
         res['params'] = res_optim_duplicate.pop('x')
+        res['params_exp'] = res_optim_duplicate.pop('x_exp', None)
         res['fun'] = res_optim_duplicate.pop('fun')                    
         res['nfev'] = res_optim_duplicate.pop('nfev', None) 
         res['nit'] = res_optim_duplicate.pop('nit', None)
@@ -357,7 +358,6 @@ class learner_Opt(learner_base):
         acquisition_jitter = options['acquisition_jitter']
         acquisition_weight = options['acquisition_weight']
         
-        
         if(custom_model):
             if(ker == 'matern52'):
                 kernel = eval('GPy.kern.Matern52(self.input_dim = nb_params)')
@@ -408,16 +408,20 @@ class learner_Opt(learner_base):
                 optim_num_anchor = optim_num_anchor, optim_num_samples = optim_num_samples)
         bo_new.run_optimization(exploit_steps)
 
-        if(_still_potentially_better(bo_new)):
+        if((_still_potentially_better(bo_new)) and (exploit_steps <= 50)):
             print('2nd round of exploitation')
             bo_new.run_optimization(exploit_steps)
 
-        # generate results      
+        # generate results
         optim_params = bo_new.x_opt
-        optim_value_cputed = model(optim_params)
         optim_value = bo_new.fx_opt
+        optim_params_exp = _get_best_exp_from_BO(bo_new)
+        
+        optim_value_cputed = model(optim_params)
+
         nfev = len(bo_new.X)
-        resultTest = {'x': optim_params, 'fun': optim_value, 'fun_ver': optim_value_cputed, 'nfev':nfev, 'nit':nfev, 'sucess':True}
+        resultTest = {'x': optim_params, 'x_exp':optim_params_exp, 'fun': optim_value, 
+                      'fun_ver': optim_value_cputed, 'nfev':nfev, 'nit':nfev, 'sucess':True}
         resultTest['gp_kernel_optim_names'] = bo_new.model.model.parameter_names()
         resultTest['gp_kernel_optim_vals'] = bo_new.model.model.param_array
         resultTest['nb_processes'] = bo_new.num_cores
@@ -550,7 +554,15 @@ def _still_potentially_better(bo, nb_last = 5, nb_thr = 2, accept_thr = 1e-7):
     nb_better = np.sum(np.diff(last_Y)<-accept_thr)
     return nb_better >= nb_thr
     
-
+def _get_best_seen_from_BO(bo):
+    """ From BO optimization extract X giving the best seen Y"""
+    return bo.X[np.argmin(bo.Y)]
+    
+def _get_best_exp_from_BO(bo):
+    """ From BO optimization extract X giving the best predicted Y (only amongst 
+    the tested values)"""
+    Y_pred = bo.model.predict(bo.X)
+    return bo.X[np.argmin(Y_pred[0])]
 
 
 #==============================================================================
