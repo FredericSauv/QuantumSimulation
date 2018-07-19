@@ -331,6 +331,11 @@ class cModel_base(model_base):
         if(not(ut.is_iter(list_fun))):
             list_fun = [list_fun]
         self._control_fun = list_fun
+        self._update_model_after_change_of_control_fun()
+        
+    def _update_model_after_change_of_control_fun(self):
+        """ Extra stuff to do when the control_fun is replaced by another one"""
+        pass
 
     @property
     def n_controls(self):
@@ -529,7 +534,12 @@ class pcModel_qspin(pcModel_base):
         self._setup_H(**args_model)
         self._setup_fom_qspin_bricks()
 
-    
+    def _update_model_after_change_of_control_fun(self):
+        """ Extra stuff to do when the control_fun is replaced by another one:
+            Regenerate H"""
+        if(hasattr(self, '_H') and (self._H is not None)):
+            self._setup_H()
+        
     #-----------------------------------------------------------------------------#
     # Setup functions
     #-----------------------------------------------------------------------------#
