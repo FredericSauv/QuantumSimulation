@@ -13,6 +13,7 @@ import numpy as np
 import pdb
 from functools import partial
 import matplotlib.pylab as plt
+import copy
 
 # ------------------------------------------------------
 # Utility: 0
@@ -20,7 +21,7 @@ import matplotlib.pylab as plt
 #
 #
 # ------------------------------------------------------
-def genFunction(noise = 0, tilt = 0, degen = 1, dim = 1, local_degen = 3):
+def genFunction(noise = 0, tilt = 0, degen = 1, dim = 1, local_degen = 3, val_local = 0.5):
     def f(X):
         """generate f(X=[x1,.., xd]) = f(x1) x ... x f(x2)
         with f(x) = sin^2((x-0.1)*degen*pi) + cos^2((x-0.1) * 3 * degen * pi) + tilt * x 
@@ -34,7 +35,7 @@ def genFunction(noise = 0, tilt = 0, degen = 1, dim = 1, local_degen = 3):
         res = 1
         for i in range(dim):
             XX = X[:,i] + 0.1 /degen 
-            res *= tilt * XX - np.square(np.sin(XX * freq_ppal)) + 0.4 * np.square(np.cos(XX*freq_scnd))
+            res *= tilt * XX - np.square(np.sin(XX * freq_ppal)) + val_local * np.square(np.cos(XX*freq_scnd))
         noise_to_add = np.random.normal(0,noise, len(X))
         return res + noise_to_add
 
@@ -56,9 +57,9 @@ def get_dist_to_a_min(real_mins, estimated_min):
 # Study 1: 0
 # plot function
 # ------------------------------------------------------
-degen, local_degen, dim, tilt, noise = 1, 3, 1, 0, 0
+degen, local_degen, val_local, dim, tilt, noise = 4, 3, 1, 1, 0, 0
 bounds = [{'name': 'var_'+str(i), 'type': 'continuous', 'domain': (0, 1)} for i in range(dim)]
-myf, minimas = genFunction(noise, tilt, degen, dim, local_degen)
+myf, minimas = genFunction(noise, tilt, degen, dim, local_degen, val_local)
 if(dim == 1):
     x_plot = np.linspace(0,1,1000)
     y_plot = myf(x_plot)
@@ -78,7 +79,7 @@ if study_1:
     list_noise = [0, 0.1, 0.2]
     nb_repeat = 10
     
-    res = np.zeros([2, len(list_iter), len(list_noise), nb_repeat])
+    res_1 = np.zeros([2, len(list_iter), len(list_noise), nb_repeat])
     
     for n, it in enumerate(list_iter):
         budget = it
@@ -86,9 +87,9 @@ if study_1:
         maxiter = budget - init
         
         for p, noise in enumerate(list_noise):
-            degen, local_degen, dim, tilt = 3, 3, 1, 0
+            degen, local_degen, val_local, dim, tilt = 3, 3, 1.5, 1, 0, 0
             bounds = [{'name': 'var_'+str(i), 'type': 'continuous', 'domain': (0, 1)} for i in range(dim)]
-            myf, minimas = genFunction(noise, tilt, degen, dim, local_degen)
+            myf, minimas = genFunction(noise, tilt, degen, dim, local_degen, val_local)
             
             for r in range(nb_repeat):
                 myOpt = GPyOpt.methods.BayesianOptimization(myf, bounds, initial_design_numdata = 5, 
@@ -104,20 +105,19 @@ if study_1:
                 x_best_exp = get_best_exp_from_BO(myOpt)
                 d_seen = get_dist_to_a_min(minimas, x_best_seen)
                 d_exp = get_dist_to_a_min(minimas, x_best_exp)
-                res[0, n, p, r] = d_seen
-                res[1, n, p, r] = d_exp
+                res_1[0, n, p, r] = d_seen
+                res_1[1, n, p, r] = d_exp
             
         
     #no_noise    
-    i_iter = 2
-                
-    mean_diff = np.mean(np.squeeze(res[0,i_iter,:,:]), axis = 1)
-    std_diff = np.std(np.squeeze(res[0,i_iter,:,:]), axis = 1)
-    mean_diff_exp = np.mean(np.squeeze(res[1,i_iter,:,:]), axis = 1)
-    std_diff_exp = np.std(np.squeeze(res[1,i_iter,:,:]), axis = 1)
-    
-    print(mean_diff)
-    print(mean_diff_exp)
+    for i, it in enumerate(list_iter):                
+        mean_diff = np.mean(np.squeeze(res_1[0,i_iter,:,:]), axis = 1)
+        std_diff = np.std(np.squeeze(res_1[0,i_iter,:,:]), axis = 1)
+        mean_diff_exp = np.mean(np.squeeze(res_1[1,i_iter,:,:]), axis = 1)
+        std_diff_exp = np.std(np.squeeze(res_1[1,i_iter,:,:]), axis = 1)
+        print('budget='+str(it))
+        print(mean_diff)
+        print(mean_diff_exp)
 
 
 
@@ -128,59 +128,68 @@ if study_1:
 study_2 = False
 if study_2:
     noise = 0
-    list_degen = [1, 3, 5, 10]
-    list_iter = [25, 50, 100]
-    list_pct_exploit = [0, 0.25, 0.50, 1]
+    list_degen = [20] #[1, 3, 5, 10]
+    list_budget = [20, 40, 60, 80, 100]
+    list_pct_exploit = [0, 0.25, 0.50]
     nb_repeat = 10
     
-    res = np.zeros([2, len(list_degen), len(list_iter), len(list_pct_exploit), nb_repeat])
+    res_2 = np.zeros([2, len(list_degen), len(list_budget), len(list_pct_exploit), nb_repeat])
     
     for d, deg in enumerate(list_degen):
         print('d='+str(d))
-        degen, local_degen, dim, tilt = deg, 3, 1, 0
+        degen, local_degen, val_local, dim, tilt = deg, 3, 1, 1, 0
         bounds = [{'name': 'var_'+str(i), 'type': 'continuous', 'domain': (0, 1)} for i in range(dim)]
+        myf, minimas = genFunction(noise, tilt, degen, dim, local_degen, val_local)                        
                 
-        for i, it in enumerate(list_iter):
-            print('i='+str(i))
-            budget = it
-            init = 5
+        for r in range(nb_repeat):
+            myOpt_init = GPyOpt.methods.BayesianOptimization(myf, bounds, initial_design_numdata = 5, 
+                    acquisition_type ='EI', optim_num_samples = 100000, optim_num_anchor = 50,
+                    initial_design_type = 'random', num_cores = 4)
+            myOpt_init.run_optimization(1)
             
-            for p, pct in enumerate(list_pct_exploit):
-                nb_exploit = int(pct * budget /100)
-                nb_explor = budget - nb_exploit
-                print('p='+str(p))
-                
-                myf, minimas = genFunction(noise, tilt, degen, dim, local_degen)
-                
-                for r in range(nb_repeat):
-                    myOpt = GPyOpt.methods.BayesianOptimization(myf, bounds, initial_design_numdata = 5, 
-                            acquisition_type ='EI', optim_num_samples = 100000, optim_num_anchor = 50,
-                            initial_design_type = 'random', num_cores = 4)
+            
+            for b, bd in enumerate(list_budget):
+                print('budget='+str(bd))
+                budget = bd
+            
+                for p, pct in enumerate(list_pct_exploit):
+                    nb_exploit = int(pct * budget)
+                    nb_explor = budget - nb_exploit
+                    print('p='+str(p))
+                    myOpt = copy.copy(myOpt_init)
                     myOpt.run_optimization(nb_explor)
-                
-                    bo_new = GPyOpt.methods.BayesianOptimization(myf, bounds, 
-                                acquisition_type = 'LCB', X = myOpt.X, Y =myOpt.Y, 
-                                acquisition_weight = 0.00001, optim_num_anchor = 50, 
-                                optim_num_samples = 100000, num_cores = 4)
-                    
-                    bo_new.run_optimization(nb_exploit)
 
+                    if(nb_exploit > 0): 
+                        myOpt.acquisition_type = 'LCB'
+                        myOpt.acquisition_weight = 0.00001
+                        myOpt.kwargs['acquisition_weight'] = 0.00001
+                        myOpt.acquisition = myOpt._acquisition_chooser()
+                        myOpt.run_optimization(nb_exploit)
                 
-                    x_best_seen = get_best_seen_from_BO(bo_new)
-                    x_best_exp = get_best_exp_from_BO(bo_new)
+                    x_best_seen = get_best_seen_from_BO(myOpt)
+                    x_best_exp = get_best_exp_from_BO(myOpt)
                     d_seen = get_dist_to_a_min(minimas, x_best_seen)
                     d_exp = get_dist_to_a_min(minimas, x_best_exp)
-                    res[0, d, i, p, r] = d_seen
-                    res[1, d, i, p, r] = d_exp
+                    res_2[0, d, b, p, r] = d_seen
+                    res_2[1, d, b, p, r] = d_exp
         
     
-    #no_noise    
-    i_iter = 2
-                
-    mean_diff = np.mean(np.squeeze(res[0,i_iter,:,:]), axis = 1)
-    std_diff = np.std(np.squeeze(res[0,i_iter,:,:]), axis = 1)
-    mean_diff_exp = np.mean(np.squeeze(res[1,i_iter,:,:]), axis = 1)
-    std_diff_exp = np.std(np.squeeze(res[1,i_iter,:,:]), axis = 1)
+    #plot results
+    nb_r = 8
+    for i, it in enumerate(list_budget):
+        for d, degen in enumerate(list_degen):
+            mean_diff = np.mean(np.squeeze(res_2[0,d, i,:,:nb_r]), axis = 1)
+            std_diff = np.std(np.squeeze(res_2[0,d, i,:,:nb_r]), axis = 1)
+            mean_diff_exp = np.mean(np.squeeze(res_2[1,d, i,:,:nb_r]), axis = 1)
+            std_diff_exp = np.std(np.squeeze(res_2[1,d, i,:,:nb_r]), axis = 1)
+            fig, (ax1, ax2) = plt.subplots(1,2)
+            fig.suptitle('degen='+str(degen)+', budget='+str(it))
+            #ax1.title('mean diff comp vs no explor')
+            ax1.scatter(list_pct_exploit, (mean_diff-mean_diff[0])/mean_diff[0])
+            #ax1.set_ylim(-1, 5)
+            #ax2.title('std diff comp vs no explor')
+            ax2.scatter(list_pct_exploit, mean_diff)
+            ax2.set_ylim(0, 0.001)
     
     print('MEAN')
     print(mean_diff)
