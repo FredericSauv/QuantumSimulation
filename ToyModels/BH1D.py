@@ -88,22 +88,29 @@ class BH1D(mod.pcModel_qspin):
         ++ setup 1: cyclical boundary conditions, U(t) = control_fun(t), J(t) = 1- U(t)
 
         """ 
-        self.setup = args_model['setup']
-        L = args_model['L']
-        mu = args_model.get('mu', self._LIST_ARGS_OPT['mu'][1])
+        ## Try to find them in the extra args or look if they have already been set up
+        if (args_model.get('setup') is not None):
+            self.setup = args_model.get('setup')
+        if (args_model.get('L') is not None):
+            self.L = args_model.get('L')
+        if (args_model.get('mu') is not None):
+            self.mu = args_model.get('mu')
+        elif(not hasattr(self, 'mu')):        
+            self.mu = self._LIST_ARGS_OPT['mu'][1]
+ 
         if(self.setup  == "1"):  
             assert (self.n_controls == 1), "number of control functions don't match"
             U = self.control_fun[0]
             args_U = []
             J = lambda t: 1 - U(t)
             args_J = []    
-            hop = [[-1, i, (i+1)%L] for i in range(L)] # Cyclical boundaries
+            hop = [[-1, i, (i+1)%self.L] for i in range(self.L)] # Cyclical boundaries
             dynamic_hop = [['+-', hop, J, args_J],['-+',hop, J, args_J]]
-            inter_nn = [[0.5, i, i] for i in range(L)]
-            inter_n = [[-0.5, i] for i in range(L)]
+            inter_nn = [[0.5, i, i] for i in range(self.L)]
+            inter_n = [[-0.5, i] for i in range(self.L)]
             dynamic_inter = [['nn', inter_nn, U, args_U], ['n', inter_n, U, args_U]]
             dynamic = dynamic_inter + dynamic_hop
-            pot_n =  [[mu, i] for i in range(L)]
+            pot_n =  [[self.mu, i] for i in range(self.L)]
             static = [['n', pot_n]]
             self._H = hamiltonian(static, dynamic, basis=self._ss, dtype=np.float64)
         else:

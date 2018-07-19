@@ -34,6 +34,8 @@ class learner1DBH(Batch.BatchParametrizedControler):
         + testing
         + dispatching i.e. more flexibility in creating the controler
     TODO: noise in the test through seed_noise = [(), ..., ()]
+    TODO: refactorize most of run_one_procedure in BatchClass, probably need 
+    a new arg: constructor
     """
     def run_one_procedure(self, config):
         """ 
