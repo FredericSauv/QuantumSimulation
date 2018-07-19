@@ -35,12 +35,54 @@ x = np.linspace(-0.01, T +0.01, 1000)
 xx = np.linspace(-0.1, T +0.1, 1000)
 target.plot_function(xx)
 
-#custom_crablike_four
-dico_ctl = {'ctl_shortcut':'owbds01_Ccrfour10'}
-fun_expr = btch._process_controler(dico_ctl)
-ansatz1 = btch._build_control_from_string(fun_expr['control_obj'], context_dico = {'T':T})
-f = ansatz1.fit_to_target_func(target, x)
-ansatz1.plot_function(x)
+def get_best_n_times(name_func, n_param, n_repeat):
+    dico_ctl = {'ctl_shortcut':name_func + str(nb_par)}
+    best_fit = np.inf
+    best_f = None
+
+    for r in range(n_repeat):
+        fun_expr = btch._process_controler(dico_ctl)
+        ansatz1 = btch._build_control_from_string(fun_expr['control_obj'], context_dico = {'T':T})
+        f_tmp, fit_tmp = ansatz1.fit_to_target_func(target, x, return_fit=True)
+        if(fit_tmp<best_fit):
+            best_fit = fit_tmp 
+            best_f = f_tmp
+        return best_f, best_fit
+
+#CRAB
+nb_par = 4
+nb_repeat = 30
+name_ansatz = 'owbds01_crab'
+f_crab, fit_crab = get_best_n_times(name_ansatz, nb_par, nb_repeat)
+f_crab.plot_function(x)
+target.plot_function(x)
+
+
+#CRAB1
+nb_par = 4
+nb_repeat = 30
+name_ansatz = 'owbds01_1crab'
+f_crab1, fit_crab1 = get_best_n_times(name_ansatz, nb_par, nb_repeat)
+f_crab1.plot_function(x)
+target.plot_function(x)
+
+
+
+#CRAB
+nb_par = 4
+nb_repeat = 30
+name_ansatz = 'owbds01_2crab'
+f_crab2, fit_crab2 = get_best_n_times(name_ansatz, nb_par, nb_repeat)
+f_crab2.plot_function(x)
+target.plot_function(x)
+
+
+#CRAB // best one
+nb_par = 4
+nb_repeat = 30
+name_ansatz = 'owbds01_3crab'
+f_crab3, fit_crab3 = get_best_n_times(name_ansatz, nb_par, nb_repeat)
+f_crab3.plot_function(x)
 target.plot_function(x)
 
 
