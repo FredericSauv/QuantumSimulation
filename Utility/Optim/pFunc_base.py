@@ -637,7 +637,7 @@ class pFunc_base():
             func_to_fit = self.clone()
         else:
             func_to_fit = self
-            
+        return_fit = args_optim.pop('return_fit', False)
         bounds = func_to_fit.theta_bounds
         if not(_is_fully_bounded(bounds)):
             SystemError("Can't fit with unknown bounds")
@@ -652,8 +652,12 @@ class pFunc_base():
             resDE =  scipy.optimize.differential_evolution(SquareErrors, bounds, **args_optim)
         else:
             raise NotImplementedError()
-        print(func_to_fit(resDE['x']))
-        return func_to_fit
+        fit = SquareErrors(resDE['x'])
+        print(fit)
+        if(return_fit):
+            return func_to_fit, fit
+        else:
+            return func_to_fit
                 
     #-----------------------------------------------------------------------------#
     # I/O
@@ -975,7 +979,7 @@ class ExpRampFunc(pFunc_base):
         res = a * (1 - np.exp(X / T * l)) / (1 - np.exp(l)) 
         return res
 
-class GRBF(pFunc_base):
+class GRBFFunc(pFunc_base):
     """ Gaussian Radial Basis Functions params : {'A':, 'x0':, 'l' = l} 
     >> f(x) = sum A[k] exp^{(x-x0[k])^2/(2*l^2)} """
     _LIST_PARAMETERS = ['A', 'x0', 'l']
@@ -985,7 +989,8 @@ class GRBF(pFunc_base):
     def __call__(self, X, Y=None, eval_gradient=False):
         """         
         """
-        res = np.dot(self.__A, np.exp(np.square(self.__x0 - X)/(2*np.square(self.__l))))
+        A, x0, l = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
+        res = np.dot(A, np.exp(-np.square(x0 - X)/(2*np.square(l))))
         return res
 
 
@@ -1016,21 +1021,7 @@ class LinearFunc(pFunc_base):
 
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
-        """                     elif(shortcut[:13] == 'owbds01_Ccrab'):
-                # Custom Crab parametrization f(t) = g(t) * (1 + alpha(t)* erf((four series)))
-                # slightly different from the normal one (cf. before)
-                # additional erf function (logistic function such that the four 
-                # series is bounded) alpha(t) is sine ** 1.5
-                nb_params = int(shortcut[13:])
-                if(ut.is_odd(nb_params)):
-                    SystemError('nb_params = {} while it should be even'.format(nb_params))
-                k = 4 /nb_params
-                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
-                             'powscale':pow15, 'ctm':mone,'logis': logis%(str(k)),
-                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
-                
-                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(**(#powscale,#scale),**(+(#logis,#ctm),#rfour))))))'}
-
+        """                     
         """
         w, bias = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
         res = bias[0] + w[0] * X
@@ -1299,4 +1290,27 @@ if __name__ == '__main__':
     better = ow *(bound* (guess + ((sin_scaling**0.5) *0.5 * Composition(list_func =[logis-1, f2h]))))
     better.plot_function(xx)
     guess.plot_function(xx)
+    
+    
+    #RBF
+    T = 10
+    tt = np.linspace(0, T, 1000)
+    nb_P = 4
+    a_scale = np.sqrt(8* np.log(2))
+    b_scale = np.sqrt(8* np.log(4))
+    sigma = T/(2 * b_scale + (nb_P-1) * a_scale)
+    A = np.random.uniform(-1,1, nb_P)#np.repeat(1, nb_P)
+    x0 = b_scale * sigma + np.arange(nb_P) * a_scale * sigma
+    l = np.repeat(sigma, nb_P)
+    
+    RBF = GRBFFunc(l=l, x0=x0, A = A)
+    RBF.plot_function(tt)
+    
+    #logisticmask
+    x0 = 0.1
+    k = 6 / x0
+     
+    log1 = LogisticFunc(x0= x0*T , L = 1, k=k/T) * (LogisticFunc(x0= (1-x0)*T , L = 1, k=-k/T))
+    log1.plot_function(tt)
+
     
