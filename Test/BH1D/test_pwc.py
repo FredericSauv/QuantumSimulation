@@ -21,15 +21,15 @@ model = bh1d.BH1D(**dico_simul)
 
 if(optim_type == 'BO2'):
     #BO
-    optim_args = {'algo': 'BO2', 'maxiter':30, 'num_cores':1, 'init_obj':10, 'exploit_steps':30,'acq':'EI'}
+    optim_args = {'algo': 'BO2', 'maxiter':10, 'num_cores':1, 'init_obj':10, 'exploit_steps':30,'acq':'EI'}
     optim = Learner.learner_Opt(model = model, **optim_args)
     resBO2 = optim(track_learning=True)
     resBO2['last_func'] = model.control_fun
-    print(resBO2)
     res = resBO2
+    print(res.keys())
 
 if(optim_type == 'DE'):
-    optim_args = {'algo': 'DE', 'popsize':5, 'maxiter':3}
+    optim_args = {'algo': 'DE', 'popsize':5, 'maxiter':1}
     optim = Learner.learner_Opt(model = model, **optim_args)
     resDE = optim()
     print(resDE)
@@ -40,16 +40,16 @@ if(optim_type == 'BO'):
     optim = Learner.learner_Opt(model = model, **optim_args)
     resBO = optim()
     resBO['last_func'] = model.control_fun
-    print(resBO)
     res = resBO
+    print(res.keys())
 
 if(optim_type == 'NM'):
     #NM
     optim_args = {'algo': 'NM', 'init_obj': 'uniform_-1_1', 'nfev':10000}
     optim = Learner.learner_Opt(model = model, **optim_args)
     resNM = optim()
-    print(resNM)
     res = resNM
+    print(res.keys())
 
 ## Create testing
 fom_test = fom + ['f2t2', 'fluence', 'smooth', 'varN']
@@ -57,7 +57,7 @@ dico_test = copy.copy(dico_simul)
 dico_test['fom']=fom_test
 dico_test['track_learning'] = False
 model_test = bh1d.BH1D(**dico_test)
-optim_params = resBO2['params']
+optim_params = res['params']
 res_test = model_test(optim_params)
 
 #plot func optimal

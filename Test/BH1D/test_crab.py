@@ -4,15 +4,17 @@ from QuantumSimulation.Simulation.BH1D.learn_1DBH import learner1DBH
 from QuantumSimulation.ToyModels import BH1D as bh1d
 from QuantumSimulation.Utility.Optim import Learner, pFunc_base
 import copy
+import numpy as np
 
 optim_type = 'BO2'
 
 # Create a model
 fom = ['f2t2:neg_fluence:0.0001']
+TQSL = np.pi/np.sqrt(2)
 T=10
 dico_simul = {'L':5, 'Nb':5, 'mu':0, 'T':T, 'dt':0.01, 'flag_intermediate':False, 
               'setup':'1', 'state_init':'GS_i', 'state_tgt':'GS_inf', 'fom':fom, 
-              'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_crab4'}
+              'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_crab2'}
 dico_simul = learner1DBH._process_controler(dico_simul)
 dico_simul['control_obj'] = learner1DBH._build_control_from_string(dico_simul['control_obj'], None, context_dico = dico_simul)
 model = bh1d.BH1D(**dico_simul)
@@ -20,7 +22,7 @@ model = bh1d.BH1D(**dico_simul)
 
 if(optim_type == 'BO2'):
     #BO
-    optim_args = {'algo': 'BO2', 'maxiter':200, 'num_cores':6, 'init_obj':15, 'acq':'EI'}
+    optim_args = {'algo': 'BO2', 'maxiter':30, 'num_cores':1, 'init_obj':15, 'acq':'EI'}
     optim = Learner.learner_Opt(model = model, **optim_args)
     resBO2 = optim(track_learning=True)
     resBO2['last_func'] = model.control_fun
@@ -51,13 +53,17 @@ if(optim_type == 'NM'):
     print(resNM)
     res = resNM
 
+
+
+
 ## Create testing
 fom_test = fom + ['f2t2', 'fluence', 'smooth', 'varN']
 dico_test = copy.copy(dico_simul)
 dico_test['fom']=fom_test
 dico_test['track_learning'] = False
 model_test = bh1d.BH1D(**dico_test)
-optim_params = resBO2['params']
+model_test.control_fun = model.control_fun
+optim_params = res['params']
 res_test = model_test(optim_params)
 
 #plot func optimal
