@@ -799,6 +799,7 @@ class BatchParametrizedControler(Batch):
             ow = "{'name_func':'OwriterYWrap', 'ow':[(-100,0,0),(T,100+T,1)]}"
             bds = "{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}"
             linear = "{'name_func':'LinearFunc', 'bias':0, 'w':1/T}"
+            lineardec = "{'name_func':'LinearFunc', 'bias':1, 'w':-1/T}"
             one = "{'name_func':'ConstantFunc', 'c0':[1]}"
             half = "{'name_func':'ConstantFunc', 'c0':[0.5]}"
             mone = "{'name_func':'ConstantFunc', 'c0':[-1]}"
@@ -809,6 +810,7 @@ class BatchParametrizedControler(Batch):
     
             
             #tunable
+            grbf = "{'name_func':'RBFFunc','A':%s, 'x0':%s,'l':%s,'A_bounds':%s}"
             four = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
             sinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','B_bounds':%s,'nb_H':%s}"
             pwc = "{'name_func':'StepFunc','T':T,'F_bounds':%s,'nb_steps':%s}"
@@ -821,6 +823,50 @@ class BatchParametrizedControler(Batch):
                 dico_atom = {'ow':ow,'bd':bds,'pwc':pwc %('(0,1)',nb_params)}
                 dico_expr = {'final':'**(#ow,**(#bd,#pwc))'}
 
+
+            ### RDMIZED FREQ
+            elif(shortcut[:13] == 'owbds01_1crab'):
+                # Custom Crab parametrization f(t) = g(t) * (1 + alpha(t)* erf((four series)))
+                # slightly different from the normal one (cf. before)
+                # additional erf function (logistic function such that the four 
+                # series is bounded) alpha(t) is sine ** 1.5
+                nb_params = int(shortcut[13:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                k = 4 /nb_params
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                             'ctm':mone,'logis': logis%(str(k)),
+                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,**(+(#logis,#ctm),#rfour))))))'}
+             
+            elif(shortcut[:13] == 'owbds01_2crab'):
+                # alpha(t) is sine ** 0.5
+                nb_params = int(shortcut[13:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                k = 4 /nb_params
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                             'powscale':sqrt, 'ctm':mone,'logis': logis%(str(k)),
+                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(**(#powscale,#scale),**(+(#logis,#ctm),#rfour))))))'}
+                        
+            elif(shortcut[:13] == 'owbds01_3crab'):
+                # Custom Crab parametrization f(t) = g(t) * (1 + alpha(t)* erf((four series)))
+                # slightly different from the normal one (cf. before)
+                # additional erf function (logistic function such that the four 
+                # series is bounded) alpha(t) is sine ** 1.5
+                nb_params = int(shortcut[13:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                k = 4 /nb_params
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': lineardec, 'ct': one,
+                             'ctm':mone,'logis': logis%(str(k)),
+                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,+(#guess,*(#scale,**(+(#logis,#ctm),#rfour)))))'}
+
             elif(shortcut[:12] == 'owbds01_crab'):
                 # Crab parametrization f(t) = g(t) * (1+alpha(t)*(four series))
                 # with g(t) a linear guess, alpha(t) a sine s.t alpha(0) = alpha(T) = 0
@@ -831,22 +877,34 @@ class BatchParametrizedControler(Batch):
                 dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
                 dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#rfour)))))'}
-             
-            elif(shortcut[:13] == 'owbds01_Ccrab'):
-                # Custom Crab parametrization f(t) = g(t) * (1 + alpha(t)* erf((four series)))
-                # slightly different from the normal one (cf. before)
-                # additional erf function (logistic function such that the four 
-                # series is bounded) alpha(t) is sine ** 1.5
+
+            ### NOMORERANDOMIZATION BUT GRBF INSTEAD
+            elif(shortcut[:13] == 'owbds01_1grbf'):
+                pdb.set_trace()
+                # (t) = g(t) * (1 + alpha(t)* RBF)
                 nb_params = int(shortcut[13:])
-                if(ut.is_odd(nb_params)):
-                    SystemError('nb_params = {} while it should be even'.format(nb_params))
-                k = 4 /nb_params
-                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
-                             'powscale':pow15, 'ctm':mone,'logis': logis%(str(k)),
-                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                #RBF
+                a_scale = np.sqrt(8* np.log(2))
+                b_scale = np.sqrt(8* np.log(4))
+                cc = (2 * b_scale + (nb_params - 1) * a_scale)
+                sigma_str = 'T/' + str(cc)
+                sigma = [sigma_str for _ in range(nb_params)]
+                l = '[' + ",".join(sigma) + "]"
+                A = str([0 for _ in range(nb_params)]) #np.repeat(1, nb_P)
+                x0 = [str(b_scale) +'*'+ sigma_str + "+" + str(a_scale) + "*" + sigma_str + "*" + str(p) for p in np.arange(nb_params)]  
                 
-                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(**(#powscale,#scale),**(+(#logis,#ctm),#rfour))))))'}
-    
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                             'ctm':mone,'logis': logis%(str(k)),
+                             'grbf':grbf%(A, x0, l, (-1,1))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#rbf)))))'}
+
+
+
+
+
+
+            ### W/O RANDOMIZED FREQ    
             elif(shortcut[:14] == 'owbds01_crfour'):
                 # Crab parametrization w/o randomized freq
                 nb_params = int(shortcut[14:])
@@ -867,7 +925,7 @@ class BatchParametrizedControler(Batch):
                              'four':four%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
                 
                 dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(**(#powscale,#scale),**(+(#logis,#ctm),#four))))))'}
-    
+                        
             
             elif(shortcut[:14] == 'owbds01_trevfour'):
                 #trend and fourier (sine part only)
