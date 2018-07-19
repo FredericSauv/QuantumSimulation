@@ -291,7 +291,7 @@ class learner_Opt(learner_base):
             nb_points_init = init
             bo.maximize(init_points = nb_points_init, n_iter=0, acq=acq, kappa=0) 
         else:
-            pdb.set_trace()
+            # pdb.set_trace()
             nb_points_init = len(init)
             to_explore = {name_params[i]: [init[j][i] for j in range(nb_points_init)] for i in range(nb_params)}
             bo.explore(to_explore)
@@ -402,34 +402,43 @@ class learner_Opt(learner_base):
         # Exploitation phase
         #### TODO:
         exploit_steps = options['exploit_steps']
-        bo_new = GPyOpt.methods.BayesianOptimization(cost, bounds_bo, model = model_GP, 
-                acquisition_type = 'LCB', acquisition_optimizer_type = acq_opt_type, 
-                num_cores = num_cores, X = bo.X, Y =bo.Y, acquisition_weight = 0.0001,
-                optim_num_anchor = optim_num_anchor, optim_num_samples = optim_num_samples)
-        bo_new.run_optimization(exploit_steps)
+        if(exploit_steps > 0): 
+            test = True
+            if(test):
+                bo.acquisition_type = 'LCB'
+                bo.acquisition_weight = 0.00001
+                bo.kwargs['acquisition_weight'] = 0.00001
+                bo.acquisition = bo._acquisition_chooser()
+                bo.evaluator = bo._evaluator_chooser()
+            else:
+                bo = GPyOpt.methods.BayesianOptimization(cost, bounds_bo, model = model_GP, 
+                        acquisition_type='LCB', acquisition_optimizer_type = acq_opt_type, 
+                        num_cores = num_cores, X = bo.X, Y = bo.Y, optim_num_anchor = optim_num_anchor, 
+                        optim_num_samples = optim_num_samples, acquisition_weight = 0.00001)
+            bo.run_optimization(exploit_steps)
 
-        if((_still_potentially_better(bo_new)) and (exploit_steps <= 50)):
+        if((_still_potentially_better(bo)) and (exploit_steps <= 50)):
             print('2nd round of exploitation')
-            bo_new.run_optimization(exploit_steps)
+            bo.run_optimization(exploit_steps)
 
         # generate results
-        optim_params = bo_new.x_opt
-        optim_value = bo_new.fx_opt
-        optim_params_exp = _get_best_exp_from_BO(bo_new)
+        optim_params = bo.x_opt
+        optim_value = bo.fx_opt
+        optim_params_exp = _get_best_exp_from_BO(bo)
         
         optim_value_cputed = model(optim_params)
 
-        nfev = len(bo_new.X)
+        nfev = len(bo.X)
         resultTest = {'x': optim_params, 'x_exp':optim_params_exp, 'fun': optim_value, 
                       'fun_ver': optim_value_cputed, 'nfev':nfev, 'nit':nfev, 'sucess':True}
-        resultTest['gp_kernel_optim_names'] = bo_new.model.model.parameter_names()
-        resultTest['gp_kernel_optim_vals'] = bo_new.model.model.param_array
-        resultTest['nb_processes'] = bo_new.num_cores
+        resultTest['gp_kernel_optim_names'] = bo.model.model.parameter_names()
+        resultTest['gp_kernel_optim_vals'] = bo.model.model.param_array
+        resultTest['nb_processes'] = bo.num_cores
         resultTest['nb_cpus'] = self.mp.n_cpus
-        resultTest['X_evol'] = bo_new.X
-        resultTest['Y_evol'] = bo_new.Y
-        resultTest['Y_best'] = bo_new.Y_best
-        resultTest['still_potentially_better'] = _still_potentially_better(bo_new)
+        resultTest['X_evol'] = bo.X
+        resultTest['Y_evol'] = bo.Y
+        resultTest['Y_best'] = bo.Y_best
+        resultTest['still_potentially_better'] = _still_potentially_better(bo)
         
         # Close pool of processors used (if it exists)
         return resultTest
