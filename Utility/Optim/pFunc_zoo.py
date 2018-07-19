@@ -40,6 +40,7 @@ class pFunc_factory():
     _LIST_CUSTOM_FUNC['ChebyshevFunc']= ('Chebyshev basis', pf.ChebyshevFunc, pf.ChebyshevFunc._LIST_PARAMETERS, [])
     _LIST_CUSTOM_FUNC['PowerFunc']= ('PowerFunc', pf.PowerFunc, pf.PowerFunc._LIST_PARAMETERS, [])
     _LIST_CUSTOM_FUNC['LogisticFunc']= ('LogisticFunc', pf.LogisticFunc, pf.LogisticFunc._LIST_PARAMETERS, [])
+    _LIST_CUSTOM_FUNC['GRBFFunc']= ('GRBFFunc', pf.GRBFFunc, pf.GRBFFunc._LIST_PARAMETERS, [])
 
     _PARSING_DICO_OP = {'**':'Composition', '*':'Product', '+':'Sum', '#':''}  
 

@@ -810,7 +810,7 @@ class BatchParametrizedControler(Batch):
     
             
             #tunable
-            grbf = "{'name_func':'RBFFunc','A':%s, 'x0':%s,'l':%s,'A_bounds':%s}"
+            grbf = "{'name_func':'GRBFFunc','A':%s, 'x0':%s,'l':%s,'A_bounds':%s}"
             four = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
             sinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','B_bounds':%s,'nb_H':%s}"
             pwc = "{'name_func':'StepFunc','T':T,'F_bounds':%s,'nb_steps':%s}"
@@ -880,7 +880,7 @@ class BatchParametrizedControler(Batch):
 
             ### NOMORERANDOMIZATION BUT GRBF INSTEAD
             elif(shortcut[:13] == 'owbds01_1grbf'):
-                pdb.set_trace()
+                #pdb.set_trace()
                 # (t) = g(t) * (1 + alpha(t)* RBF)
                 nb_params = int(shortcut[13:])
                 #RBF
@@ -891,13 +891,12 @@ class BatchParametrizedControler(Batch):
                 sigma = [sigma_str for _ in range(nb_params)]
                 l = '[' + ",".join(sigma) + "]"
                 A = str([0 for _ in range(nb_params)]) #np.repeat(1, nb_P)
-                x0 = [str(b_scale) +'*'+ sigma_str + "+" + str(a_scale) + "*" + sigma_str + "*" + str(p) for p in np.arange(nb_params)]  
-                
+                x0_list = [str(b_scale) +'*'+ sigma_str + "+" + str(a_scale) + "*" + sigma_str + "*" + str(p) for p in np.arange(nb_params)]  
+                x0 = "[" + ",".join(x0_list)+"]"
                 dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
-                             'ctm':mone,'logis': logis%(str(k)),
-                             'grbf':grbf%(A, x0, l, (-1,1))}
+                             'ctm':mone, 'grbf':grbf%(A, x0, l, (-1,1))}
                 
-                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#rbf)))))'}
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#grbf)))))'}
 
 
 

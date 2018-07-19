@@ -175,7 +175,7 @@ if study_2:
         
     
     #plot results
-    nb_r = 8
+    nb_r = 10
     for i, it in enumerate(list_budget):
         for d, degen in enumerate(list_degen):
             mean_diff = np.mean(np.squeeze(res_2[0,d, i,:,:nb_r]), axis = 1)

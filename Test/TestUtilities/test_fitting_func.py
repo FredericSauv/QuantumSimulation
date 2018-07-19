@@ -86,6 +86,15 @@ f_crab3.plot_function(x)
 target.plot_function(x)
 
 
+# WithRBF
+nb_par = 10
+nb_repeat = 1
+name_ansatz = 'owbds01_1grbf'
+f_crab3, fit_crab3 = get_best_n_times(name_ansatz, nb_par, nb_repeat)
+f_crab3.plot_function(x)
+target.plot_function(x)
+
+
 #crablike_four
 dico_ctl = {'ctl_shortcut':'owbds01_crfour10'}
 fun_expr = btch._process_controler(dico_ctl)
