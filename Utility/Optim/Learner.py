@@ -132,7 +132,8 @@ class learner_Opt(learner_base):
                'optim_num_samples':100000, 'acquisition_jitter':0.001,
                'acquisition_weight':2, 'exploit_steps':15, 'noisy_mode':False}, self._run_BO2),
         'BO':({'disp':True, 'acq':'ei', 'kappa':5.0, 'maxiter':50,'verbose':False, 'kernel':'matern2.5', 
-               'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'gp_acq_iter':50, 'gp_n_warmup':10000}, self._run_BO),
+               'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'gp_acq_iter':50, 'gp_n_warmup':10000,
+               'max_time':np.inf}, self._run_BO),
         'DE':({'disp':True, 'maxiter':500, 'popsize':10, 'tol':0.01}, self._run_DE)}
         
         learner_base.__init__(self, model=model, **params_learner)
