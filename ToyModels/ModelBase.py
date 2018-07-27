@@ -559,10 +559,10 @@ class pcModel_qspin(pcModel_base):
         self._fom_func['f2t2'] =  (lambda x: self._h_fid2_tgt(x))
 
         # measurement projection on the target_state 
-        self._fom_func['proj5'] = (lambda x: self._h_n_meas_tgt(x, nb =5))
-        self._fom_func['proj10'] = (lambda x: self._h_n_meas_tgt(x, nb =10))
-        self._fom_func['proj100'] = (lambda x: self._h_n_meas_tgt(x, nb =100))
-        self._fom_func['proj1000'] = (lambda x: self._h_n_meas_tgt(x, nb =1000))
+        self._fom_func['proj5'] = (lambda x: self._h_n_measures_tgt(x, nb =5))
+        self._fom_func['proj10'] = (lambda x: self._h_n_measures_tgt(x, nb =10))
+        self._fom_func['proj100'] = (lambda x: self._h_n_measures_tgt(x, nb =100))
+        self._fom_func['proj1000'] = (lambda x: self._h_n_measures_tgt(x, nb =1000))
 
     def get_state(self, state_obj = None):
         """ Generate quantum states from state_obj <str> or <array/list<num>>"""
@@ -584,7 +584,7 @@ class pcModel_qspin(pcModel_base):
             elif(state_obj == 'uniform'):
                 #GS at t = T
                 state_res = np.random.uniform(-1, 1, size=basis.Ns)
-                state_res = state_res / self.helper.norm(state_res)
+                state_res = state_res / self.pcModel_qspin._h_norm(state_res)
             else:
                 i_res = basis.index(state_obj)
                 state_res = np.zeros(basis.Ns, dtype=np.float64)
@@ -597,7 +597,7 @@ class pcModel_qspin(pcModel_base):
 
     def _state_to_pop(self, st):
         """ compute pop from state"""
-        self.helper.s_to_p(st)
+        return pcModel_qspin._h_state2proba(st)
     #-----------------------------------------------------------------------------#
     # Helper functions: functions to manipulate QuSpin objects (states, operators, etc..) 
     #-----------------------------------------------------------------------------#
@@ -656,7 +656,7 @@ class pcModel_qspin(pcModel_base):
         res = -O.quant_fluct(V, **args)
         return res
     
-    @ut.extend_dim_method(n_dim=1, array_output = True)
+    #@ut.extend_dim_function(1, True)
     @staticmethod
     def _h_n_measures(ket1, nb = 1, measur_basis = None, num_precis = 1e-6):        
         """Frequencies of <nb> projective measurements of the state <ket1>  
@@ -680,7 +680,7 @@ class pcModel_qspin(pcModel_base):
             
         index_measure = np.arange(len(measur_basis))
         proj = [pcModel_qspin._h_ip(basis, ket1) for basis in measur_basis]
-        proba = pcModel_qspin._h_probaFromState(proj)
+        proba = pcModel_qspin._h_state2proba(proj)
         assert(np.sum(proba)<=(1.0 + num_precis)), "not a valid proba distrib" #should it be relaxed 
         proba_cum = np.concatenate(([0],np.cumsum(proba)))
         samples = np.random.sample(nb)
@@ -691,8 +691,8 @@ class pcModel_qspin(pcModel_base):
             frequencies = frequencies[0]
         return frequencies    
     
-    def _h_n_measures_tgt(self, nb = 1, measur_basis = None, num_precis = 1e-6):  
-        pcModel_qspin._h_n_measures(self.state_tgt, nb , measur_basis , num_precis)
+    def _h_n_measures_tgt(self, st, nb = 1, num_precis = 1e-6):  
+        return pcModel_qspin._h_n_measures(st, nb , self.state_tgt, num_precis)
     
     @ut.extend_dim_method(0, True)
     def _h_get_lowest_energies(self, time, nb = 2):
