@@ -1361,6 +1361,26 @@ def extend_dim_method(n_dim=0, array_output = False):
         return extended_method
     return extend_impl
 
+def extend_dim_function(n_dim=0, array_output = False):
+    """ for a method taking as its first positional argunent 
+    an object of nb_dim = n_dim extend it s.t. it accepts
+    """
+    def extend_impl(f):
+        @wraps(f)
+        def extended_function(arg, *args, **kwargs):
+            n_dim_args = len(np.shape(arg))
+            if (n_dim_args == n_dim):
+                res = f(arg, *args, **kwargs)
+            elif (n_dim_args == (n_dim + 1)):
+                res = [f(x, *args, **kwargs) for x in arg]
+                if array_output:
+                    res = np.array(res)
+            else:
+                raise SystemError(" wrong arg dimensionnality: {}".format(np.shape(arg)))
+            return res
+        return extended_function
+    return extend_impl
+
 #==============================================================================
 #                   Decorators
 #==============================================================================
