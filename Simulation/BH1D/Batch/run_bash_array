@@ -49,7 +49,7 @@ cp -r \$HOME/Testing/GPyOpt/GPyOpt GPyOpt
 
 module load anaconda3/personal
 source activate py36q
-export PYTHONPATH="\$(pwd)\GPyOpt"
+export PYTHONPATH="\$(pwd)/GPyOpt"
 cd QuantumSimulation/Simulation/BH1D/Batch
 pbsexec python run_batch.py "run_one_config" "${config_store_name}\${PBS_ARRAY_INDEX}.txt"
 
