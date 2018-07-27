@@ -45,7 +45,7 @@ class learnerQB(Batch.BatchParametrizedControler):
             track_learning = model_dico.pop('track_learning', False)
             model_dico.update(dico_update)
             self._build_control(model_dico)
-            model = tl.Qbits(**model_dico)
+            model = tl.Qubits(**model_dico)
             
             optim_dico = config['optim_dico']
             optim_dico.update(dico_update)
@@ -66,24 +66,50 @@ class learnerQB(Batch.BatchParametrizedControler):
         testing_dico = config.get('testing_dico')
         #Testing_dico contains ONLY updates to apply to model_dico
         if(testing_dico is not None):
+            #Options to specify how you want the testing done: **params_force** 
+            # allow to use specific parameters values **testing_same_func**
+            # force to use the same function as the one in the model (should it be a default, behavior)
+            # **use_exp_params** (specific to BO2): use expected best params
+            # rather than the seen one 
             testing_updated = ut.merge_dico(model_dico, testing_dico, update_type = 0, copy = True)
             testing_updated.update(dico_update)
+            force_params = testing_updated.pop('testing_force_params', None)
+            same_func = testing_updated.pop('testing_same_func', True)
+            #0 No // 1 Yes instead of params // 2 Test both
+            use_exp_params = testing_updated.pop('use_exp_params', 2) 
+
             self._build_control(testing_updated)
-            model_test = tl.Qbits(**testing_updated)
-            model_test.control_fun = model.control_fun
-            optim_params = testing_updated.pop('params_force', None)
-            if(optim_params is None):
-                optim_params = res['params']
+            model_test = tl.Qubits(**testing_updated)
+            
+            if(same_func):
+                model_test.control_fun = model.control_fun
+            
+            if(force_params is not None):
+                res['test_params'] = force_params
+            else:
+                if ((use_exp_params == 1) and (res.get('params_exp') is not None)):
+                    res['test_params'] = res['params_exp']
+                elif ((use_exp_params == 2) and (res.get('params_exp') is not None)):    
+                    res['test_params'] = res['params']
+                    res['test_params_exp'] = res['params_exp']
+                else:
+                    res['test_params'] = res['params']
+                    
+            optim_params = res['test_params']   
             res_test = model_test(optim_params, trunc_res = False)
             res['test_fom'] = res_test
             res['test_fom_names'] = testing_dico['fom']
-            res['test_params'] = optim_params
+
+            if('test_params_exp' in res):
+                optim_params_exp = res['test_params_exp']
+                res_test_exp = model_test(optim_params_exp, trunc_res = False)
+                res['test_fom_exp'] = res_test_exp
+                res['test_fom_names_exp'] = testing_dico['fom']
+            
             del testing_updated['rdm_obj']
             del testing_updated['mp_obj']
             config['testing_dico'] = testing_updated
         return res
-    
-    
 
 
     # ----------------------------------------------------------------------- #
@@ -109,7 +135,7 @@ class learnerQB(Batch.BatchParametrizedControler):
         """
         testing_dico = run['testing_dico']
         names_fom = testing_dico['fom']
-        model_tmp = tl.Qbits(**testing_dico)
+        model_tmp = tl.Qubits(**testing_dico)
         try:
             evol_params = run['extra_history_nev_params']
             res = [[p[0], model_tmp(p[1])] for p in evol_params]
@@ -139,7 +165,7 @@ class learnerQB(Batch.BatchParametrizedControler):
     def runSimul(cls, dico_simul, params):
         """ from a dico containing the parameters of the simulations and a control 
             function get the results of the simulation"""
-        model_tmp = tl.Qbits(**dico_simul)
+        model_tmp = tl.Qubits(**dico_simul)
         res = model_tmp(params)
         return res
         

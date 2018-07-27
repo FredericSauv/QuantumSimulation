@@ -1,0 +1,14 @@
+model_dico {'ctl_shortcut':'owbds01_pwc5','T':2.2214414690791831,'dt':0.01,'flag_intermediate':False,'setup':'1Q1','state_init':'0','state_tgt':'m','fom':['proj100:neg_fluence:0.0001_smooth:0.0005'],'fom_print':True,'track_learning':True,'noise':{'Ex':'normal_0_0.05','Ez':'normal_0_0.05'}}
+
+testing_dico {'fom':['proj100:neg_fluence:0.0001_smooth:0.0005'],'noise':{}}
+
+optim_dico {'algo':'NM','init_obj':'uniform_0_1','maxfev':50,'maxiter':None} {'algo':'DE','maxiter':1,'popsize':10,'init_obj':None} {'algo':'BO2','maxiter':10,'num_cores':1,'init_obj':10,'acq':'EI','exploit_steps':5,'_FLAG_NAME':'BO1000EI','maxtime':82800}
+
+_RDM_RUNS 10
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'TestBatch'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False

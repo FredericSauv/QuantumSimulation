@@ -3,29 +3,38 @@ sys.path.append("../../../")
 from QuantumSimulation.Simulation.Qbits.learn_Qbits import learnerQB as learner
 from QuantumSimulation.ToyModels import TwoLevels as tl
 from QuantumSimulation.Utility.Optim import Learner, pFunc_base
+import pdb
 import copy
 import numpy as np
 
 optim_type = 'BO'
 
 # Create a model
-fom = ['f2t2:neg_fluence:0.0001_smooth:0.01']
+fom = ['proj100:neg_fluence:0.0001_smooth:0.0005'] # 'proj100:neg_fluence:0.0001_smooth:0.01'
+
 TQSL = np.pi/np.sqrt(2)
 T= 1 * TQSL
 dico_simul = {'T':T, 'dt':0.01, 'flag_intermediate':False, 'setup':'1Q1', 
               'state_init':'0', 'state_tgt':'m', 'fom':fom, 'fom_print':True, 
-              'track_learning': True, 'ctl_shortcut':'owbds01_pwc15'}
+              'track_learning': True, 'ctl_shortcut':'owbds01_pwc5',
+              'noise':{'Ex':'normal_0_0.05','Ez':'normal_0_0.05'}}
 # 'owbds01_pwc15'
 dico_simul = learner._process_controler(dico_simul)
 dico_simul['control_obj'] = learner._build_control_from_string(
 dico_simul['control_obj'], None, context_dico = dico_simul)
+
 model = tl.Qubits(**dico_simul)
+
+print(model.Ex)
+print(model.Ez)
+
+pdb.run("model([0.0, 0.0, 0.0, 0.0, 0.0])")
 
 ## 15 nice
 ## 30
 if(optim_type == 'BO2'):
     #BO
-    optim_args = {'algo': 'BO2', 'maxiter':100, 'num_cores':4, 'init_obj':100, 'acq':'EI'}
+    optim_args = {'algo': 'BO2', 'maxiter':50, 'num_cores':4, 'init_obj':25, 'acq':'EI'}
     optim = Learner.learner_Opt(model = model, **optim_args)
     resBO2 = optim(track_learning=True)
     resBO2['last_func'] = model.control_fun
@@ -56,13 +65,19 @@ if(optim_type == 'NM'):
     res = resNM
 
 ## Create testing
-fom_test = fom + ['f2t2', 'fluence', 'smooth']
 dico_test = copy.copy(dico_simul)
+dico_test['noise'] = {}
+fom_test = ['f2t2:neg_fluence:0.0001_smooth:0.0005']  + ['f2t2', 'fluence', 'smooth']
 dico_test['fom']=fom_test
 dico_test['track_learning'] = False
+
 model_test = tl.Qubits(**dico_test)
 optim_params = resBO2['params']
 res_test = model_test(optim_params)
+
+optim_params_exp = resBO2['params_exp']
+res_test_exp = model_test(optim_params_exp)
+
 model_test.Simulate(store = True)
 _ = model_test.EvolutionPopAdiab(nb_ev=2)
 model_test.plot_pop_adiab()
