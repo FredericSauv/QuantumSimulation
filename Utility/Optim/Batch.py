@@ -619,7 +619,18 @@ class Batch:
             return (res_best, best)
         else:
             return res_best
+        
+    @classmethod
+    def one_res_get_func(cls, res):
+        return pFunc_base.pFunc_base.build_pfunc(ut.extract_from_nested(res, cls._P_BEST_FUNC))
 
+    @classmethod
+    def one_res_plot_func(cls, res):
+        T = ut.extract_from_nested(res, cls._P_MODEL_T)
+        tt = np.linalg(-0.1, T +0.1, 10000)
+        fun = pFunc_base.pFunc_base.build_pfunc(ut.extract_from_nested(res, cls._P_BEST_FUNC))
+        fun.plot_function(tt)
+        
     @classmethod     
     def one_res_study_convergence(cls, res):
         """  works only when res contains"""
@@ -813,10 +824,13 @@ class BatchParametrizedControler(Batch):
             grbf = "{'name_func':'GRBFFunc','A':%s, 'x0':%s,'l':%s,'A_bounds':%s}"
             four = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
             sinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','B_bounds':%s,'nb_H':%s}"
+            rsinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'CRAB','B_bounds':%s,'nb_H':%s}"
             pwc = "{'name_func':'StepFunc','T':T,'F_bounds':%s,'nb_steps':%s}"
             rfour ="{'name_func':'FourierFunc','T':T,'freq_type':'CRAB','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
             logis = "{'name_func':'LogisticFunc','L':2,'k':%s,'x0':0}"
-            
+            logisflex = "{'name_func':'LogisticFunc','L':%s,'k':%s,'x0':%s}"
+
+
             
             if(shortcut[:11] == 'owbds01_pwc'):
                 nb_params = int(shortcut[11:])
@@ -867,6 +881,19 @@ class BatchParametrizedControler(Batch):
                 
                 dico_expr = {'final':'**(#ow,**(#bd,+(#guess,*(#scale,**(+(#logis,#ctm),#rfour)))))'}
 
+            elif(shortcut[:13] == 'owbds01_4crab'):
+                # AANOTHER Custom Crab parametrization f(t) = g(t) + erf((sin four series)))
+                nb_params = int(shortcut[13:])
+                k = 4 /nb_params
+                x0 = '0.1*T'
+                k2 = '60/T'          
+                L = '1'
+                
+                dico_atom = {'ow':ow,'bd':bds,'trend':linear, 'ctm':mone, 'mask':logisflex%(L,k2,x0),
+                             'logis': logis%(str(k)), 'sinfour':rsinfour%('(-1,1)', nb_params)}
+                dico_expr = {'final':'**(#ow,**(#bd,+(#trend,*(#mask,**(+(#logis,#ctm),#sinfour)))))'}
+
+
             elif(shortcut[:12] == 'owbds01_crab'):
                 # Crab parametrization f(t) = g(t) * (1+alpha(t)*(four series))
                 # with g(t) a linear guess, alpha(t) a sine s.t alpha(0) = alpha(T) = 0
@@ -890,17 +917,13 @@ class BatchParametrizedControler(Batch):
                 sigma_str = 'T/' + str(cc)
                 sigma = [sigma_str for _ in range(nb_params)]
                 l = '[' + ",".join(sigma) + "]"
-                A = str([0 for _ in range(nb_params)]) #np.repeat(1, nb_P)
+                A = str([0.0 for _ in range(nb_params)]) #np.repeat(1, nb_P)
                 x0_list = [str(b_scale) +'*'+ sigma_str + "+" + str(a_scale) + "*" + sigma_str + "*" + str(p) for p in np.arange(nb_params)]  
                 x0 = "[" + ",".join(x0_list)+"]"
                 dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
                              'ctm':mone, 'grbf':grbf%(A, x0, l, (-1,1))}
                 
                 dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#grbf)))))'}
-
-
-
-
 
 
             ### W/O RANDOMIZED FREQ    
@@ -931,6 +954,20 @@ class BatchParametrizedControler(Batch):
                 nb_params = int(shortcut[14:])
                 dico_atom = {'ow':ow,'bd':bds,'trend':linear, 'sinfour':sinfour%('(-1,1)', nb_params)}
                 dico_expr = {'final':'**(#ow,**(#bd,+(#trend,#sinfour)))'}
+                        
+                        
+            elif(shortcut[:13] == 'owbds01_trsin'):
+                #f(t) = g(t) + erf((sin four series)))
+                nb_params = int(shortcut[13:])
+                k = 4 /nb_params
+                x0 = '0.1*T'
+                k2 = '60/T'          
+                L = '1'
+                dico_atom = {'ow':ow,'bd':bds,'trend':linear, 'ctm':mone,
+                             'logis': logis%(str(k)), 'sinfour':sinfour%('(-1,1)', nb_params)}
+                dico_expr = {'final':'**(#ow,**(#bd,+(#trend,**(+(#logis,#ctm),#sinfour))))'}
+            
+            
                         
             elif(shortcut[:14] == 'owbds01_linear'):
                 dico_atom = {'ow':ow,'bd':bds,'lin':linear}
