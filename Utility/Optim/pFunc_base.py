@@ -1310,7 +1310,8 @@ if __name__ == '__main__':
     x0 = 0.1
     k = 6 / x0
      
-    log1 = LogisticFunc(x0= x0*T , L = 1, k=k/T) * (LogisticFunc(x0= (1-x0)*T , L = 1, k=-k/T))
+    #Log2
+    log1 = (LogisticFunc(x0= (1-x0)*T , L = 1, k=-k/T))
     log1.plot_function(tt)
 
     
