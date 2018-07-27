@@ -112,6 +112,22 @@ f_crab3.plot_function(x)
 target.plot_function(x)
 
 
+#OmTrSin 1/ 2/0.0078 3/
+nb_par = 10
+nb_repeat = 10
+name_ansatz = 'owbds01_Om4crab'
+f_crab3, fit_crab3 = get_best_n_times(name_ansatz, nb_par, nb_repeat)
+f_crab3.plot_function(x)
+target.plot_function(x)
+
+#OmCrab 1/0.02 2/0.019
+nb_par = 6
+nb_repeat = 30
+name_ansatz = 'owbds01_Omcrab'
+f_crab3, fit_crab3 = get_best_n_times(name_ansatz, nb_par, nb_repeat)
+f_crab3.plot_function(x)
+target.plot_function(x)
+
 
 
 # WithRBF

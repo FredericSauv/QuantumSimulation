@@ -273,12 +273,18 @@ class pFunc_factory():
         info_func = self._LIST_CUSTOM_FUNC['FourierFunc']
         constructor = info_func[1]
         Om = dico_source.get('Om')
+        use_bounds = False
         
         if(Om is None):
             T = dico_source['T']
             nb_H = dico_source['nb_H']
             freq_type = dico_source.get('freq_type')
             Om = self._gen_frequencies(T, nb_H, freq_type)
+            if(isinstance(Om, tuple)):
+                use_bounds = True        
+                Om_bounds = Om[1] 
+                Om = Om[0]
+                
         elif(ut.is_iter(Om)):
             nb_H = len(Om)
         else:
@@ -290,6 +296,8 @@ class pFunc_factory():
         B = dico_source.get('B', np.zeros(nb_H))
         c0 = dico_source.get('c0', 0)
         dico_constructor = {'A':A, 'B':B, 'c0':c0, 'phi':phi, 'Om':Om}
+        if(use_bounds):
+            dico_constructor['Om_bounds'] = Om_bounds
         self._add_bounds(dico_constructor, dico_source)
         return constructor(**dico_constructor)
     
@@ -364,6 +372,13 @@ class pFunc_factory():
             Om = rgen.gen_rdmnb_from_string(rdv_method, nb_freq)
             Om = np.sort(Om)
             #dico_args['flag'] = 'DCRAB'
+        
+        # Omega is also a param with some specific boundaries
+        elif(args_rdm[0] == 'CRAB_FREEOM'):
+            om = (1 + np.arange(nb_freq)) * Om_ref
+            om_bounds = [(0.5 + nb, 1.5 + nb) * Om_ref for nb in np.arange(nb_freq)]
+            Om = (om, om_bounds)
+
 
         else:
             Om = rgen.gen_rdmnb_from_string(freq_type, nb_freq)
