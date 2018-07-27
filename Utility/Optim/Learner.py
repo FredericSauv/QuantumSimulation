@@ -357,6 +357,7 @@ class learner_Opt(learner_base):
         optim_num_samples = options['optim_num_samples'] #nb of initial points use for the optimization of the acq function
         acquisition_jitter = options['acquisition_jitter']
         acquisition_weight = options['acquisition_weight']
+        max_time = options['max_time']
         
         if(custom_model):
             if(ker == 'matern52'):
@@ -396,7 +397,7 @@ class learner_Opt(learner_base):
 
         # Exploration-Exploitation phase
         maxiter = options['maxiter']
-        bo.run_optimization(maxiter)
+        bo.run_optimization(maxiter, max_time = max_time)
         
 
         # Exploitation phase
@@ -406,15 +407,15 @@ class learner_Opt(learner_base):
             test = True
             if(test):
                 bo.acquisition_type = 'LCB'
-                bo.acquisition_weight = 0.00001
-                bo.kwargs['acquisition_weight'] = 0.00001
+                bo.acquisition_weight = 0.000001
+                bo.kwargs['acquisition_weight'] = 0.000001
                 bo.acquisition = bo._acquisition_chooser()
                 bo.evaluator = bo._evaluator_chooser()
             else:
                 bo = GPyOpt.methods.BayesianOptimization(cost, bounds_bo, model = model_GP, 
                         acquisition_type='LCB', acquisition_optimizer_type = acq_opt_type, 
                         num_cores = num_cores, X = bo.X, Y = bo.Y, optim_num_anchor = optim_num_anchor, 
-                        optim_num_samples = optim_num_samples, acquisition_weight = 0.00001)
+                        optim_num_samples = optim_num_samples, acquisition_weight = 0.000001)
             bo.run_optimization(exploit_steps)
 
         if((_still_potentially_better(bo)) and (exploit_steps <= 50)):
