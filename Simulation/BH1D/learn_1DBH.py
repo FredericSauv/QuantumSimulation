@@ -197,7 +197,7 @@ class learner1DBH(Batch.BatchParametrizedControler):
         """ Compute the fom (under testing conditions) for the different functions 
         found along optimization and also the distance between parameters
         """
-        testing_dico = run['testing_dico']
+        testing_dico = run['config']['testing_dico']
         names_fom = testing_dico['fom']
         model_tmp = bh1d.BH1D(**testing_dico)
         try:
