@@ -822,11 +822,14 @@ class BatchParametrizedControler(Batch):
             
             #tunable
             grbf = "{'name_func':'GRBFFunc','A':%s, 'x0':%s,'l':%s,'A_bounds':%s}"
+            rfour ="{'name_func':'FourierFunc','T':T,'freq_type':'CRAB','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
+            rsinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'CRAB','B_bounds':%s,'nb_H':%s}"
             four = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
             sinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','B_bounds':%s,'nb_H':%s}"
-            rsinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'CRAB','B_bounds':%s,'nb_H':%s}"
+            omfour = "{'name_func':'FourierFunc','T':T,'freq_type':'CRAB_FREEOM','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
+            omsinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'CRAB_FREEOM','B_bounds':%s,'nb_H':%s}"
             pwc = "{'name_func':'StepFunc','T':T,'F_bounds':%s,'nb_steps':%s}"
-            rfour ="{'name_func':'FourierFunc','T':T,'freq_type':'CRAB','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
+
             logis = "{'name_func':'LogisticFunc','L':2,'k':%s,'x0':0}"
             logisflex = "{'name_func':'LogisticFunc','L':%s,'k':%s,'x0':%s}"
 
@@ -904,6 +907,34 @@ class BatchParametrizedControler(Batch):
                 dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
                 dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#rfour)))))'}
+                        
+                        
+            ##########  WITH FREE OMEGAS  ##########
+            elif(shortcut[:15] == 'owbds01_Om4crab'):
+                # AANOTHER Custom Crab parametrization f(t) = g(t) + erf((sin four series)))
+                nb_params = int(shortcut[15:])
+                k = 4 /nb_params
+                x0 = '0.1*T'
+                k2 = '60/T'          
+                L = '1'
+                if(nb_params % 2 != 0):
+                    SystemError('nb_params = {} while it should be 2n'.format(nb_params))
+                nbH = int(nb_params/2)
+                dico_atom = {'ow':ow,'bd':bds,'trend':linear, 'ctm':mone, 'mask':logisflex%(L,k2,x0),
+                             'logis': logis%(str(k)), 'sinfour':omsinfour%('(-1,1)', nb_params-1)}
+                dico_expr = {'final':'**(#ow,**(#bd,+(#trend,*(#mask,**(+(#logis,#ctm),#sinfour)))))'}
+
+
+            elif(shortcut[:14] == 'owbds01_Omcrab'):
+                # f(t) = g(t) * (1+alpha(t)*(four series))
+                nb_params = int(shortcut[14:])
+                if(nb_params % 3 != 0):
+                    SystemError('nb_params = {} while it should be 3n'.format(nb_params))
+                nbH = int(nb_params/3)
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                            'rfour':omfour%('(-1,1)', '(-1,1)', str(nbH))}
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#rfour)))))'}           
+            
 
             ### NOMORERANDOMIZATION BUT GRBF INSTEAD
             elif(shortcut[:13] == 'owbds01_1grbf'):
