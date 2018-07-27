@@ -49,6 +49,14 @@ def get_best_n_times(name_func, n_param, n_repeat):
             best_f = f_tmp
         return best_f, best_fit
 
+#CRAB NEW
+nb_par = 4
+nb_repeat = 1
+name_ansatz = 'owbds01_4crab'
+f_crab3, fit_crab3 = get_best_n_times(name_ansatz, nb_par, nb_repeat)
+f_crab3.plot_function(x)
+target.plot_function(x)
+
 #CRAB
 nb_par = 4
 nb_repeat = 30
@@ -81,9 +89,29 @@ target.plot_function(x)
 nb_par = 4
 nb_repeat = 30
 name_ansatz = 'owbds01_3crab'
+
 f_crab3, fit_crab3 = get_best_n_times(name_ansatz, nb_par, nb_repeat)
 f_crab3.plot_function(x)
 target.plot_function(x)
+
+#CRAB 0.009
+nb_par = 4
+nb_repeat = 30
+name_ansatz = 'owbds01_4crab'
+f_crab3, fit_crab3 = get_best_n_times(name_ansatz, nb_par, nb_repeat)
+f_crab3.plot_function(x)
+target.plot_function(x)
+
+
+#TrSin 0.0078
+nb_par = 6
+nb_repeat = 1
+name_ansatz = 'owbds01_trsin'
+f_crab3, fit_crab3 = get_best_n_times(name_ansatz, nb_par, nb_repeat)
+f_crab3.plot_function(x)
+target.plot_function(x)
+
+
 
 
 # WithRBF
@@ -93,6 +121,9 @@ name_ansatz = 'owbds01_1grbf'
 f_crab3, fit_crab3 = get_best_n_times(name_ansatz, nb_par, nb_repeat)
 f_crab3.plot_function(x)
 target.plot_function(x)
+
+
+
 
 
 #crablike_four
