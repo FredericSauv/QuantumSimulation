@@ -1,0 +1,14 @@
+model_dico {'track_learning':True,'T':1.5707963267948966,'dt':0.01,'flag_intermediate':False,'setup':'1Q1','state_init':'0','state_tgt':'m','fom':['f2t2:neg_fluence:0.0001_smooth:0.005'],'fom_print':True,'ctl_shortcut':'owbds01_pwc50','_FLAG_NAME':'1T','noise':{}} {'fom':['proj100:neg_fluence:0.0001_smooth:0.005'],'_FLAG_NAME':'1T_proj100'} {'fom':['proj10:neg_fluence:0.0001_smooth:0.005'],'_FLAG_NAME':'1T_proj10'} {'noise':{'Ex':'normal_0_0.05','Ez':'normal_0_0.05'},'_FLAG_NAME':'1T_noise5'} {'T':0.7853981633974483,'_FLAG_NAME':'05T'} {'T':0.7853981633974483,'fom':['proj100:neg_fluence:0.0001_smooth:0.005'],'_FLAG_NAME':'05T_proj100'} {'T':0.7853981633974483,'fom':['proj10:neg_fluence:0.0001_smooth:0.005'],'_FLAG_NAME':'05T_proj10'} {'T':0.7853981633974483,'noise':{'Ex':'normal_0_0.05','Ez':'normal_0_0.05'},'_FLAG_NAME':'05T_noise5'} {'T':2.356194490192345,'_FLAG_NAME':'15T'} {'T':2.356194490192345,'fom':['proj100:neg_fluence:0.0001_smooth:0.005'],'_FLAG_NAME':'15T_proj100'} {'T':2.356194490192345,'fom':['proj10:neg_fluence:0.0001_smooth:0.005'],'_FLAG_NAME':'15T_proj10'} {'T':2.356194490192345,'noise':{'Ex':'normal_0_0.05','Ez':'normal_0_0.05'},'_FLAG_NAME':'15T_noise5'} {'T':3.141592653589793,'_FLAG_NAME':'2T'} {'T':3.141592653589793,'fom':['proj100:neg_fluence:0.0001_smooth:0.005'],'_FLAG_NAME':'2T_proj100'} {'T':3.141592653589793,'fom':['proj10:neg_fluence:0.0001_smooth:0.005'],'_FLAG_NAME':'2T_proj10'} {'T':3.141592653589793,'noise':{'Ex':'normal_0_0.05','Ez':'normal_0_0.05'},'_FLAG_NAME':'2T_noise5'}
+
+testing_dico {'fom':['f2t2:neg_fluence:0.0001_smooth:0.005','f2t2','fluence','smooth'],'noise':{}}
+
+optim_dico {'algo':'NM','init_obj':'uniform_0_1','maxfev':15000,'maxiter':None,'_FLAG_NAME':'NM01'} {'algo':'DE','maxiter':50,'popsize':10,'init_obj':None,'_FLAG_NAME':'DE10'} {'algo':'BO2','maxiter':700,'num_cores':1,'init_obj':150,'acq':'EI','exploit_steps':50,'_FLAG_NAME':'BO1000EI','maxtime':82800}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
