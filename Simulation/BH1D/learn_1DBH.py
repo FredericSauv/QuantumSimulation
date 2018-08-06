@@ -65,6 +65,7 @@ class learner1DBH(Batch.BatchParametrizedControler):
             del optim_dico['rdm_obj']
             del optim_dico['mp_obj']
         else:
+            model = None
             model_dico = {}
             res={'params':[]}
             
@@ -85,7 +86,7 @@ class learner1DBH(Batch.BatchParametrizedControler):
             self._build_control(testing_updated)
             model_test = bh1d.BH1D(**testing_updated)
             
-            if(same_func):
+            if(same_func and (model is not None)):
                 model_test.control_fun = model.control_fun
             
             if(force_params is not None):
