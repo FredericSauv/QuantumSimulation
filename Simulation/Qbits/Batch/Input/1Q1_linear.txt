@@ -1,4 +1,4 @@
-testing_dico {'T':2.2214414690791831,'dt':0.01,'flag_intermediate':False,'setup':'1Q1','state_init':'0','state_tgt':'m','fom':['f2t2:neg_fluence:0.0001','f2t2','fluence','smooth','varN'],'fom_print':True,'ctl_shortcut':'owbds01_linear','_FLAG_NAME':'1T'} {'T':1.1107207345395915,'_FLAG_NAME':'05T'} {'T':3.3321622036187746,'_FLAG_NAME':'15T'} {'T':4.4428829381583661,'_FLAG_NAME':'2T'}
+testing_dico {'T':2.2214414690791831,'dt':0.01,'flag_intermediate':False,'setup':'1Q1','state_init':'0','state_tgt':'m','fom':['f2t2:neg_fluence:0.0001','f2t2','fluence','smooth'],'fom_print':True,'ctl_shortcut':'owbds01_linear','_FLAG_NAME':'1T'} {'T':1.1107207345395915,'_FLAG_NAME':'05T'} {'T':3.3321622036187746,'_FLAG_NAME':'15T'} {'T':4.4428829381583661,'_FLAG_NAME':'2T'}
 
 _RDM_RUNS 1
 _RDM_FIXSEED True
