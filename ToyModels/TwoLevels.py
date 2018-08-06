@@ -108,7 +108,7 @@ class Qubits(mod.pcModel_qspin):
         if(self.setup[0] == '1'):
             self.Ex = 1
             self.Ez = 1
-            if(randomized and hasattr(self, '_noise_func')):
+            if(randomized and hasattr(self, '_noise_func') and self._noise_func is not None):
                 if( ('Ex' in self._noise_func) and self._noise_func['Ex'] is not None):                
                     self.Ex *= (1 + self._noise_func['Ex']()) 
                     
