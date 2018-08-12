@@ -1,0 +1,20 @@
+#!/bin/bash
+
+## Should be run from the root of the results needed i.e. $WORK/Res/1Q1/..
+## get number of results obtained/number of config/number of stdoutput
+input_folder=$1 #e.g. pcw5
+
+## Build all the paths
+path_main=$(pwd)/"$input_folder"
+path_res="$path_main"/"$input_folder"
+path_config="$path_main"/"Config"
+
+
+## Generate a file with with the number of missing simuls
+nb_config=$(ls "${path_config}"|wc -l)
+nb_res=$(ls "${path_res}" | wc -l)
+nb_out=$(ls "${path_main}" | grep to_qsub.o -c)
+
+echo ${nb_config}
+echo ${nb_out}
+echo ${nb_res}
