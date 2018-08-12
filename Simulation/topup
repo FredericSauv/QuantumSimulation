@@ -11,13 +11,6 @@ path_res="$path_main"/"$input_folder"
 path_to_qsub="$path_main"/"to_qsub"
 path_missing="$path_main"/"missing.txt"
 
-
-echo ${path_main}
-echo ${path_res}
-echo ${path_to_qsub}
-echo ${path_missing}
-echo ${prefix_res}
-
 ## Generate a file with with the number of missing simuls
 nb_init=$(sed -n -e '/#PBS -J 0-/ s/#PBS -J 0-*//p' "$path_to_qsub")
 nb_new=0
@@ -38,9 +31,10 @@ echo ${nb_new}
 
 cp missings.txt "${path_missing}"
 
-#CHANGE  
-sed -e "s/#PBS -J.*/#PBS -J 1-${nb_new}/"  -e "s/\${PBS_ARRAY_INDEX}/\${num_res}/" -e "s|pbsexec|num_res=\$(sed \"\${PBS_ARRAY_INDEX}q;d\" '"${path_missing}"'\npbexec|" "${path_to_qsub}" > to_qsub_topup 
+#CHANGE
+cd "${path_main}" 
+sed -e "s/#PBS -J.*/#PBS -J 1-${nb_new}/"  -e "s/\${PBS_ARRAY_INDEX}/\${num_res}/" -e "s|pbsexec|num_res=\$(sed \"\${PBS_ARRAY_INDEX}q;d\" '"${path_missing}"')\npbsexec|" "${path_to_qsub}" > to_qsub_topup 
  
 # 
 
-#qsub to_qsub_topup
+qsub to_qsub_topup
