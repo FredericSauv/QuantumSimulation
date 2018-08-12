@@ -16,7 +16,7 @@ read_res = True
 
 if(create_configs):
     """ take a meta config, generate all the configs and store them TESTED"""
-    learnerQB.parse_and_save_meta_config('test_meta_config.txt', 
+    learnerQB.parse_and_save_meta_config('1Q1_pcw5.txt', 
                 output_folder = 'test_gen_configs', extra_processing = True, update_rules = True)
 
 if(run_configs):

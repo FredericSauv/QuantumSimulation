@@ -6,11 +6,11 @@ from QuantumSimulation.Utility.Optim import Learner, pFunc_base
 import copy
 import numpy as np
 
-optim_type = 'BO'
+optim_type = 'DE'
 
 # Create a model
-fom = ['f2t2:neg_fluence:0.0001_smooth:0.01']
-TQSL = np.pi/np.sqrt(2)
+fom = ['f2t2:neg'] #['f2t2:neg_fluence:0.0001_smooth:0.01']
+TQSL = np.pi/2 ### That's my TQSL
 T= 1 * TQSL
 dico_simul = {'T':T, 'dt':0.01, 'flag_intermediate':False, 'setup':'1Q1', 
               'state_init':'0', 'state_tgt':'m', 'fom':fom, 'fom_print':True, 
@@ -66,6 +66,23 @@ res_test = model_test(optim_params)
 model_test.Simulate(store = True)
 _ = model_test.EvolutionPopAdiab(nb_ev=2)
 model_test.plot_pop_adiab()
+
+
+fom = ['f2t2:neg'] #['f2t2:neg_fluence:0.0001_smooth:0.01']
+TQSL = np.pi/np.sqrt(2)
+T= 1 * TQSL
+dico_simul = {'T':T, 'dt':0.01, 'flag_intermediate':False, 'setup':'1Q1', 
+              'state_init':'0', 'state_tgt':'m', 'fom':fom, 'fom_print':True, 
+              'track_learning': True, 'ctl_shortcut':'owbds01_pwc3'}
+# 'owbds01_pwc15'
+dico_simul = learner._process_controler(dico_simul)
+dico_simul['control_obj'] = learner._build_control_from_string(
+dico_simul['control_obj'], None, context_dico = dico_simul)
+model = tl.Qubits(**dico_simul)
+res = model([0.4, 0.4, 0.4])
+model.Simulate(store = True)
+_ = model.EvolutionPopAdiab(nb_ev=2)
+model.plot_pop_adiab()
 
 
 #plot func optimal

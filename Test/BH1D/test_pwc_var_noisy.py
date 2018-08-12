@@ -57,7 +57,7 @@ dico_test = copy.copy(dico_simul)
 dico_test['fom']=fom_test
 dico_test['track_learning'] = False
 model_test = bh1d.BH1D(**dico_test)
-optim_params = res['params']
+optim_params = res['params_exp']
 res_test = model_test(optim_params)
 
 #plot func optimal
