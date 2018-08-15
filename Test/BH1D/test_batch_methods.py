@@ -1,29 +1,28 @@
 # -*- coding: utf-8 -*-
-import sys
-import pdb
-sys.path.append("../../../")
-from QuantumSimulation.Simulation.BH1D.learn_1DBH import learner1DBH
+import logging
+logging.basicConfig(filename='log.log', filemode='w', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# example of generating and storing configs from a meta-config
-create_configs = True 
-# example of generating and storing configs from a meta-config and extra-rules
-create_configs_custom=False
-# run a config generated 
-run_configs = False
-# reading some results stored
-read_res = True
+import sys, pdb
+sys.path.append("../../../QuantumSimulation")
+from QuantumSimulation.ToyModels.BH.learn_1DBH import learner1DBH
+
+
+
+create_configs = True # example of generating and storing configs from a meta-config
+run_configs = True # run a config generated 
+read_res = True # reading some results stored
     
+folder_out = '_test'
 
 if(create_configs):
     """ take a meta config, generate all the configs and store them"""
-    learner1DBH.parse_and_save_meta_config('LN5_pcw5.txt', 
-                    output_folder = 'test_gen_configs', extra_processing = True, update_rules = True)
+    learner1DBH.parse_and_save_meta_config('test_meta_config.txt', output_folder = folder_out, extra_processing = True, update_rules = True)
 
 if(run_configs):
-    batch = learner1DBH('test_gen_configs/config_res1.txt')
+    batch = learner1DBH(folder_out + '/config_res1.txt')
     batch.run_procedures(saveFreq = 1, splitRes = True, printInfo = False)
 
     
 if(read_res):
-    res = learner1DBH.read_res('TestBatch/res10.txt')
-    res_bench = learner1DBH.read_res('TestBenchmark/benchmark1.txt')
+    res = learner1DBH.read_res(folder_out+'/res10.txt')

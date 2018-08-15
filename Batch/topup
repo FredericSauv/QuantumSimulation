@@ -1,0 +1,40 @@
+#!/bin/bash
+
+## Should be run from the root of the results needed i.e. $WORK/Res/1Q1/..
+input_folder=$1 #e.g. pcw5
+prefix_res=${2:-'res'}
+suffix_file=".txt"
+
+## Build all the paths
+path_main=$(pwd)/"$input_folder"
+path_res="$path_main"/"$input_folder"
+path_to_qsub="$path_main"/"to_qsub"
+path_missing="$path_main"/"missing.txt"
+
+## Generate a file with with the number of missing simuls
+nb_init=$(sed -n -e '/#PBS -J 0-/ s/#PBS -J 0-*//p' "$path_to_qsub")
+nb_new=0
+
+
+echo ${nb_init}
+rm -f missings.txt
+for num in `seq 0 ${nb_init}`; 
+do
+    #echo "${path_res}/${prefix_res}${num}.txt"
+    if [ ! -f "${path_res}/${prefix_res}${num}.txt" ]; 
+    then
+        echo $num >> missings.txt
+        ((nb_new++))
+    fi
+done
+echo ${nb_new}
+
+cp missings.txt "${path_missing}"
+
+#CHANGE
+cd "${path_main}" 
+sed -e "s/#PBS -J.*/#PBS -J 1-${nb_new}/"  -e "s/\${PBS_ARRAY_INDEX}/\${num_res}/" -e "s|pbsexec|num_res=\$(sed \"\${PBS_ARRAY_INDEX}q;d\" '"${path_missing}"')\npbsexec|" "${path_to_qsub}" > to_qsub_topup 
+ 
+# 
+
+qsub to_qsub_topup

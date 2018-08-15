@@ -1,8 +1,8 @@
-model_dico {'control_obj':'controler','L':6,'Nb':6,'mu':0,'T':5,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_f','fom':['f2t2:neg_fluence:0.0001_smooth:0.01'],'fom_print':True,'track_learning':True}
+model_dico {'ctl_shortcut':'owbds01_pwc5','L':6,'Nb':6,'mu':0,'T':5,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_f','fom':['f2t2:neg_fluence:0.0001_smooth:0.01'],'track_learning':True}
 
-testing_dico {'control_obj':'controler','L':6,'Nb':6,'mu':0,'T':5,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_f','fom':['f2t2:neg_fluence:0.0001_smooth:0.01','f2t2','fluence','smooth','varN'],'fom_print':True,'track_learning':True}
+testing_dico {'fom':['f2t2:neg_fluence:0.0001_smooth:0.01','f2t2','fluence','smooth','varN']}
 
-optim_dico {'algo':'DE'} {'algo':'BO'}
+optim_dico {'algo':'NM','init_obj':'uniform_0_1','maxfev':50,'maxiter':None} {'algo':'DE','maxiter':1,'popsize':10,'init_obj':None} {'algo':'BO2','maxiter':10,'num_cores':1,'init_obj':10,'acq':'EI','exploit_steps':5,'_FLAG_NAME':'BO1000EI','maxtime':82800}
 
 _RDM_RUNS 10
 _RDM_FIXSEED True

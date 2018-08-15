@@ -1,4 +1,0 @@
-#!/bin/bash
-#PBS -l walltime=00:15:00,select=1:ncpus=1:mem=2gb
-
-python $HOME/Testing/QuantumSimulation/Batch/CSpin/test_batch.py
