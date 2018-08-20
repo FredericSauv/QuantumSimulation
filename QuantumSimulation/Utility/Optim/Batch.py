@@ -1069,6 +1069,7 @@ class BatchParametrizedControler(Batch):
         They are parsed by pFunc_parser
         
         e.g. dico = {'ctl_a':xxx, 'ctl_b':yyy, 'ctl_c':zzz, 'ctl_final':"*(#a, +(#b, #c))"}
+        #TODO: NEED TO BE REFACTORED // PUT SOMEWHERE ELSE
         """
         dico_processed = copy.copy(dico)
         
@@ -1081,7 +1082,7 @@ class BatchParametrizedControler(Batch):
             ow_r = "{'name_func':'OwriterYWrap', 'ow':[(-100,0,1),(T,100+T,0)]}"
             bds = "{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}"
             linear = "{'name_func':'LinearFunc', 'bias':0, 'w':1/T}"
-            lineardec = "{'name_func':'LinearFunc', 'bias':1, 'w':-1/T}"
+            linear_r = "{'name_func':'LinearFunc', 'bias':1, 'w':-1/T}"
             one = "{'name_func':'ConstantFunc', 'c0':[1]}"
             half = "{'name_func':'ConstantFunc', 'c0':[0.5]}"
             mone = "{'name_func':'ConstantFunc', 'c0':[-1]}"
@@ -1152,7 +1153,7 @@ class BatchParametrizedControler(Batch):
                 if(ut.is_odd(nb_params)):
                     SystemError('nb_params = {} while it should be even'.format(nb_params))
                 k = 4 /nb_params
-                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': lineardec, 'ct': one,
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': linear_r, 'ct': one,
                              'ctm':mone,'logis': logis%(str(k)),
                              'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
                 
@@ -1273,9 +1274,14 @@ class BatchParametrizedControler(Batch):
                 dico_expr = {'final':'**(#ow,**(#bd,+(#trend,**(+(#logis,#ctm),#sinfour))))'}
             
             
-                        
+            # LINEAR RAMP
             elif(shortcut[:14] == 'owbds01_linear'):
                 dico_atom = {'ow':ow,'bd':bds,'lin':linear}
+                dico_expr = {'final':'**(#ow,**(#bd,#lin))'}
+            
+            #LINEAR INVERTED
+            elif(shortcut[:16] == 'owbds01r_linearr'):
+                dico_atom = {'ow':ow_r,'bd':bds,'lin':linear_r}
                 dico_expr = {'final':'**(#ow,**(#bd,#lin))'}
             
             elif(shortcut[:14] == 'owbds01_wrfour'):

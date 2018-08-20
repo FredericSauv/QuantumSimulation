@@ -256,7 +256,8 @@ class BH1D(mod.pcModel_qspin):
             axarr[0,0].legend()
         
         else:
-            print("pcModel_qspin.plot_pop_adiab: no pop_adiab found.. Generate it first")
+            print("pcModel_qspin.plot_pop_adiab: no pop_adiab found.. Generate it first"
+                  "via .EvolutionPopAdiab")
         
 
 
