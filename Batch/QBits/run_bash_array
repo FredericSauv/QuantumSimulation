@@ -51,14 +51,14 @@ cp "${output_path}/run_batch.py" .
 
 module load anaconda3/personal
 source activate py36q
-export PYTHONPATH="$(pwd)/GPyOpt:$(pwd)/QuantumSimulation"
+#export PYTHONPATH="$(pwd)/GPyOpt:$(pwd)/QuantumSimulation"
 pbsexec python run_batch.py "run_one_config" "${config_store_name}\${PBS_ARRAY_INDEX}.txt"
 
 cp -r "${output_python_path}" "${output_path}"
 ScriptEnd
 
 
-# Submit
+#Submit
 
 qsub to_qsub
 
