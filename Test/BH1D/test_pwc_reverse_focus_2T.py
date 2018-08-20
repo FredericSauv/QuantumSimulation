@@ -13,7 +13,7 @@ optim_type = 'BO2'
 
 # Create a model
 fom = ['f2t2:neg_fluence:0.0001_smooth:0.005']
-T=9.778856863214575/2
+T=9.778856863214575*2
 
 dico_simul = {'L':5, 'Nb':5, 'mu':0, 'T':T, 'dt':0.01, 'flag_intermediate':False, 
               'setup':'1', 'state_init':'GS_i', 'state_tgt':'GS_inf', 'fom':fom, 
@@ -28,38 +28,25 @@ optim_main = {'algo': 'BO2', 'maxiter':50, 'num_cores':4, 'init_obj':30,
 
 if(optim_type == 'GP'):
     #BO
-    optim_args = optim_main
+    optim_args = {'algo': 'BO2', 'maxiter':120, 'num_cores':4, 'init_obj':30, 
+              'exploit_steps':25,'acq':'EI', 'optim_num_anchor':15, 'optim_num_samples':10000}
     optim = Learner.learner_Opt(model = model, **optim_args)
-    resBO2 = optim(track_learning=True)
-    resBO2['last_func'] = model.control_fun
-    res = resBO2
-    print(res.keys())
-
-
-if(optim_type == 'GP_ARD'):
-    #BO
-    optim_args = optim_main.update({'ARD':True})
-    optim = Learner.learner_Opt(model = model, **optim_args)
-    resBO2 = optim(track_learning=True)
-    resBO2['last_func'] = model.control_fun
-    res = resBO2
-    print(res.keys())
-
-
-if(optim_type == 'GPSparse'):
-    optim_args = {'model_type':'sparseGP', 'number_inducing':10, **optim_main}
-    optim = Learner.learner_Opt(model = model, **optim_args)
-    resDE = optim()
-    print(resDE)
-    res = resDE
-
-if(optim_type == 'GPBatch'):
-    optim_args = {'batch_method':'local_penalization', 'batch_size':4, **optim_main}
-    optim = Learner.learner_Opt(model = model, **optim_args)
-    resBO = optim()
+    resBO = optim(track_learning=True)
     resBO['last_func'] = model.control_fun
     res = resBO
     print(res.keys())
+
+
+if(optim_type == 'GP_EXPLOIT'):
+    #BO
+    optim_args = {'algo': 'BO2', 'maxiter':50, 'num_cores':4, 'init_obj':30, 
+              'exploit_steps':120,'acq':'EI', 'optim_num_anchor':15, 'optim_num_samples':10000}
+    optim = Learner.learner_Opt(model = model, **optim_args)
+    resBO2 = optim(track_learning=True)
+    resBO2['last_func'] = model.control_fun
+    res = resBO2
+    print(res.keys())
+
 
 
 ## Create testing

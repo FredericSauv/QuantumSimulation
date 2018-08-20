@@ -28,43 +28,48 @@ dico_simul['control_obj'] = learner1DBH._build_control_from_string(
 model = bh1d.BH1D(**dico_simul)
 
 optim_main = {'algo': 'BO2', 'maxiter':50, 'num_cores':4, 'init_obj':30, 
-              'exploit_steps':30,'acq':'EI', 'optim_num_anchor':15, 'optim_num_samples':10000}
+              'exploit_steps':30,'acq':'EI', 'optim_num_anchor':15, 
+              'optim_num_samples':10000, 'ARD':False, 'model_type':'GP',
+              'number_inducing':10, 'batch_method':'local_penalization', 'batch_size':1}
 
 
 
 if(optim_type == 'GP'):
     #BO
-    optim_args = optim_main
+    optim_args = copy.copy(optim_main)
     optim = Learner.learner_Opt(model = model, **optim_args)
-    resBO2 = optim(track_learning=True)
-    resBO2['last_func'] = model.control_fun
-    res = resBO2
+    resGP = optim(track_learning=True)
+    resGP['last_func'] = model.control_fun
+    res = resGP
     print(res.keys())
 
 
 if(optim_type == 'GP_ARD'):
     #BO
-    optim_args = optim_main.update({'ARD':True})
+    optim_args = copy.copy(optim_main)
+    optim_args.update({'ARD':True})
     optim = Learner.learner_Opt(model = model, **optim_args)
-    resBO2 = optim(track_learning=True)
-    resBO2['last_func'] = model.control_fun
-    res = resBO2
+    resGPARD = optim(track_learning=True)
+    resGPARD['last_func'] = model.control_fun
+    res = resGPARD
     print(res.keys())
 
 
 if(optim_type == 'GPSparse'):
-    optim_args = optim_main.update({'model_type':'sparseGP', 'number_inducing':10})
+    optim_args = copy.copy(optim_main)
+    optim_args.update({'model_type':'sparseGP', 'number_inducing':10})
     optim = Learner.learner_Opt(model = model, **optim_args)
-    resDE = optim(track_learning=True)
-    print(resDE)
-    res = resDE
+    resSGP = optim(track_learning=True)
+    print(resSGP)
+    res = resSGP
 
 if(optim_type == 'GPBatch'):
-    optim_args = optim_main.update({'batch_method':'local_penalization', 'batch_size':4})
+    optim_args = copy.copy(optim_main)
+    optim_args.update({'batch_method':'local_penalization', 'batch_size':4})
     optim = Learner.learner_Opt(model = model, **optim_args)
-    resBO = optim(track_learning=True)
-    resBO['last_func'] = model.control_fun
-    res = resBO
+    resBatch = optim(track_learning=True)
+    resBatch['last_func'] = model.control_fun
+    res = resBatch
     print(res.keys())
 
 
