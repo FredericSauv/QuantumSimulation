@@ -130,7 +130,7 @@ class learner_Opt(learner_base):
                'acq_opt_type':'lbfgs', 'initial_design_type':'latin', 'optim_num_anchor':50, 
                'optim_num_samples':100000, 'acquisition_jitter':0.001, 'max_time':np.inf,
                'acquisition_weight':2, 'exploit_steps':15, 'batch_method':'sequential',
-               'batch_size':1, 'num_inducing':10, 'ARD':False, 'to_transfer':None}, self._run_BO2),
+               'batch_size':1, 'num_inducing':10, 'ARD':False, 'to_transfer':None,'acquisition_weight_lindec':False}, self._run_BO2),
         'BO':({'disp':True, 'acq':'ei', 'kappa':5.0, 'maxiter':50,'verbose':False, 'kernel':'matern2.5', 
                'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'gp_acq_iter':50, 'gp_n_warmup':10000},
                 self._run_BO),
@@ -354,21 +354,24 @@ class learner_Opt(learner_base):
                 'optim_num_anchor':options['optim_num_anchor'], 'optim_num_samples':options['optim_num_samples'],
                 'acquisition_jitter':options['acquisition_jitter'], 'acquisition_weight':options['acquisition_weight'],
                 'batch_size':options['batch_size'], 'evaluator_type':options['batch_method'],
-                'num_inducing':options['num_inducing'], 'model_type':options['model_type'], 'ARD':options['ARD']}    
-
-        #First bricks for transfer learning
-        to_transfer = options['to_transfer']
-        if(to_transfer is not None):
-            args_BO_to_transfer = copy.copy(args_BO)
-            args_BO_to_transfer.update(to_transfer) 
-            bo_to_transfer = GPyOpt.methods.BayesianOptimization(cost, **args_BO_to_transfer)
-            regressor_transf = bo_to_transfer.model
-
+                'num_inducing':options['num_inducing'], 'model_type':options['model_type'], 'ARD':options['ARD'],
+                'acquisition_weight_lindec':options['acquisition_weight_lindec']}    
 
         # definition of the cost function
         def cost(params):
             return model(np.squeeze(params), **args_call)
-        
+
+        #First bricks for transfer learning
+        to_transfer = options['to_transfer']
+        if((to_transfer is not None) and (args_BO['model_type'] == 'GP_STACKED')):
+            args_BO_transfer = copy.copy(args_BO)
+            args_BO_transfer['model_type'] = 'GP'
+            args_BO_transfer['X'] = to_transfer['X']
+            args_BO_transfer['Y'] = to_transfer['Y']
+            regressor_to_transfer = GPyOpt.methods.BayesianOptimization(cost, **args_BO)
+            regressor_to_transfer.model._create_model(args_BO_transfer['X'], args_BO_transfer['Y'])
+            args_BO['prev'] = regressor_to_transfer.model
+
         init = options['init_params']
         if(init is None):
             args_BO['initial_design_numdata'] = int(3 * nb_params)
@@ -404,7 +407,6 @@ class learner_Opt(learner_base):
         exploit_steps = options['exploit_steps']
         if(exploit_steps > 0): 
             if(bo.max_time > bo.cum_time):
-
                 bo.acquisition_type = 'LCB'
                 bo.acquisition_weight = 0.000001
                 bo.kwargs['acquisition_weight'] = 0.000001
@@ -413,7 +415,7 @@ class learner_Opt(learner_base):
                 if(bo.batch_size > 1):
                     bo.batch_size = 1
                 bo.evaluator = bo._evaluator_chooser()
-                        
+                                        
                 bo.run_optimization(exploit_steps)
 
         if((_still_potentially_better(bo)) and (exploit_steps <= 50) and (bo.max_time > bo.cum_time)):
@@ -593,7 +595,7 @@ class AcquisitionExploitation(AcquisitionLCB):
 # Opt: array([ 0.08984198, -0.71265648]), 'fun': -1.0316284534898246
 #==============================================================================
 if __name__ == '__main__':
-    test_camel = True
+    test_camel = False
     test_paramFunc = False
     if(test_camel):
         class Camel_model():
@@ -625,6 +627,14 @@ if __name__ == '__main__':
         #optim = learner_Opt(model = camel, **optim_args)
         #resOptim = optim()
         #print(resOptim)
+        optim_args = {'algo': 'BO2', 'maxiter':25, 'acq':'LCB',
+                      'acquisition_weight_lindec':True, 'optim_num_samples':10000, 
+                      'optim_num_anchor':15, 'initial_design_type':'latin',
+                      'acquisition_jitter':0.0001}
+        optim = learner_Opt(model = camel, **optim_args)
+        resOptim = optim()
+        # pdb.run("resOptim = optim()")
+        
         
         optim_args = {'algo': 'BO', 'maxiter':25, 'gp_acq_iter':50,'acq':'ei'}
         optim = learner_Opt(model = camel, **optim_args)
@@ -652,7 +662,7 @@ if __name__ == '__main__':
     
         p_model = Param_model(func)
                 
-        optim_args = {'algo': 'BO2', 'maxiter':25}
+        optim_args = {'algo': 'BO2', 'maxiter':25, 'acquisition_type':'LCB','acquisition_weight_lindec':True}
         optim = learner_Opt(model = p_model, **optim_args)
         resBO2 = optim()
         print(resBO2)
