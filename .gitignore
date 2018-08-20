@@ -10,3 +10,4 @@ Batch/CSpin/Output/
 .DS*
 .*
 _*
+!__init__.py
