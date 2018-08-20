@@ -14,7 +14,9 @@ mem=${5:-32}
 
 # Where the final results are going to be stored TOADAPT TO NEW MODELS
 output_path="$WORK/$NAME_SETUP/${output_folder}"
-mkdir -p "$output_path"
+output_log_path="${output_path}/Log"
+mkdir -p "${output_path}"
+mkdir -p "${output_log_path}"
 
 # amend the input_bash (such that it points to the right output place) and store 
 # it in the output folder
@@ -33,6 +35,9 @@ config_store_folder="$output_path/Config"
 config_store_name="${config_store_folder}/config_${prefix_res}"
 export PYTHONPATH="${HOME}/Testing/GPyOpt"
 python run_batch.py "gen_configs_custom" "${input_bash}" "${config_store_folder}"
+if [ -e log.log ]
+ then mv log.log "${output_path}/log_gen_config"
+fi
 N=$(ls "${config_store_folder}" | wc -l)
 End=$((Beg+N-1))
 
@@ -52,9 +57,12 @@ cp "${output_path}/run_batch.py" .
 module load anaconda3/personal
 source activate py36q
 #export PYTHONPATH="$(pwd)/GPyOpt:$(pwd)/QuantumSimulation"
-pbsexec python run_batch.py "run_one_config" "${config_store_name}\${PBS_ARRAY_INDEX}.txt"
+python run_batch.py "run_one_config" "${config_store_name}\${PBS_ARRAY_INDEX}.txt"
 
 cp -r "${output_python_path}" "${output_path}"
+if [ -e log.log ]
+ then cp log.log "${output_log_path}/log_${PBS_ARRAY_INDEX}"
+fi
 ScriptEnd
 
 
