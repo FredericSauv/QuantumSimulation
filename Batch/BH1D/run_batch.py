@@ -5,9 +5,12 @@ Created on Tue Jan 23 20:19:38 2018
 
 @author: fred
 """
+import logging
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
 import sys
-sys.path.append('../../../../')
-from  QuantumSimulation.Simulation.BH1D.learn_1DBH import learner1DBH
+sys.path.append('../../../QuantumSimulation')
+from  QuantumSimulation.Simulation.BH.learn_1DBH import learner1DBH
 
 
 #==============================================================================

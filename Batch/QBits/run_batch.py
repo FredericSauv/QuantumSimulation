@@ -6,7 +6,7 @@ Created on Tue Jan 23 20:19:38 2018
 @author: fred
 """
 import logging
-logging.basicConfig(filename='log.log', level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 import sys
 sys.path.append('../../../QuantumSimulation')
