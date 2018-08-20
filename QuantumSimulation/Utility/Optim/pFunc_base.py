@@ -963,6 +963,31 @@ class StepFunc(pFunc_base):
             idx = Tstep.searchsorted(X + 1e-15) - 1
             res = F[idx]
         return res
+    
+class PWL(pFunc_base):
+    """ piecewiselinear
+    params : {'F' = [f_1, .., f_N], 'Tstep' = [T_1, .., T_N], F0 = f_0}
+    >> f(t) = (1) f_0 (if t<t_1)  (2) f_(n-1) + (f_(n) - f_(n-1)) * (t - t_(n-1))  
+    (t in [t_(n-1), t_n[) (3) f_N (if t>=T_N) 
+    """     
+    _LIST_PARAMETERS = ['F', 'F0', 'Tstep', 'T0']
+    _NB_ELEM_PER_PARAMS = ['a', 1, 'a', 1]
+
+    @ut.extend_dim_method(0, True)
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """         
+        """
+        F, f0, Tstep, t0 = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
+        if(X < t0):
+            res = f0[0]
+        elif(X>=Tstep[-1]):
+            res = F[-1]
+        elif(X < Tstep[0]):
+            res = f0[0] + (F[0] - f0[0]) * (X - t0)
+        else:
+            idx = Tstep.searchsorted(X + 1e-15) - 1
+            res = F[idx] + (F[idx] - F[idx-1]) * (X - Tstep[idx-1])
+        return res
 
 class ExpRampFunc(pFunc_base):
     """ params : {'a' = ymax, 'T':T, 'l' = l}
@@ -1316,4 +1341,16 @@ if __name__ == '__main__':
     log1 = (LogisticFunc(x0= (1-x0)*T , L = 1, k=-k/T))
     log1.plot_function(tt)
 
+
+    # --------------------------------------------------------------------------- #
+    #   PWL
+    # --------------------------------------------------------------------------- #
+    x = np.arange(0.1, 1.1,0.1)
+    x_plot = np.arange(-0.1, 1.2,0.1)
+    y = np.random.sample(len(x))
+    f0 = 0  
+    x0 = 0
+    sf_dico = {'Tstep': x, 'F':y, 'F0':f0, 'T0':x0, 'F0_bounds':(-10, 10), 'Tstep_bounds':(-10, 10)}
+    sf1 = PWL(**sf_dico)
+    sf1.plot_function(x_plot)
     
