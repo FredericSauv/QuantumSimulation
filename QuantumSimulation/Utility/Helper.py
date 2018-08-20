@@ -1103,8 +1103,8 @@ def find_from_index_TS(index, TS, rule='lower'):
             elif(index>=TS[-1,0]):
                 res = TS[-1,1]
             else:
-                index = np.arange(len(TS))[np.diff(index < TS[:,0])][0]
-                res = TS[index,1] + (TS[index+1,1]-TS[index,1]) * (index - TS[index,0]) / (TS[index+1,0]-TS[index,0])
+                first = np.arange(len(TS)-1)[np.diff(index < TS[:,0])][0]
+                res = TS[first,1] + (TS[first+1,1]-TS[first,1]) * (index - TS[first,0]) / (TS[first+1,0]-TS[first,0])
         else:
             raise NotImplementedError()
         return res
