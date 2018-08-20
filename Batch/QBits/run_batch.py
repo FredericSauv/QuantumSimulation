@@ -12,6 +12,7 @@ import sys
 sys.path.append('../../../QuantumSimulation')
 from  QuantumSimulation.ToyModels.QB.learn_QBits import learnerQB
 
+
 #==============================================================================
 # 3 BEHAVIORS DEPENDING ON THE FIRST PARAMETER:
 #   + "gen_configs" generate config files from a metaconfig file

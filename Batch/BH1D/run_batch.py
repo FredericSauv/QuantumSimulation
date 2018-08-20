@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.ERROR,filename='log.log')
 logger = logging.getLogger(__name__)
 import sys
 sys.path.append('../../../QuantumSimulation')
-from  QuantumSimulation.Simulation.BH.learn_1DBH import learner1DBH
+from  QuantumSimulation.ToyModels.BH.learn_1DBH import learner1DBH
 
 
 #==============================================================================
@@ -20,7 +20,7 @@ from  QuantumSimulation.Simulation.BH.learn_1DBH import learner1DBH
 #   + "run_one_config" run cspinoptim based on a config file
 #==============================================================================
 if(len(sys.argv) > 4 or len(sys.argv) < 3):
-    print("Wrong number of args", file = sys.stderr)
+    logger.error("Wrong number of args")
 else:
     type_task = sys.argv[1]
     file_input = sys.argv[2]
@@ -49,7 +49,7 @@ else:
 #        batch.run_procedures(saveFreq = 1, splitRes = True, printInfo = False, debug = True)
 #        
     else:
-        print("first argument not recognized", file = sys.stderr)
+        logger.error("first argument not recognized")
 #res = OptBatch.read_res(folderName = 'Output/TestBatch', allPrefix ='')
 
 
