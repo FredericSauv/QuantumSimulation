@@ -685,18 +685,21 @@ class Batch:
 
     @classmethod 
     def _list_res_get_evol_nev_time_stats(cls, list_res):
-        list_nev_time = [ut._one_res_get_nev_time(r) for r in list_res]
+        list_nev_time = [cls._one_res_get_nev_time(r) for r in list_res]
         is_none = [o is None for o in list_nev_time] 
         if(np.sum(is_none) > 0):
             print(str(np.sum(is_none)) + ' without extra_history_nev_fun')
             list_nev_time = [o for o in list_nev_time if o is not None]
         if(len(list_nev_time) > 0):
-            nev_time = ut.merge_and_stats_TS(list_nev_time, rule='linear')
-            nev_onetime = [cls._get_nev_onetime(e) for e in nev_time]
+            merged_TS = ut.merge_TS(list_nev_time, rule='linear')            
+            merged_array = np.array([ [ts[0]]+list(ts[1]) for ts in merged_TS])
+            stats = np.array([np.concatenate(([ind], ut.get_stats(ts))) for ind, ts in merged_TS])
+            merged_diff = [[m[0], np.array(m[1:]-merged_array[n-1, 1:])] for n, m in enumerate(merged_array[1:])]
+            stats_diff = np.array([np.concatenate(([ind], ut.get_stats(ts))) for ind, ts in merged_diff])
         else:
-            nev_time = None
-            nev_onetime = None
-        return (nev_time, nev_onetime)
+            stats = None
+            stats_diff = None
+        return (stats, stats_diff )
     
     @classmethod
     def _get_nev_onetime(cls, nev_time):
@@ -708,8 +711,8 @@ class Batch:
         nev = ut.try_extract_from_nested(one_res, cls._P_HISTO_EV_FUN)
         time = ut.try_extract_from_nested(one_res, cls._P_HISTO_TM_FUN)
         if((nev is not None) and (time is not None)):
-            nev_time = nev
-            nev_time[:,1] = time[:,0]        
+            nev_time = np.array(nev)
+            nev_time[:,1] = np.array(time)[:,0]        
         else:
             nev_time = None            
         return nev_time
