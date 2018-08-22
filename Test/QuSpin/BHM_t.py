@@ -6,20 +6,16 @@ Created on Thu May 10 17:31:54 2018
 @author: fred
 """
 
-import sys
-sys.path.append('/home/fred/anaconda3/envs/py36q/lib/python3.6/site-packages')
-
 from quspin.tools import measurements
 from quspin.operators import hamiltonian # Hamiltonians and operators
 from quspin.basis import boson_basis_1d # Hilbert space boson basis
 import numpy as np # generic math functions
 import matplotlib.pylab as plt
 
-
-sys.path.insert(0, '../../../')
+import sys
+sys.path.append("../../../QuantumSimulation")
 from QuantumSimulation.Utility import Helper as ut
 from QuantumSimulation.Utility.Optim import pFunc_base as pf
-from QuantumSimulation.Utility.Optim.RandomGenerator import RandomGenerator as rg
 
 #
 
@@ -81,7 +77,7 @@ H, T = gen_ramped_h(basis, v, L, mu)
 
 E_SF, V_SF = H.eigsh(time = 0.0, k=1, which='SA',maxiter=1E10) # only GS
 
-psi_i = V_SF
-psi_f = H.evolve(psi_i, 0, T)
+psi_i = np.squeeze(V_SF)
+psi_f = H.evolve(psi_i, 0, np.arange(0,T,1))
 
 

@@ -12,11 +12,11 @@ import copy
 optim_type = 'BO2'
 
 # Create a model
-fom = ['f2t2:neg_fluence:0.0001_smooth:0.005']
-T=9.778856863214575/2
-dico_simul = {'L':5, 'Nb':5, 'mu':0, 'T':T, 'dt':0.01, 'flag_intermediate':False, 
+fom = ['f2t2:neg_fluence:0.0001_smooth:0.05']
+T = 5.136511734353454
+dico_simul = {'L':5, 'Nb':5, 'mu':0, 'sps':5, 'T':T, 'dt':0.01, 'flag_intermediate':False, 
               'setup':'1', 'state_init':'GS_i', 'state_tgt':'GS_inf', 'fom':fom, 
-              'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01r_pwc15'}
+              'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_pwl15'}
 dico_simul = learner1DBH._process_controler(dico_simul)
 dico_simul['control_obj'] = learner1DBH._build_control_from_string(
 dico_simul['control_obj'], None, context_dico = dico_simul)
