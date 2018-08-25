@@ -10,6 +10,7 @@ from functools import partial
 import operator as op
 import numpy as np
 logger = logging.getLogger(__name__)
+import matplotlib.pylab as plt
 
 if(__name__ == '__main__'):
     sys.path.append("../../")
@@ -536,7 +537,164 @@ class pcModel_qspin(pcModel_base):
             Regenerate H"""
         if(hasattr(self, '_H') and (self._H is not None)):
             self._setup_H()
+    
+    # --------------------------------------------------------------------------- #
+    #   SIMULATIONS 
+    #   TODO: Maybe put it in quSpin models
+    # --------------------------------------------------------------------------- #
+    def Simulate(self, time = None, state_init = None, fom = None, store = None, method = None, **extra_args):
+        """ Main entry point to simulate the system. If fom is not None, it will 
+        return it, if not return the state_t of the system.
+        """
+        if extra_args.pop('debug', None):
+            pdb.set_trace()
+        if time is None:
+            time = self.t_simul
+        if state_init is None:
+            state_init = self.state_init
+        if fom is None:    
+            fom = self.fom
+        if store is None:
+            store = False
+        if method is None:
+            method = 'se'
         
+        res = self.Evolution(time = time, state_init = state_init, method = method, store = store, **extra_args)
+
+        if (fom not in [None, '']):
+            res = self._compute_fom(fom, res)
+        if(extra_args.get('print')):
+            logger.info("FOM="+str(res))
+        return res
+
+    def Evolution(self, time , state_init, method, store, **extra_args):
+        """  Evolve the state_init according to the relevant method and store if
+            required
+        state_t has dim (from quspin) [dim_H, dim_t]
+        """
+        if(method == 'se'):
+            state_t = self.EvolutionSE(time, state_init, **extra_args)
+
+        elif(method == 'pop_adiab'):
+            state_t = self.EvolutionPopAdiab(time, state_init, **extra_args)
+
+        else:
+            raise NotImplementedError()
+
+        if store:
+            if(method == 'pop_adiab'):
+                logger.warning("adiabatic population has been stored as state_t")
+            self.state_t = state_t
+        
+        return state_t
+
+    # --------------------------------------------------------------------------- #
+    #   Custom evolutions
+    # --------------------------------------------------------------------------- #
+    def EvolutionSE(self, time = None, state_init = None, iterable = False, **args_evolve):
+        """  Wrap evolve from QuSpin only expose some of teh arguments
+        hamiltonian.evolve(state_init, t0 = 0,times = T, eom="SE",solver_name="dop853",stack_state=False,
+        verbose=False,iterate=False,imag_time=False,**solver_args)
+        
+        state_t has dim (from quspin) [dim_H, dim_t]
+        """
+        if time is None:
+            time = self.t_simul
+        if state_init is None:
+            state_init = self.state_init
+
+        state_t = self._H.evolve(state_init, t0 = 0, times = time, iterate=iterable, **args_evolve)
+        return state_t
+
+
+    def EvolutionPopAdiab(self, time = None, state_init = None, nb_ev = 2, **args_evolve):
+        """ Evolve the state according to SE and project it on the instantaneous 
+        eigen vectors of the hamiltonian. This pop_adiab is stored by default and
+        state_t is returned """
+        if time is None:
+            time = self.t_array
+        if state_init is None:
+            state_init = self.state_init
+        n_t = len(time)
+        state_t = self.EvolutionSE(time, state_init, **args_evolve)
+        # Not optimal
+        ev, EV = self._h_get_instantaneous_ev_EV(time=time, nb_ev=nb_ev)
+        
+        try:
+            assert state_t.shape[1] == n_t
+        except AssertionError as err:
+            logger.exception("pb dim ")
+            raise err
+
+        proj_ev = [[pcModel_qspin._h_ip(state_t[:, t], EV[t][:, n]) for n in range(nb_ev)] for t in range(n_t)]
+        self.adiab_pop = np.square(np.abs(np.array(proj_ev)))
+        self.adiab_cf = np.array([self.control_fun(t) for t in time]) 
+        self.adiab_en = np.array(ev) # both energies and control field
+        self.adiab_evect = np.array(EV)
+        self.adiab_t = time
+        return state_t
+        
+
+    
+    #-----------------------------------------------------------------------------#
+    # plot capabilities
+    #-----------------------------------------------------------------------------#
+    def plot_pop_adiab(self, **args_pop_adiab):
+        """ Plot pop adiab where each population_t is dispatched on one of the 
+        three subplot
+        #TODO: better plots
+        """
+        if(hasattr(self,'pop_adiab')):
+            limit_legend = args_pop_adiab.get('lim_legend', 10)
+            limit_enlevels = args_pop_adiab.get('lim_enlevels', np.inf)
+            pop_adiab = self.adiab_pop #txn
+            t = self.adiab_t 
+            en = self.adiab_en #txn
+            cf = self.adiab_cf # txcf
+            nb_levels = min(pop_adiab.shape[1], limit_enlevels)    
+            #[0,0] control function
+            f, axarr = plt.subplots(2,2, sharex=True)
+            axarr[0,0].plot(t, cf, label = 'f(t)')
+            for i in range(nb_levels):
+                pop_tmp = pop_adiab[:, i]
+                max_tmp = np.max(pop_tmp)
+                if(i<=limit_legend):
+                    lbl_tmp = str('i')
+                else:
+                    lbl_tmp = None
+                if(max_tmp > 0.1):
+                    axarr[0,1].plot(t, pop_tmp, label = lbl_tmp)
+                elif(max_tmp > 0.01):
+                    axarr[1,1].plot(t, pop_tmp, label = lbl_tmp)
+                axarr[1,0].plot(t, en[:, i], label = lbl_tmp)
+            
+            ax_tmp = axarr[0,1]
+            ax_tmp.legend(fontsize = 'x-small')
+            ax_tmp.set_title('main pop')
+            ax_tmp.set(xlabel='t', ylabel='%')
+            
+            ax_tmp = axarr[1,1]
+            ax_tmp.legend(fontsize = 'x-small')
+            ax_tmp.set_title('sec pop')
+            ax_tmp.set(xlabel='t', ylabel='%')
+            
+            ax_tmp = axarr[0,0]
+            ax_tmp.legend()
+            ax_tmp.set_title('control')
+            ax_tmp.set(xlabel='t', ylabel='cf')
+            
+            ax_tmp = axarr[1,0]
+            ax_tmp.set_title('instantaneous ein')
+            ax_tmp.set(xlabel='t', ylabel='E')
+        
+            save_fig = args_pop_adiab.get('save_fig')
+            if(ut.is_str(save_fig)):
+                f.savefig(save_fig)
+
+        else:
+            logger.warning("pcModel_qspin.plot_pop_adiab: no pop_adiab found.. Generate it first")
+
+    
     #-----------------------------------------------------------------------------#
     # Setup functions
     #-----------------------------------------------------------------------------#
@@ -547,7 +705,6 @@ class pcModel_qspin(pcModel_base):
     def _setup_H(self, **args_model):
         """ build the Hamiltonian governing the dynamics of the system (self.H)"""
         raise NotImplementedError()
-
         
     def _setup_fom_qspin_bricks(self):
         """ Set up fom based of quspin states """
@@ -702,21 +859,18 @@ class pcModel_qspin(pcModel_base):
             res, _ = self._H.eigh(time = time)
         return res    
     
-
-    def _h_project_to_instant_evect(self, time , state_t , nb_ev = 5):
-        """ Project a state <state_t> on the <nb_ev> first eigenvectors of <H> at <time>
-        args = (time = self.t_simul <list<num>> or <num>, H = self.H <QuSpin.Hamiltonian>
-                state_t = self.state_t <np.array>, nb_ev = 5 <int>)
-        """
-        n_t = len(time)
-        assert(state_t.shape[1] == n_t), "pb dim"
-        if(nb_ev < self._H.Ns):
+    
+    def _h_get_instantaneous_ev_EV(self, time=None, nb_ev=5):
+        """ get instantaneous eigen values and eigen vectors """
+        if(time is None):
+            time = self.t_array ## Should it t_simul
+        ## Carefull this method can be inacurate if too many eigenvectors/vals are requested
+        ## cf. quspin package comments
+        if(nb_ev < self._H.Ns): 
             eigen_t = [self._H.eigsh(time=t, k=nb_ev, which='SA',maxiter=1E10) for t in time]
         else:
             eigen_t = [self._H.eigh(time=t) for t in time]
-            
-        proj_ev = [[pcModel_qspin._h_ip(state_t[:, t], eigen_t[t][1][:, n]) for n in range(nb_ev)] for t in range(n_t) ]
-        return np.square(np.abs(np.array(proj_ev)))
+        ev = [ev for ev, _ in eigen_t]
+        EV = [EV for _, EV in eigen_t]
+        return (ev, EV)
     
-
-

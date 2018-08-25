@@ -6,10 +6,10 @@ Created on Fri Jul  7 11:35:46 2017
 @author: frederic
 # sys.path.append('/home/fred/anaconda3/envs/py36q/lib/python3.6/site-packages')
 """
-
+import logging
+logger = logging.getLogger(__name__)
 import sys, pdb
 import numpy as np 
-import matplotlib.pylab as plt
 from quspin.operators import hamiltonian # Hamiltonians and operators
 from quspin.basis import boson_basis_1d # Hilbert space boson basis
 
@@ -67,11 +67,20 @@ class BH1D(mod.pcModel_qspin):
             config_bh1D['pblock'] = None
             config_bh1D['kblock'] = None
             self._ss_nosym = boson_basis_1d(**config_bh1D)
-            self._P = self._ss.get_proj(dtype=np.complex128, pcon=True)      
+            self._P = self._ss.get_proj(dtype=np.complex128, pcon=True)
+            self._op_n_sites = None ## there is way to define it using projection
         else:
+            L = args_model['L']
             self._flag_basis_symm = False
             self._ss_nosym = self._ss
             self._P = None #Id      
+            self._op_n_sites = [hamiltonian([['n',[[1.0, i]]]], [], basis=self._ss_nosym, dtype=np.float64) for i in range(L)]
+            i_iplusN = [[1, i, (i + L-1)%L] for i in range(L)] # Cyclical boundaries
+            self._op_correl_N = [hamiltonian([['+-',i_iplusN]], [], basis=self._ss_nosym, dtype=np.float64, check_herm=False) for i in range(L)]
+            Ns = self._ss.Ns
+            #NEW: get the basis.. A little bit convoluted may be an easier way to do that
+            # Dim_H x Nbsites
+            self._basis_fock = np.array([self._get_basis_to_fock(s) for s in range(Ns)])
         
     def _setup_H(self, **args_model):
         """  Bose Hubbard Hamiltonians:
@@ -84,6 +93,8 @@ class BH1D(mod.pcModel_qspin):
             self.setup = args_model.get('setup')
         if (args_model.get('L') is not None):
             self.L = args_model.get('L')
+        if (args_model.get('Nb') is not None):
+            self.Nb = args_model.get('Nb')
         if (args_model.get('mu') is not None):
             self.mu = args_model.get('mu')
         elif(not hasattr(self, 'mu')):        
@@ -110,9 +121,7 @@ class BH1D(mod.pcModel_qspin):
 
     def _setup_fom_bh1d_bricks(self, **args_model):
         """ add new methods which can be used e.g. to define the FOM """                
-        # New functions to be used to compute the FOM
-        L = args_model['L']
-        self._op_n_sites = [hamiltonian([['n',[[1.0, i]]]], [], basis=self._ss_nosym, dtype=np.float64) for i in range(L)]
+        # New functions to be used to compute the FOM        
         if (self._flag_basis_symm):
             def avg_var_occup(V_symm):
                 V = self._P.dot(V_symm)
@@ -124,143 +133,48 @@ class BH1D(mod.pcModel_qspin):
                 n_var_sites = [mod.pcModel_qspin._h_variance(op, V) for op in self._op_n_sites]
                 avg_var_occup = np.average(n_var_sites)
                 return avg_var_occup
+            def avg_var_occup_measured(V, nb):
+                proba = np.square(np.abs(np.squeeze(V)))
+                sum_prob = np.sum(proba)
+                if(np.allclose(sum_prob, 1)):
+                    proba = proba/sum_prob
+                else:
+                    pdb.set_trace()
+                meas_index = np.random.choice(len(proba), nb, p=proba)
+                meas_occup = np.array([self._basis_fock[i] for i in meas_index])
+                meas_var = np.var(meas_occup)
+                meas_avg_var = np.mean(meas_var)
+                return meas_avg_var
+            
         self._avg_var_occup = avg_var_occup
-        self._fom_func['varN'] = self._avg_var_occup    
-
-
-# --------------------------------------------------------------------------- #
-#   SIMULATIONS 
-# --------------------------------------------------------------------------- #
-    def Simulate(self, time = None, state_init = None, fom = None, store = None, method = None, **extra_args):
-        """ Main entry point to simulate the system. If fom is not None, it will 
-        return it, if not return the state_t of the system.
-        """
-        if extra_args.pop('debug', None):
-            pdb.set_trace()
-        if time is None:
-            time = self.t_simul
-        if state_init is None:
-            state_init = self.state_init
-        if fom is None:    
-            fom = self.fom
-        if store is None:
-            store = False
-        if method is None:
-            method = 'se'
+        self._fom_func['varN'] = self._avg_var_occup
         
-        res = self.Evolution(time = time, state_init = state_init, method = method, store = store, **extra_args)
+        # measured variance
+        self._avg_varN_measured = avg_var_occup_measured
+        self._fom_func['varN5'] = (lambda x: self._avg_varN_measured(x, 5))
+        self._fom_func['varN10'] = (lambda x: self._avg_varN_measured(x, 10))
+        self._fom_func['varN100'] = (lambda x: self._avg_varN_measured(x, 100))
+        self._fom_func['varN1000'] = (lambda x: self._avg_varN_measured(x, 1000))
+        self._fom_func['varN10000'] = (lambda x: self._avg_varN_measured(x, 10000))
+        self._fom_func['varN100000'] = (lambda x: self._avg_varN_measured(x, 100000))
 
-        if (fom not in [None, '']):
-            res = self._compute_fom(fom, res)
-        if(extra_args.get('print')):
-            print("FOM="+str(res))
-        return res
 
-    def Evolution(self, time , state_init, method, store, **extra_args):
-        """  Evolve the state_init according to the relevant method and store if
-            required
-        """
-        if(method == 'se'):
-            state_t = self.EvolutionSE(time, state_init, **extra_args)
 
-        elif(method == 'pop_adiab'):
-            state_t = self.EvolutionPopAdiab(time, state_init, **extra_args)
-
+    def _get_basis_to_fock(self, i):
+        """ get the i-th basis vector represented in the focks basis 
+        Works only if no symm is used"""
+        if(self._flag_basis_symm):
+            logger.warning("cannot use _get_basis_to_fock when symmetrieshas"
+                           "been used to build the basis")
+            repr_fock = None
         else:
-            raise NotImplementedError()
-
-        if store:
-            self.state_t = state_t
-        
-        return state_t
-
-# --------------------------------------------------------------------------- #
-#   Custom evolutions
-# --------------------------------------------------------------------------- #
-    def EvolutionSE(self, time = None, state_init = None, iterable = False, **args_evolve):
-        """  Wrap evolve from QuSpin only expose some of teh arguments
-        hamiltonian.evolve(state_init, t0 = 0,times = T, eom="SE",solver_name="dop853",stack_state=False,
-        verbose=False,iterate=False,imag_time=False,**solver_args)
-        """
-        if time is None:
-            time = self.t_simul
-        if state_init is None:
-            state_init = self.state_init
-
-        state_t = self._H.evolve(state_init, t0 = 0, times = time, iterate=iterable, **args_evolve)
-        return state_t
-
-
-    def EvolutionPopAdiab(self, time = None, state_init = None, **args_evolve):
-        """ Evolve the state according to SE and project it on the instantaneous 
-        eigen vectors of the hamiltonian. This pop_adiab is stored by default and
-        state_t is returned """
-        if time is None:
-            time = self.t_array
-        if state_init is None:
-            state_init = self.state_init
-
-        nb_ev = args_evolve.pop('nb_ev', 5)
-        state_t = self.EvolutionSE(time, state_init, **args_evolve)
-        # Not optimal
-        pop_adiab = self._h_project_to_instant_evect(time, state_t, nb_ev)
-        energies = self.EvolutionInstEnergies(time, nb_ev)
-        self.pop_adiab = pop_adiab
-        self.energies = energies # both energies and field
-        
-        return state_t
-        
-
-    def EvolutionInstEnergies(self, time = None, nb = 2):
-        """ Custom study of the gap """
-        if(time is None):
-            time = self.t_array
-        energies = self._h_get_lowest_energies(time, nb)
-        func_values = [self.control_fun(t) for t in time] 
-        res = np.c_[(func_values, energies)]
-        return res
-        
-
-    #-----------------------------------------------------------------------------#
-    # plot capabilities
-    #-----------------------------------------------------------------------------#
-    def plot_pop_adiab(self, **args_pop_adiab):
-        """ Plot pop adiab where each population_t is dispatched on one of the 
-        three subplot
-        #TODO: better plots
-        """
-        if(hasattr(self,'pop_adiab')):
-            pop_adiab = self.pop_adiab
-            t = self.t_array
-            en_tmp = self.energies
-            n_cf = self.n_controls
-            en = en_tmp[:, n_cf:]
-            cf = en_tmp[:, :n_cf]
-            nb_levels = pop_adiab.shape[1]    
-            f, axarr = plt.subplots(2,2, sharex=True)
+            Ns = self._ss.Ns
+            repr_vector = np.zeros(Ns)
+            repr_vector[i] = 1
+            repr_fock = np.array([op.expt_value(repr_vector) for op in self._op_n_sites])
             
-            axarr[0,0].plot(t, cf, label = 'f(t)')
-            for i in range(nb_levels):
-                pop_tmp = pop_adiab[:, i]
-                max_tmp = np.max(pop_tmp)
-                if(max_tmp > 0.1):
-                    axarr[0,1].plot(t, pop_tmp, label = str(i))
-                    axarr[1,0].plot(t, en[:, i], label = str(i))
-                elif(max_tmp > 0.01):
-                    axarr[1,1].plot(t, pop_tmp, label = str(i))
-                    axarr[1,0].plot(t, en[:, i], label = str(i))
+        return repr_fock
             
-            axarr[0,1].legend()
-            axarr[1,1].legend()
-            axarr[1,0].legend()
-            axarr[0,0].legend()
-        
-        else:
-            print("pcModel_qspin.plot_pop_adiab: no pop_adiab found.. Generate it first"
-                  "via .EvolutionPopAdiab")
-        
-
-
 
 
 ### ======================= ###

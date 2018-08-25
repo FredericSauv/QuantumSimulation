@@ -11,7 +11,6 @@ Created on Fri Jul  7 11:35:46 2017
 from quspin.operators import hamiltonian # Hamiltonians and operators
 from quspin.basis import spin_basis_1d # Hilbert space boson basis
 import numpy as np # generic math functions
-import matplotlib.pylab as plt
 import pdb
 
 
@@ -137,139 +136,9 @@ class Qubits(mod.pcModel_qspin):
         else:
             raise SystemError("string {} not reco".format(string))
         return psi
-# --------------------------------------------------------------------------- #
-#   SIMULATIONS 
-#   TODO: Maybe put it in quSpin models
-# --------------------------------------------------------------------------- #
-    def Simulate(self, time = None, state_init = None, fom = None, store = None, method = None, **extra_args):
-        """ Main entry point to simulate the system. If fom is not None, it will 
-        return it, if not return the state_t of the system.
-        """
-        if extra_args.pop('debug', None):
-            pdb.set_trace()
-        if time is None:
-            time = self.t_simul
-        if state_init is None:
-            state_init = self.state_init
-        if fom is None:    
-            fom = self.fom
-        if store is None:
-            store = False
-        if method is None:
-            method = 'se'
+
+
         
-        res = self.Evolution(time = time, state_init = state_init, method = method, store = store, **extra_args)
-
-        if (fom not in [None, '']):
-            res = self._compute_fom(fom, res)
-        if(extra_args.get('print')):
-            print("FOM="+str(res))
-        return res
-
-    def Evolution(self, time , state_init, method, store, **extra_args):
-        """  Evolve the state_init according to the relevant method and store if
-            required
-        """
-        if(method == 'se'):
-            state_t = self.EvolutionSE(time, state_init, **extra_args)
-
-        elif(method == 'pop_adiab'):
-            state_t = self.EvolutionPopAdiab(time, state_init, **extra_args)
-
-        else:
-            raise NotImplementedError()
-
-        if store:
-            self.state_t = state_t
-        
-        return state_t
-
-# --------------------------------------------------------------------------- #
-#   Custom evolutions
-# --------------------------------------------------------------------------- #
-    def EvolutionSE(self, time = None, state_init = None, iterable = False, **args_evolve):
-        """  Wrap evolve from QuSpin only expose some of teh arguments
-        hamiltonian.evolve(state_init, t0 = 0,times = T, eom="SE",solver_name="dop853",stack_state=False,
-        verbose=False,iterate=False,imag_time=False,**solver_args)
-        """
-        if time is None:
-            time = self.t_simul
-        if state_init is None:
-            state_init = self.state_init
-
-        state_t = self._H.evolve(state_init, t0 = 0, times = time, iterate=iterable, **args_evolve)
-        return state_t
-
-
-    def EvolutionPopAdiab(self, time = None, state_init = None, **args_evolve):
-        """ Evolve the state according to SE and project it on the instantaneous 
-        eigen vectors of the hamiltonian. This pop_adiab is stored by default and
-        state_t is returned """
-        if time is None:
-            time = self.t_array
-        if state_init is None:
-            state_init = self.state_init
-
-        nb_ev = args_evolve.pop('nb_ev', 2)
-        state_t = self.EvolutionSE(time, state_init, **args_evolve)
-        # Not optimal
-        pop_adiab = self._h_project_to_instant_evect(time, state_t, nb_ev)
-        energies = self.EvolutionInstEnergies(time, nb_ev)
-        self.pop_adiab = pop_adiab
-        self.energies = energies # both energies and field
-        
-        return state_t
-        
-
-    def EvolutionInstEnergies(self, time = None, nb = 2):
-        """ Custom study of the gap """
-        if(time is None):
-            time = self.t_array
-        energies = self._h_get_lowest_energies(time, nb)
-        func_values = [self.control_fun(t) for t in time] 
-        res = np.c_[(func_values, energies)]
-        return res
-        
-
-    #-----------------------------------------------------------------------------#
-    # plot capabilities
-    #-----------------------------------------------------------------------------#
-    def plot_pop_adiab(self, **args_pop_adiab):
-        """ Plot pop adiab where each population_t is dispatched on one of the 
-        three subplot
-        #TODO: better plots
-        """
-        if(hasattr(self,'pop_adiab')):
-            pop_adiab = self.pop_adiab
-            t = self.t_array
-            en_tmp = self.energies
-            n_cf = self.n_controls
-            en = en_tmp[:, n_cf:]
-            cf = en_tmp[:, :n_cf]
-            nb_levels = pop_adiab.shape[1]    
-            f, axarr = plt.subplots(2,2, sharex=True)
-            
-            axarr[0,0].plot(t, cf, label = 'f(t)')
-            for i in range(nb_levels):
-                pop_tmp = pop_adiab[:, i]
-                max_tmp = np.max(pop_tmp)
-                if(max_tmp > 0.1):
-                    axarr[0,1].plot(t, pop_tmp, label = str(i))
-                    axarr[1,0].plot(t, en[:, i], label = str(i))
-                elif(max_tmp > 0.01):
-                    axarr[1,1].plot(t, pop_tmp, label = str(i))
-                    axarr[1,0].plot(t, en[:, i], label = str(i))
-            
-            axarr[0,1].legend()
-            axarr[1,1].legend()
-            axarr[1,0].legend()
-            axarr[0,0].legend()
-        
-        else:
-            print("pcModel_qspin.plot_pop_adiab: no pop_adiab found.. Generate it first")
-        
-
-
 
 
 ### ======================= ###
