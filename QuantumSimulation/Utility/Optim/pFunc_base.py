@@ -15,7 +15,7 @@ else:
     from .. import Helper as ut
     
 import numpy as np
-from numpy import array
+from numpy import array, inf #used for eval within the module
 import numpy.polynomial.chebyshev as cheb
 import matplotlib.pylab as plt
 import pdb 
@@ -458,6 +458,13 @@ class pFunc_base():
         bounds = self._get_one_bound(param_name)
         return array([b == False for b in bounds])
    
+    def randomized_theta(self):
+        """ randomize (uniformly) theta values, based on their bounds"""
+        theta_bounds = self.theta
+        theta_random = [random_from_bound(b) for b in theta_bounds]
+        self.theta = theta_random
+        
+    
 
     #-----------------------------------------------------------------------------#
     # standard operations between pFunc
@@ -682,7 +689,7 @@ class pFunc_fromcallable(pFunc_base):
     capabilities of pFunc"""
     _FLAG_TYPE = 'callable'
     def __init__(self, callable_obj):
-        pFunc_base.__init__()
+        pFunc_base.__init__(self)
         self._callable = callable_obj
 
     
@@ -967,26 +974,24 @@ class StepFunc(pFunc_base):
 class PWL(pFunc_base):
     """ piecewiselinear
     params : {'F' = [f_1, .., f_N], 'Tstep' = [T_1, .., T_N], F0 = f_0}
-    >> f(t) = (1) f_0 (if t<t_1)  (2) f_(n-1) + (f_(n) - f_(n-1)) * (t - t_(n-1))  
+    >> f(t) = (1) f_0 (if t<t_0)  (2) f_(n-1) + (f_(n) - f_(n-1)) * (t - t_(n-1))  
     (t in [t_(n-1), t_n[) (3) f_N (if t>=T_N) 
     """     
-    _LIST_PARAMETERS = ['F', 'F0', 'Tstep', 'T0']
-    _NB_ELEM_PER_PARAMS = ['a', 1, 'a', 1]
+    _LIST_PARAMETERS = ['F', 'T']
+    _NB_ELEM_PER_PARAMS = ['a', 'a']
 
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
         """         
         """
-        F, f0, Tstep, t0 = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
-        if(X < t0):
-            res = f0[0]
-        elif(X>=Tstep[-1]):
+        F, T= (self._get_one_param(p) for p in self._LIST_PARAMETERS)
+        if(X < T[0]):
+            res = F[0]
+        elif(X >= T[-1]):
             res = F[-1]
-        elif(X < Tstep[0]):
-            res = f0[0] + (F[0] - f0[0]) * (X - t0)
         else:
-            idx = Tstep.searchsorted(X + 1e-15) - 1
-            res = F[idx] + (F[idx] - F[idx-1]) * (X - Tstep[idx-1])
+            idx = T.searchsorted(X + 1e-15) - 1
+            res = F[idx] + (F[idx+1] - F[idx]) * (X - T[idx])/(T[idx+1] - T[idx])
         return res
 
 class ExpRampFunc(pFunc_base):
@@ -1162,6 +1167,14 @@ def _is_fully_bounded(list_bounds):
 def _is_a_strict_bound(bound):
     res = hasattr(bound, '__iter__') and (len(bound) == 2) and (bound[0] < bound[1])
     return res
+
+def random_from_bound(bound):
+    """ return a random value if a tuple is provided else 0 """
+    if (isinstance(bound, tuple)):
+        val = np.random.uniform(low = bound[0], high = bound[1])
+    else:
+        val = 0.0
+    return val
 #==============================================================================
 # Some testing
 #==============================================================================
