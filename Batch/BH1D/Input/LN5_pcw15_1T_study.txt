@@ -1,0 +1,14 @@
+model_dico {'L':5,'Nb':5,'mu':0,'T':4.889428431607287,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['f2t2:neg_fluence:0.0001_smooth:0.005'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_pwc15','_FLAG_NAME':'1T'}
+
+testing_dico {'fom':['f2t2:neg_fluence:0.0001_smooth:0.005','f2t2','fluence','smooth','varN']}
+
+optim_dico {'algo':'NM','init_obj':'uniform_0_1','maxfev':15000,'maxiter':None,'_FLAG_NAME':'NM01'} {'algo':'DE','maxiter':200,'popsize':10,'init_obj':None,'_FLAG_NAME':'DE10'} {'algo':'BO2','maxiter':700,'num_cores':1,'init_obj':50,'acq':'EI','exploit_steps':50,'_FLAG_NAME':'BO_50_100k','maxtime':82800} {'algo':'BO2','maxiter':700,'num_cores':1,'init_obj':50,'acq':'EI','exploit_steps':50,'_FLAG_NAME':'BO_50_10k','maxtime':82800,'optim_num_anchor':50,'optim_num_samples':10000} {'algo':'BO2','maxiter':700,'num_cores':1,'init_obj':50,'acq':'EI','exploit_steps':50,'_FLAG_NAME':'BO_25_10k','maxtime':82800,'optim_num_anchor':25,'optim_num_samples':10000} {'algo':'BO2','maxiter':700,'num_cores':1,'init_obj':50,'acq':'EI','exploit_steps':50,'_FLAG_NAME':'BO_15_10k','maxtime':82800,'optim_num_anchor':15,'optim_num_samples':10000} {'algo':'BO2','maxiter':700,'num_cores':1,'init_obj':50,'acq':'EI','exploit_steps':50,'_FLAG_NAME':'BO_5_10k','maxtime':82800,'optim_num_anchor':5,'optim_num_samples':10000} {'algo':'BO2','maxiter':175,'num_cores':1,'init_obj':50,'acq':'EI','exploit_steps':50,'_FLAG_NAME':'BO_batch','maxtime':82800,'optim_num_anchor':25,'optim_num_samples':10000,'batch_size':4,'batch_method':'local_penalization'} {'algo':'BO2','maxiter':700,'num_cores':1,'init_obj':50,'acq':'EI','exploit_steps':50,'_FLAG_NAME':'BO_sparse','maxtime':82800,'optim_num_anchor':25,'optim_num_samples':10000,'model_type':'sparseGP'} {'algo':'BO2','maxiter':700,'num_cores':1,'init_obj':50,'acq':'LCB','exploit_steps':50,'_FLAG_NAME':'BO_lindec','maxtime':82800,'optim_num_anchor':25,'optim_num_samples':10000,'acquisition_weight':5,'acquisition_weight_lindec':True}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
