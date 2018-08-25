@@ -635,6 +635,29 @@ if __name__ == '__main__':
         resOptim = optim()
         # pdb.run("resOptim = optim()")
         
+        ##Batch
+        optim_args = {'algo': 'BO2', 'maxiter':10, 'acq':'LCB',
+                      'acquisition_weight_lindec':True, 'optim_num_samples':10000, 
+                      'optim_num_anchor':15, 'initial_design_type':'latin',
+                      'acquisition_jitter':0.0001, 'batch_size':4, 'batch_method':'local_penalization', 'num_cores':4}
+        optim = learner_Opt(model = camel, **optim_args)
+        resOptim = optim()
+        
+        ##Sparse
+        optim_args = {'algo': 'BO2', 'maxiter':10, 'acq':'LCB',
+                      'acquisition_weight_lindec':True, 'optim_num_samples':10000, 
+                      'optim_num_anchor':15, 'initial_design_type':'latin',
+                      'acquisition_jitter':0.0001, 'model_type':'sparseGP'}
+        optim = learner_Opt(model = camel, **optim_args)
+        resOptim = optim()
+        
+        ##Lineardecay
+        optim_args = {'algo': 'BO2', 'maxiter':40, 'acq':'EI',
+                      'acquisition_weight_lindec':True, 'optim_num_samples':10000, 
+                      'optim_num_anchor':15, 'initial_design_type':'latin',
+                      'acquisition_jitter':0.0001, 'acquisition_weight':4, 'acquisition_weight_lindec':True}
+        optim = learner_Opt(model = camel, **optim_args)
+        resOptim = optim()
         
         optim_args = {'algo': 'BO', 'maxiter':25, 'gp_acq_iter':50,'acq':'ei'}
         optim = learner_Opt(model = camel, **optim_args)
