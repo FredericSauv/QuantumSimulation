@@ -16,7 +16,7 @@ if __name__ == '__main__':
     import sys
     sys.path.append("../../../")
     from QuantumSimulation.Utility import Helper as ut
-    from QuantumSimulation.Utility.Optim import pFunc_base, pFunc_zoo,  Learner
+    from QuantumSimulation.Utility.Optim import pFunc_base, pFunc_zoo, Learner
     from QuantumSimulation.Utility.Misc import RandomGenerator, MP
 
 else:
@@ -682,6 +682,8 @@ class Batch:
         else:
             evol_fom_stats = None
         return evol_fom_stats
+    
+    
 
     @classmethod 
     def _list_res_get_evol_nev_time_stats(cls, list_res):
@@ -1078,8 +1080,8 @@ class BatchParametrizedControler(Batch):
             shortcut = dico['ctl_shortcut']
             
             # no free params
-            ow = "{'name_func':'OwriterYWrap', 'ow':[(-100,0,0),(T,100+T,1)]}"
-            ow_r = "{'name_func':'OwriterYWrap', 'ow':[(-100,0,1),(T,100+T,0)]}"
+            ow = "{'name_func':'OwriterYWrap', 'ow':[(-inf,0,0),(T,inf,1)]}"
+            ow_r = "{'name_func':'OwriterYWrap', 'ow':[(-inf,0,1),(T,inf,0)]}"
             bds = "{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}"
             linear = "{'name_func':'LinearFunc', 'bias':0, 'w':1/T}"
             linear_r = "{'name_func':'LinearFunc', 'bias':1, 'w':-1/T}"
@@ -1101,7 +1103,8 @@ class BatchParametrizedControler(Batch):
             omfour = "{'name_func':'FourierFunc','T':T,'freq_type':'CRAB_FREEOM','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
             omsinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'CRAB_FREEOM','B_bounds':%s,'nb_H':%s}"
             pwc = "{'name_func':'StepFunc','T':T,'F_bounds':%s,'nb_steps':%s}"
-
+            pwl = "{'name_func':'PWL','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}"
+            pwlr = "{'name_func':'PWL','TLast':T,'T0':0,'F0':1,'FLast':0,'F_bounds':%s,'nb_steps':%s}"
             logis = "{'name_func':'LogisticFunc','L':2,'k':%s,'x0':0}"
             logisflex = "{'name_func':'LogisticFunc','L':%s,'k':%s,'x0':%s}"
 
@@ -1115,6 +1118,16 @@ class BatchParametrizedControler(Batch):
                 nb_params = int(shortcut[12:])
                 dico_atom = {'ow':ow_r,'bd':bds,'pwc':pwc %('(0,1)',nb_params)}
                 dico_expr = {'final':'**(#ow,**(#bd,#pwc))'}
+                        
+            elif(shortcut[:11] == 'owbds01_pwl'):
+                nb_params = int(shortcut[11:])
+                dico_atom = {'ow':ow,'bd':bds,'pwl':pwl %('(0,1)',nb_params+1)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwl))'}
+
+            elif(shortcut[:13] == 'owbds01r_pwlr'):
+                nb_params = int(shortcut[13:])
+                dico_atom = {'ow':ow_r,'bd':bds,'pwlr':pwlr %('(0,1)',nb_params+1)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwlr))'}
 
             ### RDMIZED FREQ
             elif(shortcut[:13] == 'owbds01_1crab'):
