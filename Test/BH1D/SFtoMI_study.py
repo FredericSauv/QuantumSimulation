@@ -151,35 +151,34 @@ dico_simul_varN100000['fom'] = ['varN100000_smooth:0.05']
 model_varN1000 = bh1d.BH1D(**dico_simul_varN1000)
 model_varN10000 = bh1d.BH1D(**dico_simul_varN10000)
 model_varN100000 = bh1d.BH1D(**dico_simul_varN100000)
+model_varN_noisy = model_varN100000
 
 try:
-    func_used_varN1000 = pFunc_base.pFunc_base.read_func_from_file("SFtoMI_varN1000")
+    func_used_varN_noisy = pFunc_base.pFunc_base.read_func_from_file("SFtoMI_varN_noisy")
 except:
-    optim = Learner.learner_Opt(model = model_varN1000, **optim_args)
-    res_varN1000 = optim(track_learning=True)
-    res_varN1000['last_func'] = model_varN1000.control_fun
-    func_used_varN1000 = model_varN1000.control_fun
-    func_used_varN1000.theta = res_varN1000['params']
+    model_varN_noisy = model_varN100000
+    optim = Learner.learner_Opt(model = model_varN_noisy, **optim_args)
+    res_varN_noisy = optim(track_learning=True)
+    res_varN_noisy['last_func'] = model_varN_noisy.control_fun
+    func_used_varN_noisy = model_varN_noisy.control_fun
+    func_used_varN_noisy.theta = res_varN_noisy['params']
     if(save):
-        func_used_varN1000.save_to_file("SFtoMI_varN1000")
+        func_used_varN_noisy.save_to_file("SFtoMI_varN100000")
 
 #Testing
-dico_test_varN1000 = copy.copy(dico_test)
-model_test_varN1000 = bh1d.BH1D(**dico_test_varN1000)
-optim_params_varN1000 = func_used_varN1000.theta
-res_test_varN1000 = model_test_varN1000(optim_params_varN1000, trunc_res = False)
+dico_test_varN_noisy = copy.copy(dico_test)
+model_test_varN_noisy = bh1d.BH1D(**dico_test_varN_noisy)
+optim_params_varN_noisy = func_used_varN_noisy.theta
+res_test_varN1000 = model_test_varN_noisy(optim_params_varN_noisy, trunc_res = False)
 
 
 
-model_varN100000(optim_params_varN1000, trunc_res=False)
-model_varN(optim_params_varN1000, trunc_res=False)
+model_varN_noisy(optim_params_varN_noisy, trunc_res=False)
+model_varN(optim_params_varN_noisy, trunc_res=False)
 
-func_used_varN1000.plot_function(x_to_plot)
+func_used_varN_noisy.plot_function(x_to_plot)
 func_used_varN.plot_function(x_to_plot)
 func_used.plot_function(x_to_plot)
-
-
-
 
 
 ## Benchmarking2
