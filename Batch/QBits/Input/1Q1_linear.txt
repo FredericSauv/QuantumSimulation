@@ -1,4 +1,4 @@
-testing_dico {'T':1.5707963267948966,'dt':0.01,'flag_intermediate':False,'setup':'1Q1','state_init':'0','state_tgt':'m','fom':['f2t2:neg_fluence:0.0001_smooth:0.005','f2t2','fluence','smooth'],'fom_print':True,'ctl_shortcut':'owbds01_linear','_FLAG_NAME':'1T'} {'T':0.7853981633974483,'_FLAG_NAME':'05T'} {'T':2.356194490192345,'_FLAG_NAME':'15T'} {'T':3.141592653589793,'_FLAG_NAME':'2T'}
+testing_dico {'T':1.5707963267948966,'dt':0.01,'flag_intermediate':False,'setup':'1Q1','state_init':'0','state_tgt':'m','fom':['f2t2:neg_fluence:0.0001_smooth:0.005','f2t2','fluence','smooth'],'fom_print':True,'ctl_shortcut':'owbds01_linear','_FLAG_NAME':'1T'} {'T':0.7853981633974483,'_FLAG_NAME':'05T'} {'T':2.356194490192345,'_FLAG_NAME':'15T'} {'T':3.141592653589793,'_FLAG_NAME':'2T'} {'T':4.71238898038469,'_FLAG_NAME':'3T'} {'T':6.283185307179586,'_FLAG_NAME':'4T'} {'T':7.853981633974483,'_FLAG_NAME':'5T'} {'T':9.42477796076938,'_FLAG_NAME':'6T'} {'T':10.995574287564276,'_FLAG_NAME':'7T'} {'T':12.566370614359172,'_FLAG_NAME':'8T'} {'T':14.137166941154069,'_FLAG_NAME':'9T'} {'T':15.707963267948966,'_FLAG_NAME':'10T'}
 
 _RDM_RUNS 1
 _RDM_FIXSEED True
