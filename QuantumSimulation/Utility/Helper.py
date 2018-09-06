@@ -6,6 +6,8 @@ Created on Thu Jul 27 13:51:45 2017
 """
 import csv
 csv.field_size_limit(100000000)
+import logging 
+logger = logging.getLogger(__name__)
 import os 
 import pdb
 import numpy as np
@@ -1057,12 +1059,15 @@ def merge_and_stats_TS(listTS, dico=True, rule = 'lower'):
     merged_TS = merge_TS(listTS, rule=rule)
     stats = np.array([np.concatenate(([ind], get_stats(ts))) for ind, ts in merged_TS])
     if(dico):
-        res = {'index':stats[:,0], 'avg': stats[:,1],'min':stats[:,2], 'max': stats[:,3]
-        ,'std':stats[:,4], 'avg_pstd': stats[:,5],'avg_mstd':stats[:,6], 'n': stats[:,7]}
+        res = stats_array2dico(stats)
     else:
         res = stats
     return res
 
+def stats_array2dico(stats):
+    res = {'index':stats[:,0], 'avg': stats[:,1],'min':stats[:,2], 'max': stats[:,3]
+        ,'std':stats[:,4], 'avg_pstd': stats[:,5],'avg_mstd':stats[:,6], 'n': stats[:,7]}
+    return res
 
 def get_stats(list_val, dico_output = False):
     """ from a list of value get the stats defined in this order:
@@ -1170,7 +1175,29 @@ def plot_from_stats(stats, dico_plot = {}, plot = None, return_plot = False, sav
         yavg = np.array([avg])
         x = np.array([stats.get('label_nb', 1)])
         ax_plt.errorbar(x, yavg, yerr=[err_minus, err_plus], fmt=shape, color = color, ecolor=color, capthick=2, label = legend)
-                
+
+    elif(component == 'finalerrorstd'):
+        m = func_wrap(stats['avg_mstd'])
+        p = func_wrap(stats['avg_pstd'])
+        if(len(np.shape(yavg)) == 0):
+            avg = yavg
+        else:
+            avg = yavg[-1]
+        if(len(np.shape(m)) == 0):
+            mini = m
+        else:
+            mini = m[-1]
+        if(len(np.shape(p)) == 0):
+            maxi = p
+        else:
+            maxi = p[-1]
+
+        err_minus = np.array([avg - mini])
+        err_plus = np.array([maxi - avg])
+        yavg = np.array([avg])
+        x = np.array([stats.get('label_nb', 1)])
+        ax_plt.errorbar(x, yavg, yerr=[err_minus, err_plus], fmt=shape, color = color, ecolor=color, capthick=2, label = legend)
+                                
     elif(component == 'pm1sd'):
         m = func_wrap(stats['avg_mstd'])
         p = func_wrap(stats['avg_pstd'])
@@ -1178,6 +1205,14 @@ def plot_from_stats(stats, dico_plot = {}, plot = None, return_plot = False, sav
         ax_plt.plot(indices, p, color = color)
         ax_plt.fill_between(indices, m, p, color = color, alpha = 0.2)
         
+    elif(component == 'avgpm1sd'):
+        m = func_wrap(stats['avg_mstd'])
+        p = func_wrap(stats['avg_pstd'])
+        ax_plt.plot(indices, yavg, dashes=[6, 2], color = color, label=legend)
+        ax_plt.plot(indices, m, color = color)
+        ax_plt.plot(indices, p, color = color)
+        ax_plt.fill_between(indices, m, p, color = color, alpha = 0.2)
+    
     else:
         comp = splitString(component)
         for c in comp:
@@ -1195,7 +1230,7 @@ def plot_from_stats(stats, dico_plot = {}, plot = None, return_plot = False, sav
 
     
     
-def plot_from_list_stats(list_stats, dico_main, dico_inset = None, save_fig = False):
+def plot_from_list_stats(list_stats, dico_main, dico_inset = None, save_fig = False, **args_extra):
     """ from a LIST of stats create some custom plots
     stats = [[index, avg, mini, maxi, std, avg_pstd, avg_mstd],...]
     """
@@ -1252,6 +1287,19 @@ def plot_from_list_stats(list_stats, dico_main, dico_inset = None, save_fig = Fa
     if(inset_flag):
         apply_dico_plot(fig, ax_plt2, dico_inset)
     
+    if('hline' in args_extra):        
+        dico_line = args_extra['hline']
+        x_add = dico_line.pop('x_add', 1)
+        x_pad = dico_line.pop('x_pad', 0.3)
+        y_pad = dico_line.pop('y_pad', -0.01)
+
+        xmin, xmax = ax_plt.get_xlim()
+        ax_plt.set_xlim((xmin, xmax + x_add))
+        font = {'family': 'serif', 'color':'darkred','weight': 'normal', 'size': 10}
+        for k, v in dico_line.items():
+            ax_plt.hlines(v, xmin, xmax, colors='darkred', linestyles='dotted')
+            ax_plt.text(xmax + x_pad, v +y_pad , k, fontdict = font)
+    
     if(is_str(save_fig)):
         fig.savefig(save_fig)
 
@@ -1263,6 +1311,7 @@ def apply_dico_plot(fig, axis, dico_plot):
     xlabel = dico_plot.get('xlabel')
     legend = dico_plot.get('legend')
     legend_prop = dico_plot.get('prop')
+    legend_loc = dico_plot.get('legend_loc')
     xticks = dico_plot.get('xticks')
     xtick_label = dico_plot.get('xtick_label')
 
@@ -1271,6 +1320,8 @@ def apply_dico_plot(fig, axis, dico_plot):
             axis.legend()
         else:
             axis.legend(prop = legend_prop)
+    if(legend_loc is not None):
+        axis.legend(loc = legend_loc)
     if(ylim is not None):
         axis.set_ylim(ylim[0], ylim[1])
     if(xlim is not None):
@@ -1401,18 +1452,48 @@ def extend_dim_function(n_dim=0, array_output = False):
         return extended_function
     return extend_impl
 
+
+#
+@extend_dim_function(1, True)
+def qb_get_sph_coord(state):
+    r = np.linalg.norm(state)
+    if(not(np.allclose(r, 1))):
+        logger.error('state is not normalized')
+    a, b = state
+    mod_a = np.abs(a) 
+    arg_a = np.angle(a)
+    theta = 2 * np.arccos(mod_a)
+    arg_b = np.angle(b)
+    phi = arg_b - arg_a
+    return (r, theta, phi)
+
+
+@extend_dim_function(1, True)    
+def qb_get_cart_coord(state):
+    sph_c = qb_get_sph_coord(state)
+    cart_c = sph2cart_coord(sph_c)
+    return cart_c
+
+
+@extend_dim_function(1, True)
+def sph2cart_coord(sph_coord):
+    r, theta, phi = sph_coord
+    x = r * np.cos(theta)
+    y = r * np.sin(theta) * np.cos(phi)
+    z = r * np.sin(theta) * np.sin(phi)
+    return (x,y,z)
+
+
+
+
+
 #==============================================================================
 #                   Decorators
 #==============================================================================
 if __name__ == '__main__':
-    TS1 = np.array([[2,10],[1,5],[4,42],[7,56],[13,2]])
-    TS2 = np.array([[14,10],[2,7],[6,42],[8,56],[15,2]])
+    state = np.array([1.0, 1.j]) /np.sqrt(2)
+
+    test_sp = qb_get_sph_coord(state)
+    test_eu = qb_get_cart_coord(state)
+
     
-    TS1 = sort_TS(TS1)
-    TS2 = sort_TS(TS2)
-
-    print(find_from_index_TS(3, TS1))
-    mergets = merge_TS([TS1, TS2])
-    stats = merge_and_stats_TS([TS1, TS2])
-
-
