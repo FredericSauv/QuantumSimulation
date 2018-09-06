@@ -158,7 +158,9 @@ class BH1D(mod.pcModel_qspin):
         self._fom_func['varN10000'] = (lambda x: self._avg_varN_measured(x, 10000))
         self._fom_func['varN100000'] = (lambda x: self._avg_varN_measured(x, 100000))
 
-
+    def _state_to_occup_nb(self, st):
+        exp_occup = np.array([op.expt_value(st) for op in self._op_n_sites])
+        return exp_occup
 
     def _get_basis_to_fock(self, i):
         """ get the i-th basis vector represented in the focks basis 
@@ -171,7 +173,7 @@ class BH1D(mod.pcModel_qspin):
             Ns = self._ss.Ns
             repr_vector = np.zeros(Ns)
             repr_vector[i] = 1
-            repr_fock = np.array([op.expt_value(repr_vector) for op in self._op_n_sites])
+            repr_fock = self._state_to_occup_nb(repr_vector)
             
         return repr_fock
             
