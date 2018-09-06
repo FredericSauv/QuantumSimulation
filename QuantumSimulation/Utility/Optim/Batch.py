@@ -696,12 +696,14 @@ class Batch:
             merged_TS = ut.merge_TS(list_nev_time, rule='linear')            
             merged_array = np.array([ [ts[0]]+list(ts[1]) for ts in merged_TS])
             stats = np.array([np.concatenate(([ind], ut.get_stats(ts))) for ind, ts in merged_TS])
-            merged_diff = [[m[0], np.array(m[1:]-merged_array[n-1, 1:])] for n, m in enumerate(merged_array[1:])]
+            dico_stats = ut.stats_array2dico(stats)
+            merged_diff = [[m[0], np.array(m[1:]-merged_array[n, 1:])] for n, m in enumerate(merged_array[1:])]
             stats_diff = np.array([np.concatenate(([ind], ut.get_stats(ts))) for ind, ts in merged_diff])
+            dico_stats_diff = ut.stats_array2dico(stats_diff)
         else:
-            stats = None
-            stats_diff = None
-        return (stats, stats_diff )
+            dico_stats = None
+            dico_stats_diff = None
+        return (dico_stats, dico_stats_diff)
     
     @classmethod
     def _get_nev_onetime(cls, nev_time):
