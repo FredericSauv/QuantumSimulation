@@ -11,6 +11,7 @@ import operator as op
 import numpy as np
 logger = logging.getLogger(__name__)
 import matplotlib.pylab as plt
+plt.rc('text', usetex=True) 
 
 if(__name__ == '__main__'):
     sys.path.append("../../")
@@ -619,7 +620,13 @@ class pcModel_qspin(pcModel_base):
         state_t = self.EvolutionSE(time, state_init, **args_evolve)
         # Not optimal
         ev, EV = self._h_get_instantaneous_ev_EV(time=time, nb_ev=nb_ev)
+        #sorting
+        #pdb.set_trace()
         
+        idx = [np.argsort(e) for e in ev]
+        EV = [E[:,idx[n]] for n, E in enumerate(EV)]
+        ev = [e[idx[n]] for n, e in enumerate(ev)]
+
         try:
             assert state_t.shape[1] == n_t
         except AssertionError as err:
@@ -644,8 +651,9 @@ class pcModel_qspin(pcModel_base):
         three subplot
         #TODO: better plots
         """
+        col_list = ['b', 'g', 'r', 'c', 'm', 'k','C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'] * 50
         if(hasattr(self,'pop_adiab')):
-            limit_legend = args_pop_adiab.get('lim_legend', 10)
+            limit_legend = args_pop_adiab.get('lim_legend', 15)
             limit_enlevels = args_pop_adiab.get('lim_enlevels', np.inf)
             pop_adiab = self.adiab_pop #txn
             t = self.adiab_t 
@@ -654,8 +662,9 @@ class pcModel_qspin(pcModel_base):
             nb_levels = min(pop_adiab.shape[1], limit_enlevels)    
             #[0,0] control function
             f, axarr = plt.subplots(2,2, sharex=True)
-            axarr[0,0].plot(t, cf, label = 'f(t)')
+            axarr[0,0].plot(t, cf, label = r"$\Gamma(t)$")
             for i in range(nb_levels):
+                col = col_list[i]
                 pop_tmp = pop_adiab[:, i]
                 max_tmp = np.max(pop_tmp)
                 if(i<=limit_legend):
@@ -663,29 +672,27 @@ class pcModel_qspin(pcModel_base):
                 else:
                     lbl_tmp = None
                 if(max_tmp > 0.1):
-                    axarr[0,1].plot(t, pop_tmp, label = lbl_tmp)
+                    axarr[0,1].plot(t, pop_tmp, label = lbl_tmp, color = col)
                 elif(max_tmp > 0.01):
-                    axarr[1,1].plot(t, pop_tmp, label = lbl_tmp)
-                axarr[1,0].plot(t, en[:, i], label = lbl_tmp)
+                    axarr[1,1].plot(t, pop_tmp, label = lbl_tmp, color = col)
+                if(i<10):
+                    axarr[1,0].plot(t, en[:, i] - en[:, 0], label = lbl_tmp, color = col)
             
             ax_tmp = axarr[0,1]
-            ax_tmp.legend(fontsize = 'x-small')
-            ax_tmp.set_title('main pop')
-            ax_tmp.set(xlabel='t', ylabel='%')
+            ax_tmp.legend(fontsize = 'small')
+            ax_tmp.set_title('Population', fontsize = 8)
+            ax_tmp.set(xlabel='t')
             
             ax_tmp = axarr[1,1]
-            ax_tmp.legend(fontsize = 'x-small')
-            ax_tmp.set_title('sec pop')
+            ax_tmp.legend(fontsize = 'small')
             ax_tmp.set(xlabel='t', ylabel='%')
             
             ax_tmp = axarr[0,0]
             ax_tmp.legend()
-            ax_tmp.set_title('control')
             ax_tmp.set(xlabel='t', ylabel='cf')
             
             ax_tmp = axarr[1,0]
-            ax_tmp.set_title('instantaneous ein')
-            ax_tmp.set(xlabel='t', ylabel='E')
+            ax_tmp.set(xlabel='t', ylabel=r"$E_i - E_0$")
         
             save_fig = args_pop_adiab.get('save_fig')
             if(ut.is_str(save_fig)):
@@ -694,6 +701,12 @@ class pcModel_qspin(pcModel_base):
         else:
             logger.warning("pcModel_qspin.plot_pop_adiab: no pop_adiab found.. Generate it first")
 
+    #def plot_bloch_sphere(self):
+        
+    #def plot_evol_on_bloch_sphere(self, states= None):
+        
+    #def _plot_one_state_bs(self, state):
+    
     
     #-----------------------------------------------------------------------------#
     # Setup functions
@@ -719,13 +732,13 @@ class pcModel_qspin(pcModel_base):
         self._fom_func['proj1000'] = (lambda x: self._h_n_measures_tgt(x, nb =1000))
 
     def get_state(self, state_obj = None):
-        """ Generate quantum states from state_obj <str> or <array/list<num>>"""
+        """ Generate quantum states from state_obj <str> or <array/list<num>>
+        """
         basis = self._ss
         if(state_obj is None):
             state_res = None
 
         elif(isinstance(state_obj, str)):
-            #pdb.set_trace()
             if(state_obj == 'GS_i'):
                 # GS at t=0
                 _, state_res = self._H.eigsh(time = 0.0, k=1, which='SA',maxiter=1E10)
@@ -735,6 +748,16 @@ class pcModel_qspin(pcModel_base):
             elif(state_obj == 'GS_inf'):
                 #GS at t = 5*T (to use with owritten functions)
                 _, state_res = self._H.eigsh(time = 5 * self.T, k=1, which='SA',maxiter=1E10) 
+            elif(state_obj[:3] == 'EES'):
+                # Energy EigenState e.g. 'EES_0_0.0' is the first Energy Eigen 
+                # State at t = 0
+                extra = state_obj[4:]
+                n_ev, t = extra.split('_')
+                n_ev = int(n_ev)
+                t = float(t)                
+                _, state_res = self._H.eigsh(time = t, k = n_ev+1, which = 'SA', maxiter = 1E10)
+                state_res = state_res[:, n_ev] if n_ev > 0 else state_res
+            
             elif(state_obj == 'uniform'):
                 #GS at t = T
                 state_res = np.random.uniform(-1, 1, size=basis.Ns)
