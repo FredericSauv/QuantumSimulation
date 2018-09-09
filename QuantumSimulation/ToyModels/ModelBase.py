@@ -620,12 +620,7 @@ class pcModel_qspin(pcModel_base):
         state_t = self.EvolutionSE(time, state_init, **args_evolve)
         # Not optimal
         ev, EV = self._h_get_instantaneous_ev_EV(time=time, nb_ev=nb_ev)
-        #sorting
-        #pdb.set_trace()
-        
-        idx = [np.argsort(e) for e in ev]
-        EV = [E[:,idx[n]] for n, E in enumerate(EV)]
-        ev = [e[idx[n]] for n, e in enumerate(ev)]
+
 
         try:
             assert state_t.shape[1] == n_t
@@ -640,7 +635,27 @@ class pcModel_qspin(pcModel_base):
         self.adiab_evect = np.array(EV)
         self.adiab_t = time
         return state_t
-        
+    
+    def FindMinDelta(self, time = None, state_init = None, level_min = 0, level_max=1, **args_evolve):
+        """ find minimal gap over time where the gap is the difference between two 
+        instantaneous energies """
+        if time is None:
+            time = self.t_array
+        if state_init is None:
+            state_init = self.state_init
+
+        gap = np.Inf
+        for t in time:
+            if((level_max+1) < self._H.Ns): 
+                e_tmp, _ = self._H.eigsh(time=t, k=level_max+1, which='SA',maxiter=1E10)
+            else:
+                e_tmp, _ = self._H.eigh(time=t)
+            gap_tmp = e_tmp[level_max] - e_tmp[level_min]
+            if(gap_tmp < gap):
+                gap = gap_tmp
+
+
+        return gap
 
     
     #-----------------------------------------------------------------------------#
@@ -649,12 +664,13 @@ class pcModel_qspin(pcModel_base):
     def plot_pop_adiab(self, **args_pop_adiab):
         """ Plot pop adiab where each population_t is dispatched on one of the 
         three subplot
-        #TODO: better plots
+        #TODO: add min gap
         """
         col_list = ['b', 'g', 'r', 'c', 'm', 'k','C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'] * 50
         if(hasattr(self,'pop_adiab')):
             limit_legend = args_pop_adiab.get('lim_legend', 15)
             limit_enlevels = args_pop_adiab.get('lim_enlevels', np.inf)
+            plot_gap = args_pop_adiab.get('plot_gap', False)
             pop_adiab = self.adiab_pop #txn
             t = self.adiab_t 
             en = self.adiab_en #txn
@@ -663,17 +679,19 @@ class pcModel_qspin(pcModel_base):
             #[0,0] control function
             f, axarr = plt.subplots(2,2, sharex=True)
             axarr[0,0].plot(t, cf, label = r"$\Gamma(t)$")
+            second_pop_populated = False
             for i in range(nb_levels):
                 col = col_list[i]
                 pop_tmp = pop_adiab[:, i]
                 max_tmp = np.max(pop_tmp)
                 if(i<=limit_legend):
-                    lbl_tmp = str('i')
+                    lbl_tmp = str(i)
                 else:
                     lbl_tmp = None
                 if(max_tmp > 0.1):
                     axarr[0,1].plot(t, pop_tmp, label = lbl_tmp, color = col)
                 elif(max_tmp > 0.01):
+                    second_pop_populated = True
                     axarr[1,1].plot(t, pop_tmp, label = lbl_tmp, color = col)
                 if(i<10):
                     axarr[1,0].plot(t, en[:, i] - en[:, 0], label = lbl_tmp, color = col)
@@ -684,15 +702,29 @@ class pcModel_qspin(pcModel_base):
             ax_tmp.set(xlabel='t')
             
             ax_tmp = axarr[1,1]
-            ax_tmp.legend(fontsize = 'small')
-            ax_tmp.set(xlabel='t', ylabel='%')
+            if(second_pop_populated):
+                ax_tmp.legend(fontsize = 'small')
             
             ax_tmp = axarr[0,0]
             ax_tmp.legend()
-            ax_tmp.set(xlabel='t', ylabel='cf')
+            ax_tmp.set(xlabel='t')
             
             ax_tmp = axarr[1,0]
-            ax_tmp.set(xlabel='t', ylabel=r"$E_i - E_0$")
+            if(plot_gap):
+                try:
+                    ax_tmp.set(xlabel='t', ylabel=r"$E_i - E_0$")
+                    diff_01 = en[:, 1] - en[:, 0]
+                    index_min = np.argmin(diff_01)
+                    t_min = t[index_min]
+                    y_min= diff_01[index_min]
+                    ax_tmp.arrow(t_min, 0, 0, y_min)
+                    ax_tmp.text(t_min - 2.2 , (y_min/2), r"$\Delta = %.2f$"%(y_min), fontsize=8)
+                except:
+                    pass
+            
+            
+
+        
         
             save_fig = args_pop_adiab.get('save_fig')
             if(ut.is_str(save_fig)):
@@ -724,6 +756,7 @@ class pcModel_qspin(pcModel_base):
         #fidelity to the target state
         self._fom_func['f2t'] =  (lambda x: self._h_fid_tgt(x))
         self._fom_func['f2t2'] =  (lambda x: self._h_fid2_tgt(x))
+        self._fom_func['projSS'] = (lambda x: self._h_projSS_tgt(x))
 
         # measurement projection on the target_state 
         self._fom_func['proj5'] = (lambda x: self._h_n_measures_tgt(x, nb =5))
@@ -754,9 +787,21 @@ class pcModel_qspin(pcModel_base):
                 extra = state_obj[4:]
                 n_ev, t = extra.split('_')
                 n_ev = int(n_ev)
-                t = float(t)                
-                _, state_res = self._H.eigsh(time = t, k = n_ev+1, which = 'SA', maxiter = 1E10)
+                t = float(t)
+                
+                _, state_res = self._h_get_instantaneous_ev_EV(time=[t], nb_ev=n_ev+1)
+                state_res = state_res[0]
                 state_res = state_res[:, n_ev] if n_ev > 0 else state_res
+            
+            elif(state_obj[:3] == 'ESS'):
+                # Energy SubSPace e.g. 'EES_0_0.0' is the first Energy Eigen 
+                # State at t = 0
+                n_ev, t = state_obj[4:].split('_')
+                n_ev = int(n_ev)
+                t = float(t)
+                
+                _, state_res = self._h_get_instantaneous_SS(time=t)
+                state_res = state_res[min(n_ev, len(state_res) - 1)]
             
             elif(state_obj == 'uniform'):
                 #GS at t = T
@@ -802,6 +847,14 @@ class pcModel_qspin(pcModel_base):
         """ compute fidelity(square conv) between V1 and V2"""
         return pcModel_qspin._h_fid2(self.state_tgt, V1)
     
+    def _h_projSS_tgt(self,V1):
+        """ compute """
+        residual = np.copy(V1)
+        tgt = self.state_tgt if(np.ndim(self.state_tgt) > 1) else [self.state_tgt]
+        for st in tgt:
+            residual -= pcModel_qspin._h_ip(st, V1) * st
+        res = 1 - np.square(pcModel_qspin._h_norm(residual))
+        return res
 
     def _h_fid_tgt(self,V1):
         """ compute fidelity(square conv) between V1 and V2"""
@@ -883,6 +936,38 @@ class pcModel_qspin(pcModel_base):
         return res    
     
     
+    def _h_get_instantaneous_SS(self, time=None):
+        """ get instantaneous eigen values SubSpaces """
+        if(time is None):
+            time = self.t_array ## Should it t_simul
+        ## Carefull this method can be inacurate if too many eigenvectors/vals are requested
+        ## cf. quspin package comments
+        ev, EV = self._H.eigh(time=time)
+        idx = np.argsort(ev)
+        EV = EV[:,idx]
+        ev = ev[idx]
+        
+        ev_SS, EV_SS, EV_tmp = [], [], []
+        ref = None
+        
+        for e, E in zip(ev, EV):
+            if (ref is None):
+                ref = e
+                ev_SS.append(e)
+                EV_tmp.append(E)
+            
+            elif (np.abs(ref - e) < 1e-8):
+                EV_tmp.append(E)
+                
+            else:
+                EV_SS.append(EV_tmp)
+                EV_tmp = [E]
+                ev_SS.append(e)
+                ref = e
+        if len(EV_tmp)>0:
+            EV_SS.append(EV_tmp)
+        return (ev_SS, EV_SS)
+    
     def _h_get_instantaneous_ev_EV(self, time=None, nb_ev=5):
         """ get instantaneous eigen values and eigen vectors """
         if(time is None):
@@ -895,5 +980,9 @@ class pcModel_qspin(pcModel_base):
             eigen_t = [self._H.eigh(time=t) for t in time]
         ev = [ev for ev, _ in eigen_t]
         EV = [EV for _, EV in eigen_t]
+        
+        idx = [np.argsort(e) for e in ev]
+        EV = [E[:,idx[n]] for n, E in enumerate(EV)]
+        ev = [e[idx[n]] for n, e in enumerate(ev)]
+        
         return (ev, EV)
-    
