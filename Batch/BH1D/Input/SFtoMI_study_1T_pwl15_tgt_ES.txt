@@ -1,0 +1,14 @@
+model_dico {'L':5,'Nb':5,'kblock':0,'pblock':1,'mu':0,'T':5.136511734353454,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'ESS_0_10.0','fom':['projSS:neg_fluence:0.0001_smooth:0.05'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_pwl15','_FLAG_NAME':'1T_ESS0'} {'state_tgt':'ESS_1_10.0','fom':['projSS:neg_fluence:0.0001_smooth:0.05'],'_FLAG_NAME':'1T_ESS1'} {'state_tgt':'EES_0_10.0','fom':['f2t2:neg_fluence:0.0001_smooth:0.05'],'_FLAG_NAME':'1T_EES0'} {'state_tgt':'EES_1_10.0','fom':['f2t2:neg_fluence:0.0001_smooth:0.05'],'_FLAG_NAME':'1T_EES1'} {'state_tgt':'GS_inf','fom':['f2t2:neg_fluence:0.0001_smooth:0.05'],'_FLAG_NAME':'1T_GS_inf'}
+
+testing_dico {'fom':['f2t2:neg_smooth:0.05','f2t2','fluence','smooth','varN']}
+
+optim_dico {'algo':'NM','init_obj':'uniform_0_1','maxfev':15000,'maxiter':None,'_FLAG_NAME':'NM'} {'algo':'DE','maxiter':50,'popsize':10,'init_obj':None,'_FLAG_NAME':'DE'} {'algo':'BO2','maxiter':700,'init_obj':120,'optim_num_samples':10000,'optim_num_anchor':5,'exploit_steps':50,'maxtime':82800,'_FLAG_NAME':'BO_superlight'} {'algo':'BO2','maxiter':700,'init_obj':120,'optim_num_samples':10000,'optim_num_anchor':25,'exploit_steps':50,'maxtime':82800,'_FLAG_NAME':'BO_light'} {'algo':'BO2','maxiter':700,'init_obj':120,'exploit_steps':50,'maxtime':82800,'_FLAG_NAME':'BO'} {'algo':'BO2','maxiter':700,'init_obj':120,'optim_num_samples':10000,'optim_num_anchor':5,'exploit_steps':50,'maxtime':82800,'acq':'LCB','_FLAG_NAME':'BO_superlight_lindec','acquisition_weight':5,'acquisition_weight_lindec':True} {'algo':'BO2','maxiter':700,'init_obj':120,'optim_num_samples':10000,'optim_num_anchor':25,'exploit_steps':50,'maxtime':82800,'acq':'LCB','_FLAG_NAME':'BO_light_lindec','acquisition_weight':5,'acquisition_weight_lindec':True} {'algo':'BO2','maxiter':700,'init_obj':120,'exploit_steps':50,'maxtime':82800,'acq':'LCB','_FLAG_NAME':'BO_1T_lindec','acquisition_weight':5,'acquisition_weight_lindec':True}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
