@@ -12,6 +12,8 @@ import sys, pdb
 import numpy as np 
 from quspin.operators import hamiltonian # Hamiltonians and operators
 from quspin.basis import boson_basis_1d # Hilbert space boson basis
+import imp
+
 
 if(__name__ == '__main__'):
     sys.path.append("../../../")
@@ -21,6 +23,8 @@ if(__name__ == '__main__'):
 else:
     from ...Utility.Optim import pFunc_base as pf
     from .. import ModelBase as mod
+
+imp.reload(mod)
 
 class BH1D(mod.pcModel_qspin):
     """ Simulate a 1D - MH model. Implementation of the pcModel_qspin """
@@ -128,6 +132,17 @@ class BH1D(mod.pcModel_qspin):
                 n_var_sites = [mod.pcModel_qspin._h_variance(op, V) for op in self._op_n_sites]
                 avg_var_occup = np.average(n_var_sites)
                 return avg_var_occup
+            self._avg_var_occup = None
+            self._fom_func['varN'] = None
+            
+            # measured variance
+            self._avg_varN_measured = None
+            self._fom_func['varN5'] = None
+            self._fom_func['varN10'] = None
+            self._fom_func['varN100'] = None
+            self._fom_func['varN1000'] = None
+            self._fom_func['varN10000'] = None
+            self._fom_func['varN100000'] = None
         else:
             def avg_var_occup(V):
                 n_var_sites = [mod.pcModel_qspin._h_variance(op, V) for op in self._op_n_sites]
@@ -146,17 +161,17 @@ class BH1D(mod.pcModel_qspin):
                 meas_avg_var = np.mean(meas_var)
                 return meas_avg_var
             
-        self._avg_var_occup = avg_var_occup
-        self._fom_func['varN'] = self._avg_var_occup
-        
-        # measured variance
-        self._avg_varN_measured = avg_var_occup_measured
-        self._fom_func['varN5'] = (lambda x: self._avg_varN_measured(x, 5))
-        self._fom_func['varN10'] = (lambda x: self._avg_varN_measured(x, 10))
-        self._fom_func['varN100'] = (lambda x: self._avg_varN_measured(x, 100))
-        self._fom_func['varN1000'] = (lambda x: self._avg_varN_measured(x, 1000))
-        self._fom_func['varN10000'] = (lambda x: self._avg_varN_measured(x, 10000))
-        self._fom_func['varN100000'] = (lambda x: self._avg_varN_measured(x, 100000))
+                self._avg_var_occup = avg_var_occup
+                self._fom_func['varN'] = self._avg_var_occup
+                
+                # measured variance
+                self._avg_varN_measured = avg_var_occup_measured
+                self._fom_func['varN5'] = (lambda x: self._avg_varN_measured(x, 5))
+                self._fom_func['varN10'] = (lambda x: self._avg_varN_measured(x, 10))
+                self._fom_func['varN100'] = (lambda x: self._avg_varN_measured(x, 100))
+                self._fom_func['varN1000'] = (lambda x: self._avg_varN_measured(x, 1000))
+                self._fom_func['varN10000'] = (lambda x: self._avg_varN_measured(x, 10000))
+                self._fom_func['varN100000'] = (lambda x: self._avg_varN_measured(x, 100000))
 
     def _state_to_occup_nb(self, st):
         exp_occup = np.array([op.expt_value(st) for op in self._op_n_sites])
