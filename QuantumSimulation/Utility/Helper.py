@@ -15,11 +15,10 @@ from functools import wraps
 import matplotlib.pylab as plt
 #import numpy.random as rdm
 #from ast import literal_eval as ev
-from matplotlib import rc
 #rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
 ### for Palatino and other serif fonts use:
 ##rc('font',**{'family':'serif','serif':['Palatino']})
-rc('text', usetex=True)
+plt.rc('text', usetex=True)
 #==============================================================================
 #                   I/O (write read)
 #==============================================================================
