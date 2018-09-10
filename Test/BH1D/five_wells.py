@@ -18,10 +18,10 @@ import imp
 T = np.pi
 T_long = 10
 fom = ['projSS']
-dico_simul = {'L':5, 'Nb':5, 'mu':0, 'T':T, 'dt':0.01, 'flag_intermediate':False, 
+dico_simul = {'L':7, 'Nb':7, 'mu':0, 'T':T, 'dt':0.01, 'flag_intermediate':False, 
               'setup':'1', 'state_init':'GS_i', 'state_tgt':'ESS_2_10.0', 'fom':fom, 
-              'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_pwl15', 
-              'kblock':0,'pblock':1}
+              'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_pwl15'}#, 
+#              'kblock':0,'pblock':1}
 
 ow = pFunc_base.OwriterYWrap(input_min = [-np.inf, T_long], input_max = [0, np.inf], output_ow =[0,1])
 linear = ow * pFunc_base.LinearFunc(bias=0,w=1/T_long)

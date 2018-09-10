@@ -1,4 +1,4 @@
-model_dico {'L':7,'Nb':7,'mu':0,'sps':7,'T':6.1887785379361056,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['f2t2:neg_fluence:0.0001_smooth:0.05'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_pwl15','_FLAG_NAME':'1T'} {'fom':['varN_smooth:0.05'],'_FLAG_NAME':'1T_varN'} {'fom':['varN1000_smooth:0.05'],'_FLAG_NAME':'1T_varN1000'} {'fom':['varN10000_smooth:0.05'],'_FLAG_NAME':'1T_varN10000'} {'fom':['varN100000_smooth:0.05'],'_FLAG_NAME':'1T_varN100000'}
+model_dico {'L':7,'Nb':7,'mu':0,'T':6.23266016308805,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['f2t2:neg_fluence:0.0001_smooth:0.05'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_pwl15','_FLAG_NAME':'1T'} {'fom':['varN_smooth:0.05'],'_FLAG_NAME':'1T_varN'} {'fom':['varN1000_smooth:0.05'],'_FLAG_NAME':'1T_varN1000'} {'fom':['varN10000_smooth:0.05'],'_FLAG_NAME':'1T_varN10000'} {'fom':['varN100000_smooth:0.05'],'_FLAG_NAME':'1T_varN100000'}
 
 testing_dico {'fom':['f2t2:neg_smooth:0.05','f2t2','fluence','smooth','varN']}
 
