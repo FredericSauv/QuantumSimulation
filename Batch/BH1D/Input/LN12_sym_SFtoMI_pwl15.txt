@@ -1,4 +1,4 @@
-model_dico {'L':12,'Nb':12,'mu':0,'kblock':0,'pblock':1,'T':9.372112417261688,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['f2t2:neg_fluence:0.0001_smooth:0.05'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_pwl15','_FLAG_NAME':'1T'} {'T':18.744224834523376,'_FLAG_NAME':'2T'} {'T':4.686056208630844,'_FLAG_NAME':'05T'} {'T':14.058168625892531,'_FLAG_NAME':'15T'}
+model_dico {'L':12,'Nb':12,'mu':0,'sps':None,'kblock':0,'pblock':1,'T':9.372112417261688,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['f2t2:neg_fluence:0.0001_smooth:0.05'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_pwl15','_FLAG_NAME':'1T'} {'T':18.744224834523376,'_FLAG_NAME':'2T'} {'T':4.686056208630844,'_FLAG_NAME':'05T'} {'T':14.058168625892531,'_FLAG_NAME':'15T'}
 
 testing_dico {'fom':['f2t2:neg_smooth:0.05','f2t2','fluence','smooth']}
 
