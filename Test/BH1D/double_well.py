@@ -56,7 +56,6 @@ model_GS = bh1d.BH1D(**dico_GS)
 optim_GS = Learner.learner_Opt(model = model_GS, **optim_args)
 res_GS = optim_GS(track_learning=True)
 model_GS.control_fun.plot_function(np.arange(-0.01, T+0.01, 0.01))
-model_GS.EvolutionPopAdiab(nb_ev=3)
 state_tmp = model_GS.EvolutionPopAdiab(nb_ev =2)
 model_GS.plot_pop_adiab(plot_gap = True)
 
