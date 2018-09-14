@@ -617,16 +617,24 @@ class pcModel_qspin(pcModel_base):
         if state_init is None:
             state_init = self.state_init
         n_t = len(time)
+        patch_degen= args_evolve.pop('patch_degen', False)
         state_t = self.EvolutionSE(time, state_init, **args_evolve)
         # Not optimal
         ev, EV = self._h_get_instantaneous_ev_EV(time=time, nb_ev=nb_ev)
-
-
         try:
             assert state_t.shape[1] == n_t
         except AssertionError as err:
             logger.exception("pb dim ")
             raise err
+        if(patch_degen):
+            for t, e in enumerate(ev):
+                list_degen = self._which_degen(e)
+                if(t > 0 and len(list_degen)>0):
+                    #Should we use graham schmidt first??
+                    E_bf = EV[t-1]
+                    E = EV[t]
+                    E_new = self._patch_degen(list_degen, E, E_bf)
+                    EV[t] = E_new
 
         proj_ev = [[pcModel_qspin._h_ip(state_t[:, t], EV[t][:, n]) for n in range(nb_ev)] for t in range(n_t)]
         self.adiab_pop = np.square(np.abs(np.array(proj_ev)))
@@ -656,7 +664,49 @@ class pcModel_qspin(pcModel_base):
 
 
         return gap
+    
+    def _patch_degen(self, list_degen, E, E_bf):
+        """ if degen pick eigenvectors s.t. they are the closest to previous ones
+        """
+        E_new = np.copy(E)
+        for deg_index in list_degen:
+            #ss_bf = E_bf[:,deg_index]
+            ss = E[:,deg_index]
+            ss_new = []
+            for n in deg_index:
+                E_ref = E_bf[:, n]
+                E_ref_plan = self._proj_SS(E_ref, ss)
+                ss_new.append(self._proj_ortho_SS(E_ref_plan, np.transpose(ss_new)))
+            E_new[:, deg_index] = np.transpose(ss_new)
+        return E_new
+                
+                
+    def _proj_SS(self, vec, SS):
+        """project and normalize a vector on a Subspace
+        Relies on SS provided as list of ortho vectors"""
+        proj = np.zeros_like(vec)
+        for st in np.transpose(SS):
+            proj += pcModel_qspin._h_ip(st, vec) * st
+        proj = proj / pcModel_qspin._h_norm(proj)
+        return proj
+    
+    def _proj_ortho_SS(self, vec, SS):
+        """project and normalize a vector on a Subspace
+        Relies on SS provided as list of ortho vectors"""
+        proj = np.copy(vec)
+        for st in np.transpose(SS):
+            proj -= pcModel_qspin._h_ip(st, vec) * st
+        proj = proj / pcModel_qspin._h_norm(proj)
+        return proj
+    
+    
 
+    def _which_degen(self, e, dec = 8):
+        e_rounded = np.round(e, dec)
+        range_index = np.arange(len(e_rounded))
+        val_uniques, val_nb = np.unique(e_rounded, return_counts=True)
+        list_degen = [range_index[e_rounded == val_uniques[n]] for n, v in enumerate(val_nb) if v > 1]        
+        return list_degen
     
     #-----------------------------------------------------------------------------#
     # plot capabilities
@@ -699,26 +749,27 @@ class pcModel_qspin(pcModel_base):
             ax_tmp = axarr[0,1]
             ax_tmp.legend(fontsize = 'small')
             ax_tmp.set_title('Population', fontsize = 8)
-            ax_tmp.set(xlabel='t')
+           
             
             ax_tmp = axarr[1,1]
+            ax_tmp.set(xlabel='t')
             if(second_pop_populated):
                 ax_tmp.legend(fontsize = 'small')
             
             ax_tmp = axarr[0,0]
             ax_tmp.legend()
-            ax_tmp.set(xlabel='t')
             
             ax_tmp = axarr[1,0]
+            ax_tmp.set(xlabel='t', ylabel=r"$E_i - E_0$")
             if(plot_gap):
-                try:
-                    ax_tmp.set(xlabel='t', ylabel=r"$E_i - E_0$")
+                try:                    
                     diff_01 = en[:, 1] - en[:, 0]
                     index_min = np.argmin(diff_01)
                     t_min = t[index_min]
                     y_min= diff_01[index_min]
                     ax_tmp.arrow(t_min, 0, 0, y_min)
-                    ax_tmp.text(t_min - 2.2 , (y_min/2), r"$\Delta = %.2f$"%(y_min), fontsize=8)
+                    plot_gap_dx = args_pop_adiab.get('plot_gap_dx', -2.2)
+                    ax_tmp.text(t_min - plot_gap_dx , (y_min/2), r"$\Delta = %.2f$"%(y_min), fontsize=8)
                 except:
                     pass
             
@@ -728,7 +779,7 @@ class pcModel_qspin(pcModel_base):
         
             save_fig = args_pop_adiab.get('save_fig')
             if(ut.is_str(save_fig)):
-                f.savefig(save_fig)
+                f.savefig(save_fig, bbox_inches='tight', transparent=True, pad_inches=0)
 
         else:
             logger.warning("pcModel_qspin.plot_pop_adiab: no pop_adiab found.. Generate it first")
