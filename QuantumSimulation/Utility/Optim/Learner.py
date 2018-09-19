@@ -5,17 +5,14 @@ Created on Mon Dec 18 16:03:37 2017
 
 @author: fs
 """
-import scipy.optimize as sco
-import numpy as np
-import sys, copy
-sys.path.append('/home/fred/Desktop/GPyOpt/')
-import GPyOpt
 import logging
 logger = logging.getLogger(__name__)
+import scipy.optimize as sco
+import numpy as np
+import sys, copy, time, pdb
+sys.path.append('/home/fred/Desktop/GPyOpt/')
+import GPyOpt
 
-#sys.path.insert(0,'../../../')
-#sys.path.insert(0,'../../../../')
-#sys.path.append('/home/fred/anaconda3/envs/py36q/lib/python3.6/site-packages')
 
 if(__name__ == '__main__'):
     sys.path.append("../../../")
@@ -33,22 +30,25 @@ else:
 
 class learner_base:
     """ Learner base class: follow (loosely the way scipy optimizer are implemented):
-    a learner is build then when called for a model 
+    a learner is build then when called for a model (instead of a function)
 
     learner ---  params_next  ---> model
     learner <---  fom  --- model
-    TODO: BO2 (based on GPyOpt)
     TODO: Implement RandomSearch // BFGS // GRID
+    TODO: CLEAN
+    TODO: rethink structure of the res / rethink the use creation of default arguments, 
+    arguments used for optim put everything as tuple??
+    
     """
     
     # mandatory params to initialise the learner
     _LIST_PARAMS_LEARNER = {}
-    _LIST_PARAMS_LEARNER['algo'] =  "Type of optimization performed - DE' differential evolution, 'NM' nedler mead, 'BH' basin hopping 'NoOPtim' (still can be some testing)"
+    _LIST_PARAMS_LEARNER['algo'] =  "Type of optimization performed - 'DE' differential evolution, 'NM' nedler mead, 'BO2' Bayesian Optim, 'BO' depreciated"
     
     # optional params     
     _LIST_PARAMS_LEARNER_OPT = {}
     _LIST_PARAMS_LEARNER_OPT['rdm_obj'] = ("random_object", None) 
-    _LIST_PARAMS_LEARNER_OPT['mp_obj'] = ("multiprocess0ing_object", None) 
+    _LIST_PARAMS_LEARNER_OPT['mp_obj'] = ("multiprocessing_object", None) 
 
 
     def __init__(self, **params_learner):
@@ -119,22 +119,24 @@ class learner_Opt(learner_base):
     _LIST_PARAMS_LEARNER_OPT['params_init'] =  ("How to initialize the parameters - Mandatory if NM / Simple / BH algos are used", None)
     _LIST_PARAMS_LEARNER_OPT['params_bounds'] =  ("enforce parameters bounds.. if not assessed from the model object", None)
 
-
     def __init__(self, model, **params_learner):
         # <dico>{<str>'name_algo': (<dico> default_hyperparameters, <method> method)> 
+        # used in such a way that only parameters appearing here can be used
         self._ALGO_INFOS ={
-        'NM':({'disp':True, 'maxiter':200, 'ftol':1e-6, 'maxfev':200, 'adaptative':False}, self._run_NM),        
+        'NM':({'disp':True, 'maxiter':200, 'ftol':1e-6, 'maxfev':200, 'adaptative':False, 'max_time':None}, self._run_NM),        
         'NOOPTIM':({}, self._run_NOOPTIM), 
         'BO2':({'disp':True, 'acq':'EI', 'maxiter':50,'verbose':False, 'model_type':'GP',
                'kernel':None, 'flag_MP':False, 'num_cores':1,
                'acq_opt_type':'lbfgs', 'initial_design_type':'latin', 'optim_num_anchor':50, 
                'optim_num_samples':100000, 'acquisition_jitter':0.001, 'max_time':np.inf,
                'acquisition_weight':2, 'exploit_steps':15, 'batch_method':'sequential',
-               'batch_size':1, 'num_inducing':10, 'ARD':False, 'to_transfer':None,'acquisition_weight_lindec':False}, self._run_BO2),
+               'batch_size':1, 'num_inducing':10, 'ARD':False, 'to_transfer':None,
+               'acquisition_weight_lindec':False}, self._run_BO2),
         'BO':({'disp':True, 'acq':'ei', 'kappa':5.0, 'maxiter':50,'verbose':False, 'kernel':'matern2.5', 
                'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'gp_acq_iter':50, 'gp_n_warmup':10000},
                 self._run_BO),
-        'DE':({'disp':True, 'maxiter':500, 'popsize':10, 'tol':0.01}, self._run_DE)}
+        'DE':({'disp':True, 'maxiter':500, 'popsize':10, 'tol':0.01, 'max_time':None}, 
+              self._run_DE)}
         
         learner_base.__init__(self, model=model, **params_learner)
         
@@ -148,15 +150,15 @@ class learner_Opt(learner_base):
         self._backup_initparams = params_learner # store initial params just in case
         default = self._ALGO_INFOS[params_learner['algo']][0] # default hyper parameters       
         opt_l = ut.merge_dico(default, params_learner, update_type = 4)     
-        opt_l.update({'model': model})
-        opt_l.update({'algo': params_learner['algo']})
-        opt_l.update({'nb_params':model.n_params})
-        opt_l.update({'bounds_obj':params_learner.get('bounds_obj')})
+        opt_l.update({'model': model,
+                      'algo': params_learner['algo'], 
+                      'nb_params':model.n_params,
+                      'bounds_obj':params_learner.get('bounds_obj'),
+                      'init_obj':params_learner.get('init_obj'),
+                      'rdm_gen':self.rdm_gen, 'mp_obj':self.mp})
         opt_l.update({'bounds_params':self._gen_boundaries_params(**opt_l)})
-        opt_l.update({'init_obj':params_learner.get('init_obj')})
         opt_l.update({'init_params':self._gen_init_params(**opt_l)})
-        opt_l['rdm_gen'] = self.rdm_gen
-        opt_l['mp_obj'] = self.mp
+            
         self.options_learner = opt_l
 
     def _gen_boundaries_params(self, **args_optim):
@@ -216,6 +218,7 @@ class learner_Opt(learner_base):
             res['opt_more'] = res_optim_duplicate
         res['init'] = self.options_learner['init_params']
         res['bounds'] = self.options_learner['bounds_params']
+        res['maxtime'] = res_optim_raw.get('maxtime', False)
         model = options['model']
         if(hasattr(model, '_track_calls')):
             res.update({'extra_'+k: v for k,v in model._track_calls.items()})
@@ -240,9 +243,17 @@ class learner_Opt(learner_base):
         if(len(np.shape(init)) == 2):
             options['initial_simplex'] = init
             init = init[0,:]
-            
         cost = lambda x:model(x, **args_call)
-        resultOptim = sco.minimize(cost, x0 =init, args = () , method='Nelder-Mead', options = options)
+        
+        # workaround doesn't work here
+        if(options.get('max_time', None) is not None):
+            _ = options.pop('max_time')
+            logger.warning('NM: max_time is not used')
+            callback = None
+        else:
+            callback = None
+        resultOptim = sco.minimize(cost, x0 =init, args = () , method='Nelder-Mead', 
+                                   options = options, callback = callback)
         return resultOptim
 
     def _run_DE(self, options, **args_call):
@@ -259,12 +270,21 @@ class learner_Opt(learner_base):
         def cost(x):
             res = model(x, **args_call)
             return res
+        
+        #workaround to terminate optims when a certain time has been reached
+        # use a callback with two mock arguments 
+        if(options_DE.get('max_time', None) is not None):
+            time_limit = time.time() + int(options_DE.pop('max_time'))
+            options_DE['callback'] = lambda x, convergence: time.time() > time_limit
+        
         resultOptim = sco.differential_evolution(cost, bounds, **options_DE)
+        if(options_DE.get('callback') is not None):
+            resultOptim['maxtime'] = options_DE.get('callback')(None, None)
+
         return resultOptim
 
     def _run_NOOPTIM(self, options, **args_call):
-        """ IS IT USEFULL """
- 
+        """ IS IT USEFULL?? """
         init = options['init_params']
         model = options['model']
         simRun = model(init, **args_call)
@@ -272,7 +292,8 @@ class learner_Opt(learner_base):
         return resultTest
 
     def _run_BO(self, options, **args_call):
-        """ Run a bayesian optimization using the library Bayesian Optimization
+        """ DEPRECIATED
+        Run a bayesian optimization using the library Bayesian Optimization
             (https://github.com/fmfn/BayesianOptimization) built on 
         """        
         #Init BO
@@ -361,7 +382,7 @@ class learner_Opt(learner_base):
         def cost(params):
             return model(np.squeeze(params), **args_call)
 
-        #First bricks for transfer learning
+        #V0.1 transfer learning
         to_transfer = options['to_transfer']
         if((to_transfer is not None) and (args_BO['model_type'] == 'GP_STACKED')):
             args_BO_transfer = copy.copy(args_BO)
@@ -399,14 +420,16 @@ class learner_Opt(learner_base):
 
 
         # Exploration-Exploitation phase
-        bo.run_optimization(max_iter = options['maxiter'], max_time = options['max_time'])
+        max_time = options['max_time']
+        bo.run_optimization(max_iter = options['maxiter'], max_time = max_time)
+        time_left = max_time - bo.cum_time
+        max_reached = (time_left < 0)
         
-
         # Exploitation phase
-        #### TODO:
+        # should it be forced eben if max_time is reached ? No so far 
         exploit_steps = options['exploit_steps']
         if(exploit_steps > 0): 
-            if(bo.max_time > bo.cum_time):
+            if(not(max_reached)):
                 bo.acquisition_type = 'LCB'
                 bo.acquisition_weight = 0.000001
                 bo.kwargs['acquisition_weight'] = 0.000001
@@ -416,11 +439,13 @@ class learner_Opt(learner_base):
                     bo.batch_size = 1
                 bo.evaluator = bo._evaluator_chooser()
                                         
-                bo.run_optimization(exploit_steps)
+                bo.run_optimization(exploit_steps, max_time = time_left)
+                time_left -= bo.cum_time
+                max_reached = (time_left < 0)
 
-        if((_still_potentially_better(bo)) and (exploit_steps <= 50) and (bo.max_time > bo.cum_time)):
+        if((_still_potentially_better(bo)) and (exploit_steps <= 50) and not(max_reached)):
             print('2nd round of exploitation')
-            bo.run_optimization(exploit_steps)
+            bo.run_optimization(exploit_steps, max_time = time_left)
 
         # generate results
         optim_params = bo.x_opt
@@ -440,11 +465,12 @@ class learner_Opt(learner_base):
         resultTest['Y_evol'] = bo.Y
         resultTest['Y_best'] = bo.Y_best
         resultTest['still_potentially_better'] = _still_potentially_better(bo)
+        resultTest['maxtime'] = max_reached
         
-        # Close pool of processors used (if it exists)
+        # Close pool of processors used (if needed)
+        self.mp.close_mp()
         return resultTest
 
-        raise NotImplementedError()
 
 
 
@@ -615,10 +641,20 @@ if __name__ == '__main__':
             
     
         camel = Camel_model()
+
+        optim_args = {'algo': 'DE', 'max_time':0}
+        optim = learner_Opt(model = camel, **optim_args)
+        resOptim = optim()
+        print(resOptim)
+
+        optim_args = {'algo': 'NM', 'max_time':0}
+        optim = learner_Opt(model = camel, **optim_args)
+        resOptim = optim()
+        print(resOptim)
         
         optim_args = {'algo': 'BO2', 'maxiter':25, 'optim_num_samples':100000, 
                       'optim_num_anchor':15, 'initial_design_type':'latin',
-                      'acquisition_jitter':0.0001}
+                      'acquisition_jitter':0.0001, 'max_time':20}
         optim = learner_Opt(model = camel, **optim_args)
         resOptim = optim()
         print(resOptim)
