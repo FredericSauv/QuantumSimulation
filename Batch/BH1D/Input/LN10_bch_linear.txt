@@ -1,0 +1,10 @@
+testing_dico {'L':10,'Nb':10,'sps':None,'mu':0,'T':9.024327575008847,'kblock':0,'pblock':1,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['f2t2:neg_fluence:0.0001_smooth:0.005','f2t2','fluence','smooth'],'fom_print':True,'ctl_shortcut':'owbds01_linear','_FLAG_NAME':'1T'} {'T':4.512163787504424,'_FLAG_NAME':'05T'} {'T':18.048655150017694,'_FLAG_NAME':'2T'} {'T':13.53649136251327,'_FLAG_NAME':'15T'} {'T':27.07298272502654,'_FLAG_NAME':'3T'} {'T':36.09731030003539,'_FLAG_NAME':'4T'} {'T':45.121637875044236,'_FLAG_NAME':'5T'} {'T':54.14596545005308,'_FLAG_NAME':'6T'} {'T':63.17029302506193,'_FLAG_NAME':'7T'} {'T':72.19462060007078,'_FLAG_NAME':'8T'} {'T':81.21894817507962,'_FLAG_NAME':'9T'} {'T':90.24327575008847,'_FLAG_NAME':'10T'}
+
+_RDM_RUNS 1
+_RDM_FIXSEED True
+_OUT_PREFIX 'benchmark'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
