@@ -35,7 +35,7 @@ class BH1D(mod.pcModel_qspin):
     _LIST_ARGS_OPT = mod.pcModel_qspin._LIST_ARGS
     _LIST_ARGS_OPT['Nb'] = ('<int>Number of particles', _LIST_ARGS['L'])
     _LIST_ARGS_OPT['mu'] = ('<float> chemical potential', 0)
-    _LIST_ARGS_OPT['sps'] = ('<int> Number of particles max per site', 3)
+    _LIST_ARGS_OPT['sps'] = ('<int> Number of particles max per site', None)
     _LIST_ARGS_OPT['kblock'] =('<int/None> if int reduce the dynamics to the k-th momentum block (0 to L)', None)
     _LIST_ARGS_OPT['pblock'] =('<int/None> if int reduce the dynamics to the k-th parity block (-1 or 1)', None)
     # _LIST_ARGS_OPT['sym'] = ('<dict> definition of the symmetries to use c.f. quspin doc', {}) 
