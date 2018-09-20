@@ -33,25 +33,24 @@ else:
 class model_base:
     """Base class for (quantum) models i.e. define what a model / simulation is.
     A model is comprised of an Hamiltonian (self._H), an underlying state space
-    (self._ss), time characteristics (i.e. horizon self.T, ), and computing some
-    figure of merits (fom)
+    (self._ss), time attributes (i.e. self.T, self.t_simulation, self.t_simul), 
+    and an initial state (self.state_init)
+
+    Evolve: evolve the initial state according to the Hamiltonian up to final time (self.T) 
+    while recording intermediate state if 'flag_intermediate' is True. 
+
+    Simulate: evolve the system and computing some figure of merit (FoM).
+
+    Notes
+    -----
+    For n-D structures depending on time time is the first dim (except stated ow)
+    Computibng a FoM is  a substantial part of the definition of a model
     
-    Evolving the system: from an initial state (self.state_init) make it evolve according 
-    to an Hamiltonian (self._H) up to final time (horizon self.T) while recording intermediate
-    state if 'flag_intermediate' is True. 
-    
-    When states are over time they are given as H X T 
-
-    Simulating the system is understood as evolving the system and computing some figure of merit
-    (a choice has be made to make this computation of fom part of the model_base).
-
-    Optionally one can provide a random_obj and noise_obj
-
-    TODO: implement mprocessing capabilities the same way as random
     """
+
     # {<str:name_mandatory_param> : <str: info_opt_param>}
     _LIST_ARGS = {'T':'<float> Horizon of the simul', 'dt':'<float> time step', 
-                 'flag_intermediate':'<bool> allows the use of intermediate times', 
+                 'flag_intermediate':'<bool> allows to store intermediate evolution', 
                  'state_init':'<string/np.array> Initial state'}
     
     # {<str:name_opt_param> : (<str: info_opt_param>, <var:default_value>)}
@@ -59,22 +58,59 @@ class model_base:
                      'mp_obj':('<int/bool/mp> Use to generate/pass the random generator', None),
                      'noise':('<dict<string>> to build noise in the model ',None), 
                      'fom':('fom <str> or <list<str>>, has', None),
-                     'state_init':('<string/np.array> Initial state',None)}
+                     'state_init':('<string/np.array> Initial state',None),
+                     'fom_print':('<bool> should the fom be printed',False)
+                     }
     
     def __init__(self, **args_model):
-        """ Attributes:
+        """Intializes the `model` object.
+        States: state_init, state_tgt, state
+        self.pop: population i.e. the probability of a state (given in the reference basis)
+
+        Notes
+        -----
+        Again states should be of the form [t][hilbert][(optionals) probabilistic ensemble index]
+
+
+        Parameters
+        -----------
+        T : float
+            Horizon (i.e. t max) 
             
-        -- noise -- 
-            noise input {'name_noise':<callable> or <string> <list<string>>,..}
-            where a string can be used to generate a random value i.e. uniform_0_1
-            cf. RandomGenerator.gen_rdmfunc_from_string
-            """
+        dt : float
+            time step
+
+        flag_intermediate: boolean
+            Should we store state of the system at intermediate time (i.e. at each time steps) 
+
+        state_init : string, np.array
+            Should be of the right size 
+        
+        rdm_obj : np.random.RandomState, optional
+            a random state 
+
+        mp_obj : MultiProcessing object, optional
+            
+        noise : dict, optional
+            XXXXXXXXXXX
+
+        fom: list of str, optional
+            Encode which figure of merit should be used
+    
+
+        TO DO
+        ------
+        state should be [t][hilbert space][(optional) nb parallel simuls] 
+        noise when multidim
+
+        """
+    
         self._ss = None # underlying state space
         self._H = None # Hamiltonian
         self._rdmgen = None #random generator
         self._fom_func = {} # functions available to compute FOM
         self._t_array = None #
-        self.pop_t = None
+        self.pop_t = None #
         self.t_simul = None # time array of the simulation
         self.T = None #Horizon of the simulation
                
@@ -86,40 +122,20 @@ class model_base:
         self.fom = args_model.get('fom') 
         self._fom_print = args_model.get('fom_print', False)
         
-        # self.state_init = args_model['state_init']
-        # self.state_tgt = args_model('state_tgt')
-        # in s
-
 
 
     def _setup_fom_basic_bricks(self):
         """ populate the dictionary self._fom_func of functions which can be used
-        to compose fom measures 
-        e.g. fom = 'last:f2t:square:rdmplus' stands for taking the last state ('last')
-         compute fidelity to target ('f2t' not implemented yet), square it ('square') 
-         and finaly add some randomness ('rdmplus' whih require that some _noise_func['fom'] 
-         exists).
-        """
-        def last(V):
-            if(len(np.shape(V)) == 2):
-                return V[:, -1]
-            elif(len(np.shape(V)) == 1):
-                return V
-            else:
-                raise NotImplementedError
-
-        def neg(x):
-            return 1 - x
-
+            to compute FoM """
         self._fom_func['max'] = np.max
         self._fom_func['min'] = np.min
         self._fom_func['avg'] = np.average
         self._fom_func['sqrt'] = np.sqrt
         self._fom_func['square'] = np.square
-        self._fom_func['last'] = last
-        self._fom_func['neg'] = neg
+        self._fom_func['last'] = lambda x: x[-1]
+        self._fom_func['neg'] = lambda x: 1- x
 
-        #To add randomness
+        #To add randomness on top of the FoM
         self._fom_func['rdmplus'] = (lambda x: x + self._noise_func['fom']())
         self._fom_func['rdmtime'] = (lambda x: x * (1 + self._noise_func['fom']()))
 
@@ -198,22 +214,47 @@ class model_base:
         return self._noise_func
     
     @noise.setter
-    def noise(self, noise):
+    def noise(self, noise=None):
+        """ allow generation of noise function based on a noise object
+        
+        Parameters
+        -----------
+        noise: dict
+            {name_noise_1: <callable, string>, name_noise_2: ...} 
+
+        RETURNS
+        ------
+        _noise_func: dict or None
+            {name_noise_1: callable, ...}
+
+        """
         if noise is None:
             self._noise_func = None
         elif(ut.is_dico(noise)):
             self._noise_func = {k:self._gen_noise_function(v) for 
                                 k, v in noise.items()}
         else:
-            raise NotImplementedError()
+            raise NotImplementedError('Noise should be passed as a dict or None')
 
     def _gen_noise_function(self, noise_obj):
-        """ allow generation of function based on different type of inputs"""
+        """ allow generation of noise function based on a noise_obj
+        Parameters
+        -----------
+        noise_obj: string or callable
+                * if callable simply return it
+                * if string try to build it based on rdm_gen method 
+                (this way enforce the use of the random state associated
+                to the model) if it fails try to eval the string
+        RETURNS
+        -------
+        res: callable dimension of the output has impact on the model
+
+        """
         if(ut.is_str(noise_obj)):
             try:
                 res = self.rdm_gen.gen_rdmfunc_from_string(noise_obj)
             except:
-                res = eval()
+                res = eval(noise_obj)
         elif(ut.is_callable(noise_obj)):
             res = noise_obj
         else:
@@ -221,7 +262,7 @@ class model_base:
         return res
         
     def _setup_time(self, **args_model):
-        """ Generate time attributes of the model."""
+        """ Generate time attributes of the model """
         self.T = args_model['T']
         self.dt = args_model['dt']
         self._flag_intermediate = args_model['flag_intermediate']
@@ -233,88 +274,113 @@ class model_base:
             self.t_simul = self.T
            
      
-    ### LOGIC FOR COMPUTING THE FOM
+    #LOGIC FOR COMPUTING THE FOM
     @ut.extend_dim_method(0, True)
-    def _compute_fom(self, fom = None, st = None):
-        """Compute a potentially composed FOM (or list of FOM)
-            i.e. fom = ['lst:f2t:neg:0.3, last:f2t2'] """    
-        if fom is None:
-            fom = self.fom
-        if st is None:
-            st = self.state
-        components = ut.splitString(fom)
+    def _compute_fom(self, fom = None, st = None, func_assemblate = np.sum):
+        """Compute a (potentially composed) FoM (or list of FOM)
+        Parameters
+        ----------
+        fom: string (seeparator=':' and '_')
+            the description of the FoM
         
-        res = np.sum([self._compute_atom_fom(c, st) for c in components])
+        st: np.array
+            state as an array an be n-D
+
+        Notes
+        -----
+        Extended to list of fom using a wrapper
+
+
+        Returns
+        --------
+        value of FoM: float or list
+        """    
+        fom = fom if fom is not None else self.fom
+        st = st if fom is not None else self.state
+        components = ut.splitString(fom) # default separator = '_'
+        res = func_assemblate([self._compute_atom_fom(c, st) for c in components])
         return res       
 
 
     def _compute_atom_fom(self, fom, st):        
-        """Compute a fom by composing functions
-            e.g. ComputeFOMAtom(state, 'lst:f2t:neg:0.3') >> 0.3 * neg(f2t(lst))
-            i.e. 0.3*(1 - f2t(st[-1])) i.e. inverse of the fidelity 
-            computed on the last state.
-            AWFULL NO??
+        """Compute an atomic (simplest brick) FoM 
+        Parameters
+        ----------
+        fom: string (seeparator=':')
+            the description of the FoM
+        
+        st: np.array
+            state as an array an be n-D
+
+
+        Returns
+        --------
+        value of FoM: float
+        
+        Examples
+        ---------
+        >>> x =  self._compute_atom_fom('lst:f2t:neg:0.3', st)
+        corresponds to :math:`B = 0.3*(1 - |2<Psi(T)|Psi(target)>|)`
+        take the last part of the state (i.e. state at time T), compute the fidelity 
+        to target return the neagtive version (neg(x)=1-x) and times it by 0.3  
         """                
-        #f2apply = [self._fom_func.get(k, lambda x: float(k)*x) for k in ut.splitString(fom, ":")]
-        f2apply = []
-        for k in ut.splitString(fom, ":"):
-            f_tmp = self._fom_func.get(k)
-            if(f_tmp is None):
-                f_tmp = partial(op.mul, float(k))
-            f2apply.append(f_tmp)
-    
-        res = ut.compoFunctions(f2apply, st, order = 0)
+        f2apply = [self._get_fom_func(k) for k in ut.splitString(fom, ":")]
+        res = ut.compoFunctions(f2apply, st, order = 0) # compo from left to right
         return res 
 
-    
-    ###TO BE IMPLEMENTED IN THE CHILD CLASSES
+    def _get_fom_func(self, fom_str):
+        """ find the fom_func associated to a string, if it can't find it
+        treats it a multiplying coeff"""
+        f = self._fom_func.get(k)
+        f = f if f is not None else partial(op.mul, float(k))
+        return f  
+
+
+    ## TO BE IMPLEMENTED IN THE CHILD CLASSES
     def get_state(self, state):
-        """ Return a state based on some string/array/other format"""
+        """ Return a state based on some string/array/other formats"""
         raise NotImplementedError()      
             
     def _state_to_pop(self, st):
-        """ compute pop from state"""
+        """ compute population from state """
         raise NotImplementedError()
 
     def Simulate(self, **args):
         """ Main entry point to simulate the system: evolves the init state and 
         performs some other actions (typically computing a figure of Merit or other 
-        statistic)
+        statistics)
         """
         raise NotImplementedError()            
 
     def Evolution(self, **args):
         """ Evolve the init_state according to the relevant method and store if
-            required
-        Output:
-            state_t, 
-        """
+            required, output is a state either a single one or one over time """
         raise NotImplementedError()      
 
 
+
+
 class cModel_base(model_base):
-    """ Base class for controlled models i.e. simulations depending of a
-    (some) time-dependent control function(s)"""
+    """ Base class for controlled models i.e. the hamiltonian depends on some
+    control function(s) """
     _LIST_ARGS = model_base._LIST_ARGS
     _LIST_ARGS['control_obj'] = "<callable> or <dict> or <str>"
     
     def __init__(self, **args_model):
-        """ init model and control functions (stored as a list) """
+        """ init model and control functions:
+        
+        Notes
+        -----
+        self.control_fun: list of callables
+        self._aggregated_nb_call should keep track of how many times the fun 
+        has been called, not in use right now 
+        """
         model_base.__init__(self, **args_model)
         self.control_fun = args_model['control_obj']
         self._setup_fom_controlfun_bricks()
-        self._aggregated_nb_call = 0
+        self._aggregated_nb_call = 0 
 
-    def _setup_fom_controlfun_bricks(self):
-        """ populate the dictionary self._fom_func of functions relating to the controlfun 
-        cf. doc self._setup_fom_basic_bricks
-        workaround: lambda function with one input x which is not used
-        remark: rare case where t_array is used and not t_simul
-        """
-        self._fom_func['fluence'] =  (lambda x: 
-            self._get_info_control('fluence', self.t_array, None, None))
-        self._fom_func['smooth'] = (lambda x: 
-            self._get_info_control('smoothness', self.t_array, None, None))
+
 
     #-----------------------------------------------------------------------------#
     # Management of the contro_fun (a list)
@@ -323,83 +389,74 @@ class cModel_base(model_base):
     def control_fun(self):
         return self._control_fun
 
+    @property
+    def n_controls(self):
+        return len(self.control_fun)
+
     @control_fun.setter
     def control_fun(self, control):
         list_fun = self._process_control_function(control)
-        if(not(ut.is_iter(list_fun))):
-            list_fun = [list_fun]
-        self._control_fun = list_fun
+        self._control_fun = list_fun if ut.is_iter(list_fun) else [list_fun]
         self._update_model_after_change_of_control_fun()
         
     def _update_model_after_change_of_control_fun(self):
         """ Extra stuff to do when the control_fun is replaced by another one"""
         pass
 
-    @property
-    def n_controls(self):
-        return len(self.control_fun)
-    
-    def get_one_control_fun(self, index = 0):
-        return self.control_fun[index]
 
+    @ut.extend_dim_method()
     def _process_control_function(self, control):
         """ control_fun should be a (list of) callable(s)"""
-        if(ut.is_iter(control)):
-            return [self._process_control_function(c) for c in control]
-        elif(ut.is_callable(control)):
+        if(ut.is_callable(control)):
             return control
         else:
             raise SystemError("couldn't use type {0} to create the control_functions "
                 "in class {1}").format(type(control), self.__class__) 
 
-    def _get_info_control(self, info_type = 'fluence', time = None, index = None, func_wrap = None):
-        """ compute info on the controlfluenc of the control function (or of wrapped control functions) 
-        Provide some flexibility on which function(s) to consider and on potential
-        wrapping of the function (e.g. may be intereseted in the fluence of 1 - controlFun) """
-        if(time is None):
-            time = self.t_array
-        if info_type == 'fluence':
-            info_func = self.__class__._fluence
-        elif info_type == 'smoothness':
-            info_func = self.__class__._smoothness
+    #-----------------------------------------------------------------------------#
+    # New FoM functions 
+    #-----------------------------------------------------------------------------#
+    def _setup_fom_controlfun_bricks(self):
+        """ New self._fom_func relating to the controlfun 
+        Notes
+        -----
+        lambda functions with a mock parameter
+        One of a rare case where t_array is used and not t_simul
+        """
+        self._fom_func['fluence'] =  (lambda x: 
+            self._get_info_control('fluence', self.t_array, None, None))
+        self._fom_func['smooth'] = (lambda x: 
+            self._get_info_control('smoothness', self.t_array, None, None))
 
-        if(index is not None):
-            func_tmp = self.control_fun[index]
-            if(func_wrap is not None):
-                func_tmp_wrapped = [lambda x: func_wrap(func_tmp(x))]
-            else:
-                func_tmp_wrapped = [func_tmp]        
-        else:
-            func_tmp = self.control_fun
-            if(func_wrap is not None):
-                if(ut.is_iter(func_wrap)):
-                    func_tmp_wrapped = [lambda x: func_wrap[i](f(x)) for i, f in enumerate(func_tmp)]
-                else:
-                    func_tmp_wrapped = [lambda x: func_wrap(f(x)) for f in func_tmp]
-            else:
-                func_tmp_wrapped = func_tmp
-
-        res = np.sum([info_func(f, time) for f in func_tmp_wrapped])
+    def _get_info_control(self, info_type = 'fluence', time = None, index = None, split = False):
+        """ compute information (smoothness, fluence) relating  to the control function  
+        
+        PARAMETERS
+        ----------
+        time: list of float
+            Used to compute the smoothness and fluence
+        index: int or None
+            which control_function are we looking at, if None: all of them
+        split: boolean
+            if False sum over all the control_fun required else return a list
+        """
+        time = self.t_array if time is None else time
+        dico_info_type = {'fluence':self.__class__._fluence, 'smoothness':self.__class__._smoothness}
+        info_func = dico_info_type[info_type]
+        if(index is None):
+            index = np.arange(self.n_controls)
+        elif(not(ut.is_iter(index))):
+            index = [index]
+        res = [info_func(f, time) for n,f in enumerate(self.controlfun) if n in index]
+        res = res if split else np.sum(res)
         return res
     
-    def get_control_fun_t(self, t_array = None):
-        if(t_array is None):
-            t_array = self.t_array
-            
-        if(self.n_controls == 0):
-            res = None
-        elif(self.n_controls == 1):
-            res = np.array([self.control_fun[0](t) for t in t_array])
-        else:
-            res = np.array([[cf(t) for cf in self.control_fun] for t in t_array])
-        return res
 
     @staticmethod
     def _smoothness(func, time):
         """ Smoothness as avg <([f(x) - f(x + dx)]/dx) ** 2> """
         time_copy = time.copy()
-        
-        time_copy[0] = time_copy[0]-1e-6
+        time_copy[0] = time_copy[0]-1e-6 # to ensure first change is taken into account
         time_copy[-1] = time_copy[-1]+1e-6
         step = np.diff(time_copy)
         diff_val_square = np.square(np.diff(func(time_copy)))
@@ -418,15 +475,26 @@ class cModel_base(model_base):
     
     
 class pcModel_base(cModel_base):
-    """ parametrized control models """
+    """Base class for parametrized control models i.e. control_func[i] is a pFunc_base
+    obj. The class implements __call__ making it take some paramaters as arguments,
+    update the parameters of the control_func and simulate the system returning 
+    some FoM
+
+    NOTE
+    ----
+        * pFunc_base obj are callable objects with extra attributes and methods: 
+          nb_params, params_bounds
+
+
+    """
 
     # Available type of parametrized control functions
     _LIST_CUSTOM_FUNC = pfzoo.pFunc_factory._LIST_CUSTOM_FUNC
 
     def __init__(self, **args_model):
         cModel_base.__init__(self, **args_model)
-        self._flag_track_calls_void = True
-
+        # flag indicating if we  track the calls to the control_fun
+        self._flag_track_calls_void = True 
 
     @property
     def n_params(self):
@@ -438,9 +506,13 @@ class pcModel_base(cModel_base):
     
     #TODO: Use pFunc_collec instead of list
     def _process_control_function(self, control):
-        """ clone the function passed  """
+        """ New implementation of the setter
         
-        if(isinstance(control, pf.pFunc_List)):
+        NOTE
+        ----
+        clone the function passed  """
+        
+        if(isinstance(control, pf.pFunc_collec)):
             res = control.clone()
             
         elif(isinstance(control, pf.pFunc_base)):
@@ -455,8 +527,7 @@ class pcModel_base(cModel_base):
         return res
             
     def _process_atom_control_function(self, control, as_collection = True):
-        """ delegate everything to the capability of pFunc_zoo.pFunc_factory 
-        store the dico (as a list of dicos allowing to rebuild the function) """
+        """ if it is a pFuncBase fine, else should be created by pFuncZooFactory """
         
         if(isinstance(control, pf.pFunc_base)):
             res = control.clone()
@@ -518,6 +589,7 @@ class pcModel_base(cModel_base):
 
     
 class pcModel_qspin(pcModel_base):
+
     """ Models based on the QuSpin package. inherit from the parametrized control
     function base class. On top of the that implement:
     + Building the state space (equiv to the basis objects in QuSpin)

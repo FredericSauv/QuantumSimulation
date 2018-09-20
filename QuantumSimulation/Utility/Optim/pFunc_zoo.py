@@ -26,9 +26,8 @@ from numpy import array, inf
 import copy
 import pdb
 
-#TODO: use nicknames for function
 class pFunc_factory():
-    """ Create on demand parametrized function with complicated / ad-hoc patterns
+    """Create on demand parametrized function with complicated / ad-hoc patterns
         Enhance pFunc_base by providing for more flexibility/functionality 
         when building the function
 
@@ -36,8 +35,14 @@ class pFunc_factory():
         provided when using the constructor FourierFunc) - if not found they will be taken as np.zeros
         e.g.2 can provide a list of fixed parameters removing the need to provide their bounds
         e.g.3 some randomization cabilities are provided for the choice of frequencies
-    TODO: move the shortcuts here
+    
+
+
+    EXAMPLE
+    -------
+
     """
+    # FIRST WAY: From a dictionary of arguments
     # Custom functions and arguments needed to init them
     # <str>key: (<str>:infos, <class>:constructor, <list<list<str>>>: params mandatory, <list<str>>: params optional)
     _LIST_CUSTOM_FUNC = {} 
@@ -54,36 +59,19 @@ class pFunc_factory():
     _LIST_CUSTOM_FUNC['LogisticFunc']= ('LogisticFunc', pf.LogisticFunc, pf.LogisticFunc._LIST_PARAMETERS, [])
     _LIST_CUSTOM_FUNC['GRBFFunc']= ('GRBFFunc', pf.GRBFFunc, pf.GRBFFunc._LIST_PARAMETERS, [])
 
-    @staticmethod
-    def get_shortctut_atom_expr(shortcut):
-        """ Match the expression return """
-        res_expr = None
-        res_rest = []
-        len_res_found= np.inf
-        for k, v in pFunc_factory._LIST_SHORTCUT.items():
-            length = len(k)
-            try:
-                if(shortcut[:length] == k and length < len_res_found):
-                    len_res_found = length
-                    res_expr = v[0]
-                    res_rest = shortcut[length:]
-            except:
-                pass
-        return res_expr, res_rest
-        
 
-    # Shortcut strings and arguments needed to extend them
+        
+    # SECOND WAY with shorcuts
+    # Shortcut strings and arguments needed to create them
     # <str>key: (<str>:expression, <list:<str>>:list of parameters)
     _LIST_SHORTCUT = OrderedDict()
     _LIST_SHORTCUT['ow'] = ("{'name_func':'OwriterYWrap', 'ow':[(-inf,0,0),(T,inf,1)]}",[])
-    #ow_r = "{'name_func':'OwriterYWrap', 'ow':[(-inf,0,1),(T,inf,0)]}"
     _LIST_SHORTCUT['bds'] = ("{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}", [])
     _LIST_SHORTCUT['linear_r'] = ("{'name_func':'LinearFunc', 'bias':1, 'w':-1/T}", [])
     _LIST_SHORTCUT['linear'] = ("{'name_func':'LinearFunc', 'bias':0, 'w':1/T}", [])
     _LIST_SHORTCUT['constant'] = ("{'name_func':'ConstantFunc', 'c0':[%s]}", ['c0'])
     _LIST_SHORTCUT['sinpi'] = ("{'name_func':'FourierFunc','A':[0], 'B':[1],'Om':[np.pi/T]}", [])
     _LIST_SHORTCUT['power'] = ("{'name_func':'PowerFunc','power':%s}", ['power'])            
-
     _LIST_SHORTCUT['grbf'] = ("{'name_func':'GRBFFunc','A':%s, 'x0':%s,'l':%s,'A_bounds':%s}", ['A','x0', 'l', 'A_bounds'])
     _LIST_SHORTCUT['rfour'] = ("{'name_func':'FourierFunc','T':T,'freq_type':'CRAB','A_bounds':%s,'B_bounds':%s,'nb_H':%s}", ['A_bounds', 'B_bounds', 'nb_H'])
     _LIST_SHORTCUT['rsinfour'] = ("{'name_func':'FourierFunc','T':T,'freq_type':'CRAB','B_bounds':%s,'nb_H':%s}", ['B_bounds', 'nb_H'])
@@ -97,10 +85,21 @@ class pFunc_factory():
     _LIST_SHORTCUT['logis'] = ("{'name_func':'LogisticFunc','L':2,'k':%s,'x0':0}", [])
     _LIST_SHORTCUT['logisflex'] = ("{'name_func':'LogisticFunc','L':%s,'k':%s,'x0':%s}", [])
 
+    _SHORTCUT_SYNTAX = {}
+
     ## Mapping symbols operators
     _PARSING_DICO_OP = {'**':'Composition', '*':'Product', '+':'Sum', '#':''}  
 
     def __init__(self, rdm_obj = None, context = None):
+        """ 
+
+        PARAMETER
+        ---------
+            rdm_gen: RandomState
+            contest: dict 
+                mapping variable name (key) to variable value 
+
+        """
         self.rdm_gen = rdm_obj
         self.context = context
 
@@ -144,9 +143,40 @@ class pFunc_factory():
             SystemError('context should be a dictionnary')
 
     #-------------------------------------------------------#
-    #                    EXTEND SHORTCUT
-    # transform a shortcut string into a pFuncZoo_
+    # MAIN ENTRY POINT
+    # create pFunc
     #-------------------------------------------------------#
+    def create_pfunc(self, fun_obj, **extra_args)
+        if(ut.is_str())
+
+
+    #-------------------------------------------------------#
+    # SHORTCUT MANAGEMENT
+    # transform a shortcut string into a pFuncBase
+    #-------------------------------------------------------#
+    def from_shortcut(self, shortcut, context):
+        full_expr = type(self).extend_shortcut(shortcut)
+        func = 
+
+    @staticmethod
+    def get_shortctut_atom_expr(shortcut):
+        """ Match the expression return """
+        res_expr = None
+        res_rest = []
+        len_res_found= np.inf
+        for k, v in pFunc_factory._LIST_SHORTCUT.items():
+            length = len(k)
+            try:
+                if(shortcut[:length] == k and length < len_res_found):
+                    len_res_found = length
+                    res_expr = v[0]
+                    res_rest = shortcut[length:]
+            except:
+                pass
+        return res_expr, res_rest
+
+
+
     @classmethod
     def extend_shortcut(cls, shortcut):
         """ 
@@ -454,8 +484,7 @@ class pFunc_factory():
             raise SystemError('prse_atom: atom arg should be a string')
         res = 'self.build_atom_func(' + atom + ')'
         return res
-    
-    eval_string
+   
     @classmethod
     def parse_compound(cls, expr, db_atom):
         """ Parse compound expressions (based on some atomic expressions defined in db_atom)
@@ -534,7 +563,7 @@ class pFunc_factory():
 
     
     #-------------------------------------------------------#
-    #                    BUILDING ZONE
+    # FROM A DICTIONARY
     # Helps to build function from a dico
     #-------------------------------------------------------#
     def build_atom_func(self, dico_fun):

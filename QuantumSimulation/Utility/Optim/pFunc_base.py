@@ -532,24 +532,22 @@ class pFunc_base():
             raise SystemError("{1} not allowed with power operations" .format(type(b)))
         return res
 
-#    def __eq__(self, b):
-#        """ doesn't deal well with the type pFunc_fromcllable"""
-#        if type(self) != type(b):
-#            return False
-#        params_a = self.get_params()
-#        params_b = b.get_params()
-#        for key in set(list(params_a.keys()) + list(params_b.keys())):
-#            if np.any(params_a.get(key, None) != params_b.get(key, None)):
-#                return False
-#        return True
 
-    def __repr__(self):
-        return "{0}(**{1})".format(self.__class__.__name__, repr(self.get_params(deep = False)))                             
+
+                           
 
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
         """Evaluate the function."""
         
+
+
+    #-----------------------------------------------------------------------------#
+    # I/O
+    #-----------------------------------------------------------------------------#
+    def __repr__(self):
+        return "{0}(**{1})".format(self.__class__.__name__, repr(self.get_params(deep = False)))  
+    
     def clone(self, theta = None):
         """Returns a clone of self with given hyperparameters theta. """
         cloned = eval(repr(self))
@@ -579,15 +577,34 @@ class pFunc_base():
     
         return func
 
+    def save_to_file(self, file_name):
+        pFunc_base.save_a_func_to_file(self, file_name, 'w')
+    
+    @staticmethod
+    def save_a_func_to_file(func, file_name, type_write = 'w'):
+        ut.write_to_file_for_eval(func, file_name, type_write)
+    
+    @staticmethod
+    def read_func_from_file(file_name):
+        evaluator = lambda ev: eval(ev)    
+        func1 = ut.eval_from_file(file_name, evfunc = evaluator)
+        return func1
+
+
     #-----------------------------------------------------------------------------#
     # Some extra capabilities
-    #     Visualization >> plot_func
-    #        >> fluence / smoothness / 
-    #     Fitting >> fit_to_target_func
+    #     Visualization 
+    #        * plot_functions
+    #     Infos:    
+    #        * fluence 
+    #        * smoothness  
+    #        * l2_norm 
+    #        * smoothness  
+    #     Fitting 
+    #        * fit_to_target_func
     #-----------------------------------------------------------------------------#
     def plot_function(self, range_x, **args_plot):
-        """ plot the function
-        """
+        """ plot the function """
         y = self.__call__(range_x)
         plt.plot(np.array(range_x), np.array(y), **args_plot)
     
@@ -639,14 +656,25 @@ class pFunc_base():
         return l2_dists
     
     def fit_to_target_func(self, func_target, list_x, algo = 'DE', copy = False, **args_optim):
-        """ fit the free parameters of the functionn to match (in the Least 
-        Square Error sense)
-        TODO: gradient based methods """
-        if (copy):
-            func_to_fit = self.clone()
-        else:
-            func_to_fit = self
-        return_fit = args_optim.pop('return_fit', False)
+        """ fit the free parameters of the function to match a discretized target functions 
+         (in the Square Error sense) - rely on a differemtial evolution algo
+        
+        PARAMETERS
+        ----------
+        func_target: callable
+        list_x: list of floats
+        algo: str
+            Which minim algo to use
+
+
+        TODO
+        ----
+        Should incorporate more cost_functions (i.e. LSE/fourrierspace/etc..)
+        Should incorporate gradient based min (and a number of seed param)
+
+        """
+        func_to_fit = self.clone() if copy else self 
+        return_fit = args_optim.pop('return_fit', False) # return the fit val
         bounds = func_to_fit.theta_bounds
         if not(_is_fully_bounded(bounds)):
             SystemError("Can't fit with unknown bounds")
@@ -660,7 +688,8 @@ class pFunc_base():
             import scipy.optimize
             resDE =  scipy.optimize.differential_evolution(SquareErrors, bounds, **args_optim)
         else:
-            raise NotImplementedError()
+            raise NotImplementedError('Only DE has been implemented so far')
+        
         fit = SquareErrors(resDE['x'])
         logger.info(fit)
         if(return_fit):
@@ -668,25 +697,11 @@ class pFunc_base():
         else:
             return func_to_fit
                 
-    #-----------------------------------------------------------------------------#
-    # I/O
-    #-----------------------------------------------------------------------------#
-    def save_to_file(self, file_name):
-        pFunc_base.save_a_func_to_file(self, file_name, 'w')
-    
-    @staticmethod
-    def save_a_func_to_file(func, file_name, type_write = 'w'):
-        ut.write_to_file_for_eval(func, file_name, type_write)
-    
-    @staticmethod
-    def read_func_from_file(file_name):
-        evaluator = lambda ev: eval(ev)    
-        func1 = ut.eval_from_file(file_name, evfunc = evaluator)
-        return func1
+
 
 class pFunc_fromcallable(pFunc_base):
-    """ wrap a callable object (function, lambda function) to have the (min)
-    capabilities of pFunc"""
+    """ wrap a callable object (function, lambda function) to have the 
+    (minimal)capabilities of pFunc """
     _FLAG_TYPE = 'callable'
     def __init__(self, callable_obj):
         pFunc_base.__init__(self)
@@ -700,7 +715,15 @@ class pFunc_fromcallable(pFunc_base):
         res = self._callable(X)
         return res
 
+    def clone(self, theta = None):
+        """Custom implementation of cloning. Probably not perfect as it allows 
+        for only one param - """
+        callable_obj = lambda params: self._callable(params)
+        return pFunc_fromcallable(callable_obj = callable_obj)
+
     def __repr__(self):
+        """ not satisfactory repr(callable) is not usefull.. Maybe go in this 
+        direction: http://xion.io/post/code/python-get-lambda-code.html"""
         return "{0}(callable_obj = {1})".format(self.__class__.__name__, repr(self._callable)) 
 
 
@@ -859,6 +882,11 @@ class pFunc_collec(pFunc_base):
     def get_function(self, index = 0):
         """ Return the index-th <pFunc_base> or <pFunc_collect> of the collection"""
         return self._get_one_param('list_func')[index]
+
+    def plot_function(self, range_x, **args_plot):
+        """ plot the function """
+        y = self.__call__(range_x)
+        plt.plot(np.array(range_x), np.array(y), **args_plot)
 
 class pFunc_List(pFunc_collec):
     def __init__(self, list_func, list_func_bounds = True, **args_func):
