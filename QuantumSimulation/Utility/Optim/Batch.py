@@ -5,15 +5,17 @@ Created on Thu Jul 27 13:51:45 2017
 @author: fs
 """
 from sklearn.gaussian_process.kernels import Matern, WhiteKernel, RBF, ConstantKernel
-import csv, os, pathlib, pdb, copy
+import csv, os, pathlib, pdb, copy, sys
 from ast import literal_eval as ev
 import matplotlib.pylab as plt
 import numpy as np
 import logging 
 logger = logging.getLogger(__name__)
+def log_uncaught_exceptions(*exc_info): 
+    logging.critical('Unhandled exception:', exc_info=exc_info) 
+sys.excepthook = log_uncaught_exceptions
 
 if __name__ == '__main__':
-    import sys
     sys.path.append("../../../")
     from QuantumSimulation.Utility import Helper as ut
     from QuantumSimulation.Utility.Optim import pFunc_base, pFunc_zoo, Learner
@@ -312,10 +314,11 @@ class Batch:
     
     @classmethod
     def parse_and_save_meta_config(cls, input_file = 'inputfile.txt', 
-             output_folder = 'Config', extra_processing = False, update_rules=False):
+            output_folder = 'Config', extra_processing = False, 
+            update_rules=False, debug = False):
         """ parse an input file containing a meta-config generate the differnt 
         configs and write a file for each of them"""
-        list_configs = cls.parse_meta_config(input_file, extra_processing, update_rules)
+        list_configs = cls.parse_meta_config(input_file, extra_processing, update_rules, debug=debug)
         for conf in list_configs:
             name_conf = 'config_' + conf['_RES_NAME']
             if(not(output_folder is None)):
@@ -324,7 +327,8 @@ class Batch:
             ut.dico_to_text_rep(conf, fileName = name_conf, typeWrite = 'w')
 
     @classmethod
-    def parse_meta_config(cls, inputFile = 'inputfile.txt', extra_processing = False, update_rules = False):
+    def parse_meta_config(cls, inputFile = 'inputfile.txt', extra_processing = False, 
+                          update_rules = False, debug = False):
         """Parse an input file containing a meta-config and generate a 
         <list<dict:config>> where config is a dict containing a configuration 
         which can be directly used to run a procedure
@@ -332,7 +336,13 @@ class Batch:
         update_rules >> for a key with several elements the first one serve as
         a reference and the other elements contain only updates of the reference 
         (works only if elements are dict)
+        
+        TODO: better docstring
+        TODO:JSON files
         """
+        if(debug):
+            pdb.set_trace()
+        use_context = False
         with open(inputFile, 'r') as csvfile:
             reader = csv.reader(csvfile, delimiter = ' ')
             list_values = list([])
@@ -343,13 +353,26 @@ class Batch:
                 nbline += 1
                 if(line in cls.EMPTY_LINE) or (line[0] in cls.LEX_NA):
                     pass
+                #New feature to use a context for the evaluation of the subsequent line
+                #
+                elif(line[0] == '_CONTEXT'):
+                    context = ev(line[1])
+                    if(ut.is_dico(context) and np.product([c[0] == '_' for c in context])):
+                        use_context = True
                 elif(line[0] in cls.METAPARAMS_NAME):
-                    assert (len(line) == 2), 'batch input file: 1 arg expected in l.' + str(nbline)+ ' (' +str(line[0]) + ')'
+                    
+                    assert(len(line) == 2), 'batch input file: 1 arg expected in l.' + str(nbline)+ ' (' +str(line[0]) + ')'
                     dico_METAPARAMS[line[0]] = ev(line[1])                                    
                 else:
                     assert (len(line)>=2), 'batch input file: not enough args in l.' + str(nbline) 
-                    list_keys.append(line[0]) 
-                    ev_tmp = [ev(line[i]) for i in range(1,len(line))]
+                    list_keys.append(line[0])
+                    
+                    if(use_context):
+                        ### use eval instead of ast.literal_eval
+                        line_with_context = [apply_context(line[i], context) for i in range(1,len(line))]
+                        ev_tmp = [eval(lwc) for lwc in line_with_context]
+                    else:
+                        ev_tmp = [ev(line[i]) for i in range(1,len(line))]
 
                     if(update_rules):
                         ref_value = copy.copy(ev_tmp[0])
@@ -938,7 +961,10 @@ class Batch:
         res = model_tmp(params)
         return res
                
-        
+def apply_context(string, dico_context):
+    for k,v in dico_context.items():
+        string = string.replace(k, str(v))
+    return string
         
 def dist(x, y):
     """ Compute distances between two vectors (or two list of vectors)
@@ -1356,8 +1382,9 @@ class BatchParametrizedControler(Batch):
 #==============================================================================
 if __name__ == "__main__": 
     import numpy.random as rdm
-    test1 = True #
-    test2 = True
+    test1 = False #
+    test2 = False
+    test3 = True
     
     if(test1):
         batchTest = Batch.from_meta_config('test_batch_1.txt', debug = True)
@@ -1376,3 +1403,6 @@ if __name__ == "__main__":
         batchTest.attach_proc(funcDummy)
         batchTest.run_procedures(saveFreq = 1, splitRes = True)
     
+
+    if(test3):
+        Batch.parse_and_save_meta_config('test_meta_config.txt', output_folder = '_Test', debug = True)
