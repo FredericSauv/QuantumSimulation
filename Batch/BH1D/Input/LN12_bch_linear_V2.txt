@@ -1,0 +1,12 @@
+_CONTEXT {'_TREF':10.593133307114995}
+
+testing_dico {'L':12,'Nb':12,'sps':None,'mu':0,'T':_TREF,'kblock':0,'pblock':1,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['f2t2:neg_fluence:0.0001_smooth:0.005','f2t2','fluence','smooth'],'fom_print':True,'ctl_shortcut':'owbds01_linear','_FLAG_NAME':'1T'} {'T':0.5*_TREF,'_FLAG_NAME':'05T'} {'T':2*_TREF,'_FLAG_NAME':'2T'} {'T':1.5*_TREF,'_FLAG_NAME':'15T'} {'T':3*_TREF,'_FLAG_NAME':'3T'} {'T':4*_TREF,'_FLAG_NAME':'4T'} {'T':5*_TREF,'_FLAG_NAME':'5T'} {'T':6*_TREF,'_FLAG_NAME':'6T'} {'T':7*_TREF,'_FLAG_NAME':'7T'} {'T':8*_TREF,'_FLAG_NAME':'8T'} {'T':9*_TREF,'_FLAG_NAME':'9T'} {'T':10*_TREF,'_FLAG_NAME':'10T'}
+
+_RDM_RUNS 1
+_RDM_FIXSEED True
+_OUT_PREFIX 'benchmark'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
