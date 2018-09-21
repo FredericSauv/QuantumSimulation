@@ -46,6 +46,11 @@ class model_base:
     For n-D structures depending on time time is the first dim (except stated ow)
     Computibng a FoM is  a substantial part of the definition of a model
     
+
+    TODO
+    ----
+    incorporate the (soon available new capabilities of pfzoo)
+
     """
 
     # {<str:name_mandatory_param> : <str: info_opt_param>}

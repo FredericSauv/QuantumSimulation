@@ -38,9 +38,10 @@ else:
 #  - save_res:
 #  - read_res: read file stored in 
 #
-# NEW (19Apr)    
-#    - Rdmruns / start to prepare to accomodate for different input type
-#    -
+# TODO:
+# remove the process of the controller    
+# spinoff of results management (i.e. do a batch reader)
+#
 # ThinkAbout:
 #  - Management of random generator state // seeds number are gen but not used 
 #  - remove procToRun
