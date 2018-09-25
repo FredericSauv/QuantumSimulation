@@ -135,7 +135,7 @@ class BH1D(mod.pcModel_qspin):
             self._avg_var_occup = None
             self._fom_func['varN'] = None
             
-            # measured variance
+            # measured variance TODO
             self._avg_varN_measured = None
             self._fom_func['varN5'] = None
             self._fom_func['varN10'] = None

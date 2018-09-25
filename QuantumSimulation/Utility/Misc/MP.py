@@ -6,6 +6,8 @@ Created on Thu Mar 29 15:58:12 2018
 @author: fred
 """
 import multiprocessing as mp
+import logging
+logger = logging.getLogger(__name__)
 import pdb
 if(__name__ == '__main__'):
     import sys
@@ -39,7 +41,7 @@ class MPCapability():
         elif(isinstance(flagMP, int)):
             self._nb_cpus = mp.cpu_count()
             self._nb_workers = int(flagMP)
-            self._Pool = mp.Pool(self._nb_workers)
+            self.pool = mp.Pool(self._nb_workers)
             self._flag_MP = True
         
         
@@ -87,7 +89,20 @@ class MPCapability():
             return MPCapability(flag_MP = mp_object)
         
 
-
+    def map_custom(self, f, list_args):
+        if(self.pool is None):
+            res = [f(a) for a in list_args]
+        else:
+            try:
+                res = self.pool.starmap(f, list_args)
+            except Exception as e:
+                logging.error('Error occurred : {0}... closing mp.pool'.format(e))
+                self.close_mp()
+                self.pool = None
+                self._flag_MP = False
+                self.n_workers = 1
+                res = [f(a) for a in list_args]
+        return res
 
 # =========================================================================== #
 # TODO: testing mp capabilities

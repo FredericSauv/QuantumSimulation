@@ -8,10 +8,11 @@ Created on Fri Jul  7 11:35:46 2017
 
 #import sys
 #sys.path.append('/home/fred/anaconda3/envs/py36q/lib/python3.6/site-packages')
+import logging, pdb
+logger = logging.getLogger(__name__)
 from quspin.operators import hamiltonian # Hamiltonians and operators
 from quspin.basis import spin_basis_1d # Hilbert space boson basis
 import numpy as np # generic math functions
-import pdb
 
 
 if(__name__ == '__main__'):
@@ -27,7 +28,14 @@ else:
 
 
 class Qubits(mod.pcModel_qspin):
-    """ Simulate a 1D - MH model. Implementation of the pcModel_qspin """
+    """ Simulate a 1D - MH model. Implementation of the pcModel_qspin
+
+    Notes
+    -----
+    * Ensemble behavior has been implemented for noise on Ex / Ez
+    * Not implemented for state_init so far
+
+    """
     _LIST_ARGS = mod.pcModel_qspin._LIST_ARGS
     _LIST_ARGS['setup'] = '<str> string pointing to one of the setup'
     
@@ -53,64 +61,53 @@ class Qubits(mod.pcModel_qspin):
         self._ss = spin_basis_1d(L=self.L)
    
     def _setup_H(self, **args_model):
-        """  1 and two qubits hamioltonians are implemented here
-        """                 
-        if(self.setup[0]  == "1"):  
-            ## 1 Qbit Hamiltonians     
-            self.gen_energy_scaling() #Noise implemented here
-            Ex = self.Ex
-            Ez = self.Ez
-            
-            if(self.setup == '1Q0'):
-                # Ref Bukov (with a - sign // verif )
-                # f(t) in {-4, 4} or [-4, 4]
-                # H(t)=  f(t) X + Z                
-                assert (self.n_controls == 1), "number of control functions don't match"
-                f = self.control_fun[0]
-                args_f = []
-                g = lambda t: 1 - f(t)
-                args_g = []    
-                dynamic = [['x', [[Ex, 0]], f, args_f]]
-                static = [['z', [[Ez, 0]]]]
-                self._H = hamiltonian(static, dynamic, basis=self._ss, dtype=np.float64)
-            
-            elif(self.setup == '1Q1'):
-                # H(t)=  f(t) X + (1-f(t)) Z
-                assert (self.n_controls == 1), "number of control functions don't match"
-                f = self.control_fun[0]
-                g = lambda t: 1 - f(t)
-                args_f = args_g = []    
-                dynamic = [['x', [[Ex, 0]], f, args_f], ['z', [[Ez, 0]], g, args_g]]
-                self._H = hamiltonian([], dynamic, basis=self._ss, dtype=np.float64)
-            
-            elif(self.setup == '1Q2'):
-                # H(t)=  f(t) X + g(t) Z 
-                # 1Q1 with relaxed constraints that g(t) = 1-f(t)
-                assert (self.n_controls == 2), "number of control functions don't match"
-                f = self.control_fun[0]
-                g = self.control_fun[1]
-                args_f = args_g = []                    
-                dynamic = [['x', [[Ex, 0]], f, args_f], ['z', [[Ez, 0]], g, args_g]]
-                self._H = hamiltonian([], dynamic, basis=self._ss, dtype=np.float64)
-        else:
-            # Only one setup implemeneted so far
-            raise NotImplementedError()
+        """  Construct the Hamiltonian (or ensemble of Hamiltonians)
+        Notes
+        -----
 
-    def gen_energy_scaling(self, randomized = True):
-        """ generate energy scaling for the different setups (including randomness)
-        if needed
         """
-        if(self.setup[0] == '1'):
-            self.Ex = 1
-            self.Ez = 1
-            if(randomized and hasattr(self, '_noise_func') and self._noise_func is not None):
-                if( ('Ex' in self._noise_func) and self._noise_func['Ex'] is not None):                
-                    self.Ex *= (1 + self._noise_func['Ex']()) 
-                    
-                if(('Ez' in self._noise_func) and self._noise_func['Ez'] is not None):                
-                    self.Ez *= (1 + self._noise_func['Ez']())
+        map_hamiltonian = {'1Q0': self._gen_H_1Q0, '1Q1': self._gen_H_1Q1,
+                           '1Q2': self._gen_H_1Q2}
+        h_constructor = map_hamiltonian[self.setup]
+        energies = self.get_system_energies() #Noise implemented here
+        if(len(energies) > 1):
+            self._H_ensemble = [h_constructor(en) for en in energies]
+            self._H = self._H_ensemble[0] # arbitrarly taken reference Hamiltonian
+            self._energies = energies
+            if(not(self._ensemble_simulation)):
+                self._ensemble_simulation = True
+                logger.warning("Ensemble simulations set to True")
         else:
-            pass
+            self._H_ensemble = None
+            self._H = h_constructor(energies[0])            
+            self._energies = energies[0]
+
+
+    def get_system_energies(self, randomized = True):
+        """ generate energies for the different setups 
+
+        Output
+        -----
+        * a list of dict with energies entries
+          length of the list corresponds to how many noise set-ups are requested
+          if > 1 ensemble behavior (i.e. the model coreesponds to an ensemble of
+          randomized noise draws)  
+
+        """
+        #1 qubit
+        zero = lambda : 0 
+        if(self.setup[0] == '1'):
+            Ex, Ez = 1, 1
+            n_func = self._noise_func
+            if(randomized and len(n_func)>0):
+                Ex_noise = n_func.get('Ex', zero)
+                Ez_noise = n_func.get('Ez', zero)
+                energies = [{'Ex': Ex * (1+Ex_noise()), 'Ez': Ez * (1+Ez_noise())} for i in np.arange(self._nb_H_ensemble)]
+            else:
+                energies = [{'Ex':Ex, 'Ez':Ez}]
+        else:
+            raise SystemError("More than one qubit models haven't beeen implemented yet")
+        return energies
 
     def get_state(self, state_obj = None):
         """ Generate quantum states from state_obj <str> or <array/list<num>>"""
@@ -137,7 +134,47 @@ class Qubits(mod.pcModel_qspin):
             raise SystemError("string {} not reco".format(string))
         return psi
 
+    #-------------------------------------------------------------------#
+    # Implementations of the hamiltonians
+    #-------------------------------------------------------------------#
+    def _gen_H_1Q0(self, energies):
+        """ H(t)=  f(t) X + Z
+        with f(t) in {-4, 4} or [-4, 4]
+        Ref Bukov (with a - sign // verif )
+        """
+        Ex = energies['Ex']
+        Ez = energies['Ez']                
+        if (self.n_controls != 1):
+            raise SystemError("_gen_H_1Q0: {0} control instead of 1".format(self.n_controls))
+        f = self.control_fun[0]
+        args_f = [] 
+        dynamic = [['x', [[Ex, 0]], f, args_f]]
+        static = [['z', [[Ez, 0]]]]
+        return hamiltonian(static, dynamic, basis=self._ss, dtype=np.float64)
 
+    def _gen_H_1Q1(self, energies):
+        """ H(t)=  f(t) X + (1-f(t)) Z  """                
+        Ex = energies['Ex']
+        Ez = energies['Ez']                
+        if (self.n_controls != 1):
+            raise SystemError("_gen_H_1Q0: {0} control instead of 1".format(self.n_controls))
+        f = self.control_fun[0]
+        g = lambda t: 1 - f(t)
+        args_f = args_g = []    
+        dynamic = [['x', [[Ex, 0]], f, args_f], ['z', [[Ez, 0]], g, args_g]]
+        return hamiltonian([], dynamic, basis=self._ss, dtype=np.float64)
+
+    def _gen_H_1Q2(self, energies):
+        """ H(t)=  f(t) X + g(t) Z  """                
+        Ex = energies['Ex']
+        Ez = energies['Ez']                
+        if (self.n_controls != 2):
+            raise SystemError("_gen_H_1Q0: {0} control instead of 2".format(self.n_controls))
+        f = self.control_fun[0]
+        g = self.control_fun[1]
+        args_f = args_g = []                    
+        dynamic = [['x', [[Ex, 0]], f, args_f], ['z', [[Ez, 0]], g, args_g]]
+        return hamiltonian([], dynamic, basis=self._ss, dtype=np.float64)
         
 
 

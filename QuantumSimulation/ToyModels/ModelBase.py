@@ -7,7 +7,7 @@ Created on Fri Jul  7 11:35:46 2017
 """
 import sys, copy, pdb, time, logging
 from functools import partial
-import operator as op
+import operator as op, itertools
 import numpy as np
 logger = logging.getLogger(__name__)
 import matplotlib.pylab as plt
@@ -31,7 +31,7 @@ else:
 
 
 class model_base:
-    """Base class for (quantum) models i.e. define what a model / simulation is.
+    """Base class for (quantum) models i.e. it defines what a model (simulation) is.
     A model is comprised of an Hamiltonian (self._H), an underlying state space
     (self._ss), time attributes (i.e. self.T, self.t_simulation, self.t_simul), 
     and an initial state (self.state_init)
@@ -43,8 +43,11 @@ class model_base:
 
     Notes
     -----
-    For n-D structures depending on time time is the first dim (except stated ow)
-    Computibng a FoM is  a substantial part of the definition of a model
+    * Dimension
+        d: dimension of the Hilbert space, n_t number of time points, e: number of emsembles
+        A state has
+        A state over time (i.e. state_t) has dim d x n_t
+        
     
     """
 
@@ -69,7 +72,9 @@ class model_base:
 
         Notes
         -----
-        Again states should be of the form [t][hilbert][(optionals) probabilistic ensemble index]
+        * DIMENSIONALITY:
+            States which don't depend on time are of dim d while states over time have dim d x t
+        * ENSEMBLE BEHAVIOR:
 
 
         Parameters
@@ -106,6 +111,7 @@ class model_base:
         """
     
         self._ss = None # underlying state space
+
         self._H = None # Hamiltonian
         self._rdmgen = None #random generator
         self._fom_func = {} # functions available to compute FOM
@@ -113,13 +119,21 @@ class model_base:
         self.pop_t = None #
         self.t_simul = None # time array of the simulation
         self.T = None #Horizon of the simulation
-               
+        
+        # ensemble behavior
+        self._ensemble_simulation = False # Should we simulate
+        self._nb_H_ensemble = 1 # How many H in the ensemble
+        self._nb_init_ensemble = 1 # How many state_init in the ensemble
+        self._H_ensemble = None # list with len = _nb_H_ensemble
+        self._init_ensemble = None # list with len = _nb_init_ensemble
+
         self._setup_time(**args_model)
         self.rdm_gen = args_model.get('rdm_obj')
         self._setup_fom_basic_bricks()
         self.mp = args_model.get('mp_obj')
         self.noise = args_model.get('noise')
         self.fom = args_model.get('fom') 
+        self.fom_ensemble = args_model.get('fom_ensemble', 'avgens') #For ensemble
         self._fom_print = args_model.get('fom_print', False)
         
 
@@ -127,17 +141,24 @@ class model_base:
     def _setup_fom_basic_bricks(self):
         """ populate the dictionary self._fom_func of functions which can be used
             to compute FoM """
+        self._fom_func['std'] = np.std
         self._fom_func['max'] = np.max
         self._fom_func['min'] = np.min
         self._fom_func['avg'] = np.average
         self._fom_func['sqrt'] = np.sqrt
         self._fom_func['square'] = np.square
-        self._fom_func['last'] = lambda x: x[-1]
         self._fom_func['neg'] = lambda x: 1- x
+        self._fom_func['last'] = model_base._get_last
 
         #To add randomness on top of the FoM
         self._fom_func['rdmplus'] = (lambda x: x + self._noise_func['fom']())
         self._fom_func['rdmtime'] = (lambda x: x * (1 + self._noise_func['fom']()))
+
+        #For ensemble computation: how do we gather results
+        self._fom_func['stdens'] = lambda x: np.std(x, axis = 0)
+        self._fom_func['maxens'] = lambda x: np.nax(x, axis = 0)
+        self._fom_func['minens'] = lambda x: np.min(x, axis = 0)
+        self._fom_func['avgens'] = lambda x: np.average(x, axis = 0)
 
     @classmethod
     def info(cls):
@@ -207,7 +228,7 @@ class model_base:
     
     @mp.setter
     def mp(self, mp_obj):
-        self._mp = mp.init_mp(mp_obj)
+        self._mp = mp.init_mp(mp_object = mp_obj)
 
     @property
     def noise(self):
@@ -215,26 +236,58 @@ class model_base:
     
     @noise.setter
     def noise(self, noise=None):
-        """ allow generation of noise function based on a noise object
-        
+        """ allow generation of noise based on a noise object
+
+        Notes
+        -----
+            * self._noise_func will contain callable which generates noise
+            * self._ensemble_XXX
+
         Parameters
         -----------
         noise: dict
-            {name_noise_1: <callable, string>, name_noise_2: ...} 
+            * keys = '_ensemble_H' values = int (default = 1)
+              if >1: will build an ensemble of several H
+              based on random draws
+            
+            * keys = '_ensemble_state_init' values = int (default = 1)
+              if >1: will build an ensemble of several state_init
+              based on random draws
+
+            * keys values: <callable> or string 
 
         RETURNS
         ------
-        _noise_func: dict or None
-            {name_noise_1: callable, ...}
+        _noise_func: dict 
+            * dict({}) : no noise will be implemented
+            * {name_noise_1: callable, ...}
+               These functions can be used later on when building the
+               Hamiltonian, state_init or computing the FoM
 
+        Example
+        -------
+        noise = {'Ex':'normal_0_0.05','Ez':'normal_0_0.05'}
+        >> self._noise_func = {'Ex':lambda : np.random.normal(0,1), 
+                               'Ez'lambda : np.random.normal(0,1)}
         """
         if noise is None:
-            self._noise_func = None
+            self._noise_func = dict({})
+
         elif(ut.is_dico(noise)):
+            self._nb_H_ensemble = noise.pop('nb_H_ensemble', 1) # flag
+            self._nb_init_ensemble = noise.pop('nb_init_ensemble', 1) # flag
             self._noise_func = {k:self._gen_noise_function(v) for 
                                 k, v in noise.items()}
         else:
             raise NotImplementedError('Noise should be passed as a dict or None')
+
+    @staticmethod
+    def _get_last(state):
+        """ Return a state at its final time: states over time have dim d x t """
+        if(np.ndim(state) == 1):
+            return state
+        else:
+            return state[:, -1]
 
     def _gen_noise_function(self, noise_obj):
         """ allow generation of noise function based on a noise_obj
@@ -242,12 +295,13 @@ class model_base:
         -----------
         noise_obj: string or callable
                 * if callable simply return it
-                * if string try to build it based on rdm_gen method 
-                (this way enforce the use of the random state associated
-                to the model) if it fails try to eval the string
+                * if string will try to build a callable based on rdm_gen 
+                method (this way enforce the use of the random state 
+                associated to the model) if it fails try to eval the string
+        
         RETURNS
         -------
-        res: callable dimension of the output has impact on the model
+        res: a callable 
 
         """
         if(ut.is_str(noise_obj)):
@@ -331,8 +385,8 @@ class model_base:
     def _get_fom_func(self, fom_str):
         """ find the fom_func associated to a string, if it can't find it
         treats it a multiplying coeff"""
-        f = self._fom_func.get(k)
-        f = f if f is not None else partial(op.mul, float(k))
+        f = self._fom_func.get(fom_str)
+        f = f if f is not None else partial(op.mul, float(fom_str))
         return f  
 
 
@@ -358,8 +412,6 @@ class model_base:
         raise NotImplementedError()      
 
 
-
-
 class cModel_base(model_base):
     """ Base class for controlled models i.e. the hamiltonian depends on some
     control function(s) """
@@ -379,8 +431,6 @@ class cModel_base(model_base):
         self.control_fun = args_model['control_obj']
         self._setup_fom_controlfun_bricks()
         self._aggregated_nb_call = 0 
-
-
 
     #-----------------------------------------------------------------------------#
     # Management of the contro_fun (a list)
@@ -417,7 +467,8 @@ class cModel_base(model_base):
     # New FoM functions 
     #-----------------------------------------------------------------------------#
     def _setup_fom_controlfun_bricks(self):
-        """ New self._fom_func relating to the controlfun 
+        """ New self._fom_func relating to the controlfun: fluence and smoothness
+        
         Notes
         -----
         lambda functions with a mock parameter
@@ -447,7 +498,7 @@ class cModel_base(model_base):
             index = np.arange(self.n_controls)
         elif(not(ut.is_iter(index))):
             index = [index]
-        res = [info_func(f, time) for n,f in enumerate(self.controlfun) if n in index]
+        res = [info_func(f, time) for n,f in enumerate(self.control_fun) if n in index]
         res = res if split else np.sum(res)
         return res
     
@@ -485,7 +536,6 @@ class pcModel_base(cModel_base):
         * pFunc_base obj are callable objects with extra attributes and methods: 
           nb_params, params_bounds
 
-
     """
 
     # Available type of parametrized control functions
@@ -510,9 +560,10 @@ class pcModel_base(cModel_base):
         
         NOTE
         ----
-        clone the function passed  """
+        * the function passed is cloned  
+        """
         
-        if(isinstance(control, pf.pFunc_collec)):
+        if(isinstance(control, pf.pFunc_List)):
             res = control.clone()
             
         elif(isinstance(control, pf.pFunc_base)):
@@ -535,7 +586,7 @@ class pcModel_base(cModel_base):
             res = pfzoo.pFunc_factory.build_custom_func(control, rdm_gen = self.rdm_gen) 
         return res
 
-    def update_control_parameters(self, params, index_control = None,  **args_update):
+    def update_control_parameters(self, params, index_control = None, update_H = False,  **args_update):
         """ Update the parameters of the control function(s) i.e. the thetas (free params)
         of the functions """
         if(args_update.get('debug')):
@@ -546,22 +597,51 @@ class pcModel_base(cModel_base):
         else:
             self.control_fun[index_control].theta = params
 
+        if(update_H):
+            self._update_model_after_change_of_control_fun()
+
 
     def __call__(self, params, trunc_res = True, **args_call):
-        """ model(params) >> fom (just one value)
-        Should be used at some point but first need to implement logs"""
+        """ take an array of parameters update the parametrized control functions
+        and return the (possibly truncated) result of the simulation (self.Simulate)
+
+        Params
+        ------
+        * trunc_res : boolean
+            Simulate may return a list of values (e.g. if fom is a list) if True return 
+            the first value
+        
+        (extra_args) should they be part of the model?
+        * track_learning : boolean
+            Tracking of the calls to the simulator
+        
+        * update_H: boolean
+            Should we rebuild the Hamiltonians each time we call the model
+            (it makes only sense for noisy setups when we want to simulate that noise 
+            change for one simulation to the other)
+
+        Note
+        ----
+        * This is used for optimization purposes
+        * Could add a gradient if available
+
+        """
         self._aggregated_nb_call += 1
         args_call_dupl = copy.copy(args_call)
         track = args_call_dupl.pop('track_learning', False)
-        self.update_control_parameters(params, **args_call_dupl)
+        update = args_call_dupl.pop('update_H', None)
+        if(update is None):
+            if(len(self._noise_func) > 0):
+                update = True
+            else:
+                update = False
+        self.update_control_parameters(params, update_H = update,  **args_call_dupl)
         res_tmp = self.Simulate(**args_call_dupl)
         if(self._fom_print):
             logger.info(res_tmp)
-        if(trunc_res and ut.is_iter(res_tmp)):
-            res = res_tmp[0]
-        else:
-            res = res_tmp
+        res = res_tmp[0] if(trunc_res and ut.is_iter(res_tmp)) else res_tmp
 
+        # 
         if track:
             if self._flag_track_calls_void:
                 if(not(hasattr(self, '_timer'))):
@@ -591,11 +671,13 @@ class pcModel_base(cModel_base):
 class pcModel_qspin(pcModel_base):
 
     """ Models based on the QuSpin package. inherit from the parametrized control
-    function base class. On top of the that implement:
-    + Building the state space (equiv to the basis objects in QuSpin)
-    + Build the Hamiltonian
-    + Define new building blocks for computing the fom
-    + provide helper functions to act on QuSpin objects self.h_XXX
+    function base class. 
+    
+    New features:
+    * Building the state space (equiv to the basis objects in QuSpin)
+    * Build the Hamiltonian
+    * Define new building blocks for computing the fom
+    * provide helper functions to act on QuSpin objects self.h_XXX
       e.g. self.h_ip for the inner product
     """
     def __init__(self, **args_model):
@@ -606,98 +688,144 @@ class pcModel_qspin(pcModel_base):
         self._setup_fom_qspin_bricks()
 
     def _update_model_after_change_of_control_fun(self):
-        """ Extra stuff to do when the control_fun is replaced by another one:
-            Regenerate H"""
+        """ Regenerate H each time control_fun """
         if(hasattr(self, '_H') and (self._H is not None)):
             self._setup_H()
     
     # --------------------------------------------------------------------------- #
     #   SIMULATIONS 
-    #   TODO: Maybe put it in quSpin models
     # --------------------------------------------------------------------------- #
-    def Simulate(self, time = None, state_init = None, fom = None, store = None, method = None, **extra_args):
+    def Simulate(self, time = None, H = None, state_init = None, fom = None, store = False, method = 'se', **extra_args):
         """ Main entry point to simulate the system. If fom is not None, it will 
         return it, if not return the state_t of the system.
+
+        Note
+        ----
+            * Behavior when ensemble has been spin-off
+            * ensemble based on different state_init is not yet fully implemented
         """
         if extra_args.pop('debug', None):
             pdb.set_trace()
-        if time is None:
-            time = self.t_simul
-        if state_init is None:
-            state_init = self.state_init
-        if fom is None:    
-            fom = self.fom
-        if store is None:
-            store = False
-        if method is None:
-            method = 'se'
+        time = self.t_simul if time is None else time
+        fom = self.fom if fom is None else fom
         
-        res = self.Evolution(time = time, state_init = state_init, method = method, store = store, **extra_args)
-
-        if (fom not in [None, '']):
-            res = self._compute_fom(fom, res)
-        if(extra_args.get('print')):
-            logger.info("FOM="+str(res))
-        return res
-
-    def Evolution(self, time , state_init, method, store, **extra_args):
-        """  Evolve the state_init according to the relevant method and store if
-            required
-        state_t has dim (from quspin) [dim_H, dim_t]
-        """
-        if(method == 'se'):
-            state_t = self.EvolutionSE(time, state_init, **extra_args)
-
-        elif(method == 'pop_adiab'):
-            state_t = self.EvolutionPopAdiab(time, state_init, **extra_args)
+        if(self._ensemble_simulation and H is None and state_init is None):
+            if(self._nb_H_ensemble > 1):
+                H_ensemble = self._H_ensemble
+            else:
+                H_ensemble = [self._H]
+            if(self._nb_init_ensemble > 1):
+                init_ensemble = self._init_ensemble
+            else:
+                init_ensemble = [self.state_init]
+            fom_ensemble = self.fom_ensemble
+            res = self.Simulate_Ensemble(time, H_ensemble, init_ensemble, fom, store, fom_ensemble, **extra_args)
 
         else:
-            raise NotImplementedError()
+            state_init =  self.state_init  if state_init is None else state_init
+            H =  self._H  if H is None else H
+            res = self.Evolution(time = time, H = H, state_init = state_init, method = method, store = store, **extra_args)
+            if (fom not in [None, '']):
+                res = self._compute_fom(fom, res)
+            if(extra_args.get('print')):
+                logger.info("FOM="+str(res))
+        return res
 
-        if store:
-            if(method == 'pop_adiab'):
-                logger.warning("adiabatic population has been stored as state_t")
-            self.state_t = state_t
+    def Simulate_Ensemble(self, time, H, state_init, fom = None, store = False, fom_ensemble = 'avgens', **extra_args):
+        """Simulate the system for an ensemble of models (either because there is an ensemble of H or state init)
+
+        Arguments
+        ---------
+            
+
+
+        Note
+        ----
+        * Should implement here the multiprocessing capability
+        * 
         
+        """
+        configs = itertools.product(H, state_init, [time])
+        configs_index = list(itertools.product(np.arange(len(H)), np.arange(len(state_init))))
+
+        #MP should be here mp.map()
+        #res = [c[0].evolve(c[1], t0=0, times = time, **extra_args) for c in configs]
+
+        res = self.mp.map_custom(evolve, configs)
+        
+        if (fom not in [None, '']):
+            fom_values = [self._compute_fom(fom, r) for r in res]
+            res = self._compute_fom(fom_ensemble, fom_values)
+
+        if(store):
+            self._state_t_ensemble = res
+            self._indices_ensemble = configs_index
+            self._fom_values_ensemble = fom_values
+
+        return res
+
+
+    def Evolution(self, time, H, state_init, method, store, **extra_args):
+        """ Evolve the state_init according to the relevant method and store if
+            required
+            state_t has dim (from quspin) [dim_H, dim_t]
+        """
+        if(method == 'se'):
+            state_t = self.EvolutionSE(time, H, state_init, **extra_args)
+        elif(method == 'pop_adiab'):
+            state_t = self.EvolutionPopAdiab(time, H, state_init, **extra_args)
+        else:
+            raise NotImplementedError()
+        if store:
+            self.state_t = state_t
         return state_t
 
     # --------------------------------------------------------------------------- #
     #   Custom evolutions
     # --------------------------------------------------------------------------- #
-    def EvolutionSE(self, time = None, state_init = None, iterable = False, **args_evolve):
-        """  Wrap evolve from QuSpin only expose some of teh arguments
-        hamiltonian.evolve(state_init, t0 = 0,times = T, eom="SE",solver_name="dop853",stack_state=False,
-        verbose=False,iterate=False,imag_time=False,**solver_args)
+    def EvolutionSE(self, time = None, H = None, state_init = None, iterable = False, **args_evolve):
+        """  Evolve the state_init under the Schrodinger equatiohn
+        Wrap the QuSpin evolve method: quspin.hamiltonian.evolve(state_init, t0 = 0,times = T, 
+        eom="SE",solver_name="dop853",stack_state=False, verbose=False,iterate=False,imag_time=False,
+        **solver_args)
         
-        state_t has dim (from quspin) [dim_H, dim_t]
+        Notes
+        -----
+        * only deal with one H one state_init (i.e. no ensemble computation)
+        * state_t has dim (from quspin) [dim_H, dim_t]
         """
-        if time is None:
-            time = self.t_simul
-        if state_init is None:
-            state_init = self.state_init
+        time = self.t_simul if time is None else time 
+        if H is None:
+            if(self._nb_H_ensemble >1):
+                logger.warning("Evolution_SE: {0} of H in the ensemble, H[0] has beeen used".format(self._nb_H))
+            H = self._H
 
-        state_t = self._H.evolve(state_init, t0 = 0, times = time, iterate=iterable, **args_evolve)
+        if state_init is None:
+            if(self._nb_init_ensemble >1):
+                logger.warning("Evolution_SE: {0} of state_init in the ensemble, state_init[0] has been used".format(self._nb_state_init))
+            state_init = self.state_init
+            
+        state_t = H.evolve(state_init, t0 = 0, times = time, iterate=iterable, **args_evolve)
         return state_t
 
 
-    def EvolutionPopAdiab(self, time = None, state_init = None, nb_ev = 2, **args_evolve):
+    def EvolutionPopAdiab(self, time = None, H = None, state_init = None, nb_ev = 2, **args_evolve):
         """ Evolve the state according to SE and project it on the instantaneous 
-        eigen vectors of the hamiltonian. This pop_adiab is stored by default and
-        state_t is returned """
-        if time is None:
-            time = self.t_array
-        if state_init is None:
-            state_init = self.state_init
+        eigen vectors of the hamiltonian. 
+        
+        Note
+        ----
+        * Pop_adiab is stored by default and state_t is returned 
+        """
+        time = self.t_array if time is None else time 
+        patch_degen= args_evolve.pop('patch_degen', False) # correction when there is degen in the spectrum
+        state_t = self.EvolutionSE(time = time, H = H, state_init = state_init, **args_evolve)
+        ev, EV = self._h_get_eigensystem(time = time, H = H, nb_ev = nb_ev)
+        
         n_t = len(time)
-        patch_degen= args_evolve.pop('patch_degen', False)
-        state_t = self.EvolutionSE(time, state_init, **args_evolve)
-        # Not optimal
-        ev, EV = self._h_get_instantaneous_ev_EV(time=time, nb_ev=nb_ev)
-        try:
-            assert state_t.shape[1] == n_t
-        except AssertionError as err:
-            logger.exception("pb dim ")
-            raise err
+        if  state_t.shape[1] != n_t:
+            logger.exception("EvolutionPopAdiab: state_t has dim {0}".format(state_t.shape))
+        
         if(patch_degen):
             for t, e in enumerate(ev):
                 list_degen = self._which_degen(e)
@@ -716,26 +844,10 @@ class pcModel_qspin(pcModel_base):
         self.adiab_t = time
         return state_t
     
-    def FindMinDelta(self, time = None, state_init = None, level_min = 0, level_max=1, **args_evolve):
-        """ find minimal gap over time where the gap is the difference between two 
-        instantaneous energies """
-        if time is None:
-            time = self.t_array
-        if state_init is None:
-            state_init = self.state_init
-
-        gap = np.Inf
-        for t in time:
-            if((level_max+1) < self._H.Ns): 
-                e_tmp, _ = self._H.eigsh(time=t, k=level_max+1, which='SA',maxiter=1E10)
-            else:
-                e_tmp, _ = self._H.eigh(time=t)
-            gap_tmp = e_tmp[level_max] - e_tmp[level_min]
-            if(gap_tmp < gap):
-                gap = gap_tmp
-
-
-        return gap
+    def FindMinDelta(self, time = None, H = None, level_min = 0, level_max=1):
+        """ Find the minimal energy gap over time """
+        ev = self._h_get_lowest_energies(time, H, level_max+1)
+        return np.min(ev[level_max,:] - ev[level_min])
     
     def _patch_degen(self, list_degen, E, E_bf):
         """ if degen pick eigenvectors s.t. they are the closest to previous ones
@@ -753,18 +865,26 @@ class pcModel_qspin(pcModel_base):
         return E_new
                 
                 
-    def _proj_SS(self, vec, SS):
-        """project and normalize a vector on a Subspace
-        Relies on SS provided as list of ortho vectors"""
+    def _proj_SS(self, vec, SS, normalize=True):
+        """project and normalize a vector on a Subspace (SS)
+        
+        Notes
+        -----
+        Assumption that SS is provided as list of ortho vectors
+        """
         proj = np.zeros_like(vec)
         for st in np.transpose(SS):
             proj += pcModel_qspin._h_ip(st, vec) * st
-        proj = proj / pcModel_qspin._h_norm(proj)
+        if normalize:
+            proj = proj / pcModel_qspin._h_norm(proj)
         return proj
     
     def _proj_ortho_SS(self, vec, SS):
-        """project and normalize a vector on a Subspace
-        Relies on SS provided as list of ortho vectors"""
+        """project and normalize a vector on the orthogonal on a ubspace
+        Notes
+        -----
+        Assumption that SS is provided as list of ortho vectors
+        """
         proj = np.copy(vec)
         for st in np.transpose(SS):
             proj -= pcModel_qspin._h_ip(st, vec) * st
@@ -774,6 +894,7 @@ class pcModel_qspin(pcModel_base):
     
 
     def _which_degen(self, e, dec = 8):
+        """ return which energies are degenerate """
         e_rounded = np.round(e, dec)
         range_index = np.arange(len(e_rounded))
         val_uniques, val_nb = np.unique(e_rounded, return_counts=True)
@@ -781,7 +902,7 @@ class pcModel_qspin(pcModel_base):
         return list_degen
     
     #-----------------------------------------------------------------------------#
-    # plot capabilities
+    # plotting capabilities
     #-----------------------------------------------------------------------------#
     def plot_pop_adiab(self, **args_pop_adiab):
         """ Plot pop adiab where each population_t is dispatched on one of the 
@@ -844,11 +965,7 @@ class pcModel_qspin(pcModel_base):
                     ax_tmp.text(t_min - plot_gap_dx , (y_min/2), r"$\Delta = %.2f$"%(y_min), fontsize=8)
                 except:
                     pass
-            
-            
-
-        
-        
+                    
             save_fig = args_pop_adiab.get('save_fig')
             if(ut.is_str(save_fig)):
                 f.savefig(save_fig, bbox_inches='tight', transparent=True, pad_inches=0)
@@ -881,7 +998,8 @@ class pcModel_qspin(pcModel_base):
         self._fom_func['f2t2'] =  (lambda x: self._h_fid2_tgt(x))
         self._fom_func['projSS'] = (lambda x: self._h_projSS_tgt(x))
 
-        # measurement projection on the target_state 
+        # measurement projection on the target_state
+        self._fom_func['energy'] = (lambda x: self._h_expect_energy(st = x, time= self.T, H = self._H, normalize=True ))
         self._fom_func['proj5'] = (lambda x: self._h_n_measures_tgt(x, nb =5))
         self._fom_func['proj10'] = (lambda x: self._h_n_measures_tgt(x, nb =10))
         self._fom_func['proj100'] = (lambda x: self._h_n_measures_tgt(x, nb =100))
@@ -912,7 +1030,7 @@ class pcModel_qspin(pcModel_base):
                 n_ev = int(n_ev)
                 t = float(t)
                 
-                _, state_res = self._h_get_instantaneous_ev_EV(time=[t], nb_ev=n_ev+1)
+                _, state_res = self._h_get_eigensystem(time=[t], nb_ev=n_ev+1)
                 state_res = state_res[0]
                 state_res = state_res[:, n_ev] if n_ev > 0 else state_res
             
@@ -923,7 +1041,7 @@ class pcModel_qspin(pcModel_base):
                 n_ev = int(n_ev)
                 t = float(t)
                 
-                _, state_res = self._h_get_instantaneous_SS(time=t)
+                _, state_res = self._h_get_eigensystem(time=t)
                 state_res = state_res[min(n_ev, len(state_res) - 1)]
             
             elif(state_obj == 'uniform'):
@@ -987,12 +1105,7 @@ class pcModel_qspin(pcModel_base):
     def _h_state2proba(ket1):
         """ Gen proba distrib from a quantum state"""
         return np.square(np.abs(ket1))
-    
-    @staticmethod
-    def _h_last(V):
-        """ return last element of a state_t """
-        return V[:, -1]
-    
+        
     @staticmethod              
     def _h_variance(O, V):
         """ variance of a QuSpin operator O wrt a state V"""
@@ -1009,15 +1122,30 @@ class pcModel_qspin(pcModel_base):
         res = -O.quant_fluct(V, **args)
         return res
     
-    #@ut.extend_dim_function(1, True)
+
     @staticmethod
     def _h_n_measures(ket1, nb = 1, measur_basis = None, num_precis = 1e-6):        
-        """Frequencies of <nb> projective measurements of the state <ket1>  
-        in  <measur_basis> (by default the basis in which the ket is represented) 
+        """ Projective measurements of the state(s) <ket1> in the basis <measur_basis>  
+        repeated <nb> times 
         
-        args = (ket1 <1D-2D np.array>, nb = 1 <int>, measur_basis = <N x D np.array> 
-        N number of vectors, D dim of the H-space, num_precis = 1e-6)        
-        #TODO: Could probably do better (concise) + ortho measurement only
+
+        Arguments
+        ---------
+        * ket1: 1D-2D np.array
+                state(s) to measure 
+        * nb: int
+              number of measurements 
+        * measur_basis:  np.array dim = N x D 
+              with N the dim of the basis, D dim of the entire H-space
+              it should be an ORTHOGONAL basis      
+              by default it is the computational basis of the full H-space 
+              i.e. the basis in which ket1 is represented  
+
+        Output
+        -----
+        * frequencies an 1D np.array dim = N
+            frequencies[i] nb of time it was measured on the state measur_bais[i]
+
         """
         dim_ket = len(ket1)
         single_value = False
@@ -1046,66 +1174,66 @@ class pcModel_qspin(pcModel_base):
     
     def _h_n_measures_tgt(self, st, nb = 1, num_precis = 1e-6):  
         return pcModel_qspin._h_n_measures(st, nb , self.state_tgt, num_precis)
-    
+
+    def _h_expect_energy(self, st, time, H, normalize=True):
+        """ Get <H> for a state"""
+        en = H.expt_value(st, time=time)
+        if(normalize):
+            ev = self._h_get_lowest_energies(time=time, H=H, nb = H.Ns)
+            en = (en - ev[0])/(ev[-1]-ev[0])    
+        return en
+
     @ut.extend_dim_method(0, True)
-    def _h_get_lowest_energies(self, time, nb = 2):
-        """ Get the <nb> lowest energies of the Hamiltonian <H> at a time <time>
-        args = (time <numeric> or <list>, nb=2 <integer>, H = self.H <QuSpin.Hamiltonian>)
+    def _h_get_lowest_energies(self, time=None, H=None, nb = 2):
+        """ Get the nb lowest energies of the Hamiltonian at time(s) t
+        
+        Output
+        ------
+        * ev with dimensionality (n_time x nb)
+
         """
-        if(nb < self._H.Ns):
-            res, _ = self._H.eigsh(time = time, k=nb, which='SA',maxiter=1E10)
-        else:
-            res, _ = self._H.eigh(time = time)
-        return res    
+        ev,_ = self._h_get_eigensystem(time, H, nb)
+        return ev 
     
-    
-    def _h_get_instantaneous_SS(self, time=None):
-        """ get instantaneous eigen values SubSpaces """
-        if(time is None):
-            time = self.t_array ## Should it t_simul
-        ## Carefull this method can be inacurate if too many eigenvectors/vals are requested
-        ## cf. quspin package comments
-        ev, EV = self._H.eigh(time=time)
-        idx = np.argsort(ev)
-        EV = EV[:,idx]
-        ev = ev[idx]
+
+    def _h_get_eigensystem(self, time=None, H=None, nb_ev=5):
+        """ get instantaneous eigenvalues and eigenvectors 
+
+        Output
+        -----
+        ev sorted (ascending) eigenvalues DIM = [t, n]
+        EV eigen vectors dim = [t, d, n] 
+        with t the time index, d refers to the Hilbert space, and n is the index of the ev/EV
+        i.e. at time t H(t) EV[t,:,i] = ev[t,i] EV[t, :, i]
         
-        ev_SS, EV_SS, EV_tmp = [], [], []
-        ref = None
-        
-        for e, E in zip(ev, EV):
-            if (ref is None):
-                ref = e
-                ev_SS.append(e)
-                EV_tmp.append(E)
-            
-            elif (np.abs(ref - e) < 1e-8):
-                EV_tmp.append(E)
-                
-            else:
-                EV_SS.append(EV_tmp)
-                EV_tmp = [E]
-                ev_SS.append(e)
-                ref = e
-        if len(EV_tmp)>0:
-            EV_SS.append(EV_tmp)
-        return (ev_SS, EV_SS)
-    
-    def _h_get_instantaneous_ev_EV(self, time=None, nb_ev=5):
-        """ get instantaneous eigen values and eigen vectors """
-        if(time is None):
-            time = self.t_array ## Should it t_simul
-        ## Carefull this method can be inacurate if too many eigenvectors/vals are requested
-        ## cf. quspin package comments
-        if(nb_ev < self._H.Ns): 
-            eigen_t = [self._H.eigsh(time=t, k=nb_ev, which='SA',maxiter=1E10) for t in time]
+        Notes
+        -----
+        * When several eigenvectors/values are required it may be more exact
+          to use eigh (rather eigsh)
+        """        
+        if H is None:
+            if(self._nb_H_ensemble >1):
+                logger.warning("Evolution_SE: {0} of H in the ensemble, H[0] has beeen used".format(self._nb_H))
+            H = self._H  
+        time = self.t_array if time is None else time
+        time = [time] if np.ndim(time) == 0 else time
+        if(nb_ev < H.Ns): 
+            eigen_t = [H.eigsh(time=t, k=nb_ev, which='SA',maxiter=1E10) for t in time]
         else:
-            eigen_t = [self._H.eigh(time=t) for t in time]
+            eigen_t = [H.eigh(time=t) for t in time]
         ev = [ev for ev, _ in eigen_t]
         EV = [EV for _, EV in eigen_t]
         
+        #Sorting in energy ascending order 
         idx = [np.argsort(e) for e in ev]
-        EV = [E[:,idx[n]] for n, E in enumerate(EV)]
-        ev = [e[idx[n]] for n, e in enumerate(ev)]
+        EV = np.array([E[:,idx[n]] for n, E in enumerate(EV)])
+        ev = np.array([e[idx[n]] for n, e in enumerate(ev)])
         
         return (ev, EV)
+    
+
+def evolve(conf):
+    """ Evolve 
+    conf: (quspin.Hamiltonian, state, time)
+    """
+    return conf[0].evolve(conf[1], t0=0, times = conf[2])
