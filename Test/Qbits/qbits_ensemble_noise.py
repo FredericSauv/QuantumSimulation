@@ -9,24 +9,56 @@ import numpy as np
 optim_type = 'BO2'
 
 # Create a model
-fom = ['proj100:neg_fluence:0.0001_smooth:0.0005'] # 'proj100:neg_fluence:0.0001_smooth:0.01'
-
-TQSL = np.pi/np.sqrt(2)
+fid = ['f2t2'] # 'proj100:neg_fluence:0.0001_smooth:0.01'
+TQSL = np.pi/2
 T= 1 * TQSL
-dico_simul = {'T':T, 'dt':0.01, 'flag_intermediate':False, 'setup':'1Q1', 
-              'state_init':'0', 'state_tgt':'m', 'fom':fom, 'fom_print':True, 
-              'track_learning': True, 'ctl_shortcut':'owbds01_pwc5',
-              'noise':{'Ex':'normal_0_0.05','Ez':'normal_0_0.05'}}
-# 'owbds01_pwc15'
-dico_simul = learn_QBits.learnerQB._process_controler(dico_simul)
-dico_simul['control_obj'] = learn_QBits.learnerQB._build_control_from_string(
-                    dico_simul['control_obj'], None, context_dico = dico_simul)
 
-model = QBits.Qubits(**dico_simul)
 
+# ==================================================================
+# NO NOISE
+#===================================================================
+dico_no_noise = {'T':T, 'dt':0.01, 'flag_intermediate':False, 'setup':'1Q1', 
+              'state_init':'0', 'state_tgt':'m', 'fom':fid, 'fom_print':True, 
+              'track_learning': True, 'ctl_shortcut':'owbds01_pwc5'}
+
+dico_no_noise = learn_QBits.learnerQB._process_controler(dico_no_noise)
+dico_no_noise['control_obj'] = learn_QBits.learnerQB._build_control_from_string(
+                    dico_no_noise['control_obj'], None, context_dico = dico_no_noise)
+model = QBits.Qubits(**dico_no_noise)
 print(model._energies)
+model([1.0, 1.0, 0.0, 0.0, 1.0])
+model.control_fun.plot_function(np.linspace(0, T+0.01, 50))
+st = model.EvolutionPopAdiab()
+pop = np.square(np.abs(st))
+model.plot_pop_adiab()
 
-model([1.0, 1.0, 1.0, 0.0, 0.0])
+import matplotlib.pylab as plt
+plt.plot(model.t_array, pop[0])
+plt.plot(model.t_array, pop[1])
+
+# ==================================================================
+# NOISE SIMPLE
+#===================================================================
+dico_noise = copy.copy(dico_no_noise)
+dico_noise['noise'] = {'Ez':'normal_0_0.2'}
+
+model_noise = QBits.Qubits(**dico_noise)
+print(model_noise._energies)
+model_noise([1.0, 1.0, 0.0, 0.0, 1.0])
+
+# ==================================================================
+# NOISE ENSEMBLE
+#===================================================================
+dico_ensemble = copy.copy(dico_no_noise)
+dico_ensemble['noise'] = {'Ez':'normal_0_0.2', 'nb_H_ensemble':10}
+dico_ensemble['mp_obj'] = True
+
+model_ensemble = QBits.Qubits(**dico_ensemble)
+print(model_ensemble._energies)
+model_ensemble([1.0, 1.0, 0.0, 0.0, 1.0])
+
+
+
 
 ## 15 nice
 ## 30
