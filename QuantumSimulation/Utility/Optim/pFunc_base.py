@@ -6,7 +6,8 @@ Created on Wed Feb 14 17:37:18 2018
 @author: fred
 Inspired by sklearn.gaussian_process.kernels
 """
-
+import logging
+logger = logging.getLogger(__name__)
 if(__name__ == '__main__'):
     import sys
     sys.path.append("../../../")
@@ -15,41 +16,45 @@ else:
     from .. import Helper as ut
     
 import numpy as np
+import scipy 
 from numpy import array, inf #used for eval within the module
 import numpy.polynomial.chebyshev as cheb
 import matplotlib.pylab as plt
 import pdb 
-import logging
-logger = logging.getLogger(__name__)
 
-
-
-#==============================================================================
-# parametrized function base classes
-#==============================================================================
 class pFunc_base():
-    """ Abstract class for non-nested parametric functions. Still potential nested 
-    behavior is implemented in the methods but fully exploited in the collection subclass 
-    (in order not to re-implement the same methods in these subclasses). Nested 
-    behavior is flagged by 'deep' parameter or the check of '_FLAG_TYPE' ('base'
-    for non nested functions and 'collection' for potentially nested structure)
-        
-        param: an array of elements (in general numerics but still can accomodate non
-                numeric elements .. not advised though)
-        
-        param_bounds: represent the bounds associated to the elements of param
-                It is thus a list of the same length with elements which can be:
-                **2-uplet**: in this case (min, max), **False**: means the element
-                is fixed if **True** is passed it will result in _DEF_BOUNDS
-                or **None** if param element is free and doesn't have boundaries
-            i.e. [(-2, 5), False, _DEF_BOUNDS, None] 
-        
-        theta: flat np.array of the values of the non-fixed elements of the (potentially
-                several parameters)
+    """ Abstract class for non-nested parametric functions.
     
-        theta_bounds: list of bounds associated to theta
+    _LIST_PARAMETERS: name of the parameters expected
 
-    e.g. for a two parameters ('weights' and 'bias') function with bias fixed 
+    If a param ('abc') is in _LIST_PARAMETERS it should bepassed when initialized
+    pFunc('abc' = [a, b, c]). It will be stored as self.__abc = [a, b, c]. Also 
+    self.__abc_bounds will be generated either based on arguments passed during 
+    init or based on default arguments. self.__abc_bounds will have the same length
+    as self.__abc. Each element of the bounds represents the bounds associated to 
+    the elements of self.__abc it can be:
+     * False: means the element is fixed 
+     * (<numeric> min, <numeric> max): in this case , *
+     * None param element is free and doesn't have boundaries
+    
+    Theta refers to the free parameters of the parametrized function - which can be 
+    updated using theta setter.
+
+    self.__abc_bounds = [(-2, 5), False, None] means that the first element of self.__abc
+    should be in [-2,5] that the second one is fixed and the last one is free without 
+    boundaries
+            
+    Notes
+    -----
+    * Nested behavior is implemented in the methods but onlyfully exploited in the 
+      collection subclass (in order not to re-implement the same methods in these 
+      subclasses). Nested behavior is flagged by 'deep' parameter or the check of 
+      '_FLAG_TYPE' ('base' for non nested functions and 'collection' for  nested 
+      structure)
+
+    Example
+    -------
+    Two parameters ('weights' and 'bias') function with bias fixed 
     the structure is the following (notice everything is stored as a list/ array
     even when )
     self._LIST_PARAMS = ['weights', 'bias']
@@ -59,40 +64,36 @@ class pFunc_base():
     self.__bias = [False]
     
     TODO:
-        + 
-        + Finish using name (i.e. get attribute and get by name) s.t. 
-        it appears in repr + probably use a flag use_name 
-        + use of different default bounds (e.g. _DEF_POS_BOUNDS) - maybe not
-        + test (D-CRAB setups)
+        + ENFORCE TYPE
         + Bug when try to update theta (in the case it's an array of integer) with a float
          >> enforce type (same way as bounds or parameters)
+        + Finish using name (i.e. get attribute and get by name) s.t. 
+        it appears in repr + probably use a flag use_name 
+        + test (D-CRAB setups)
         + default paarmeters for functions
-        + ENFORCE TYPE
+        
     """
-
     _FLAG_TYPE = 'base'     
     _LIST_PARAMETERS = []
+    _LIST_TYPES = [] # should be implemented
     _NB_ELEM_PER_PARAMS = []
     _DEF_BOUNDS = (-1e10, 1e10)
-    _DEF_POS_BOUNDS = (1e-10, 1e10)
+    _CUSTOM_BOUNDS = {}
+    _CUSTOM_BOUNDS['positive'] = (1e-10, 1e10)
 
     def __init__(self, **args_func):
-        """ Look for all the parameters specified in _LIST_PARAMETERS and take by default bounds 
-        associated to these params to be None (i.e they are no fixed but no bounds are associated) 
+        """ Look for all the parameters specified in _LIST_PARAMETERS and build bounds 
+        associated to these params (i.e they are no fixed but no bounds are associated) 
+        By defaults (i.e. no bounds is provided) all parameters are fixed.args_func
+        
+        Note
+        ----
+        A name can be passed, if nothing is provided add a name randomly generated
         """
         if(args_func.get('debug')):
             pdb.set_trace()
 
-        if(args_func.get('fix_all')):
-            build_fixed = True
-        else:
-            build_fixed = False
-
-        for p in self._LIST_PARAMETERS:
-            if build_fixed:
-                self._setup_params_and_bounds(p, args_func[p], False)
-            else:
-                self._setup_params_and_bounds(p, args_func[p], args_func.get(p+'_bounds', False))
+        self._setup_params_and_bounds(p, args_func[p], args_func.get(p+'_bounds', False))
         if(args_func.get('name') is not None):
             self._name = args_func.get('name')
         else:
@@ -100,9 +101,6 @@ class pFunc_base():
             self._name =name_func + str(np.random.randint(0, 1e6))
 
         self._check_integrity()
-    
-#    def __hash__(self):
-#        return id(self)
         
     #-----------------------------------------------------------------------------#
     # Parameters management
@@ -136,10 +134,10 @@ class pFunc_base():
         
     def _process_bounds(self, param_name, bounds):
         """ Process the bounds associated to a parameter (with l elements).
-        bounds can be provided as :
-            + a list with l  distinct individual bounds
-            + an individual bound (which will be duplicated to form a list
-            with l elements)
+        Bounds can be provided as :
+            + a list with l distinct individual bounds
+            + one bound which will be used for each element of the parameter 
+            (i.e it will be duplicated to form a list with l elements)
         """
         l = self.n_elements_one_param(param_name)
         if(ut.is_iter(bounds)):
@@ -173,9 +171,10 @@ class pFunc_base():
         """
         if(val == True):
             res = self._DEF_BOUNDS
-        
         elif(val in [False, None]):
             res = val
+        elif(ut.is_str(val)):
+            res = self._CUSTOM_BOUNDS[val]
         else:
             if(len(val) != 2):
                 raise ValueError('Bound value is not recognized. '% (str(val)))
@@ -183,17 +182,22 @@ class pFunc_base():
                 raise ValueError('Bound values are inverted '% (str(val)))
             res = val
         return res
-        
-        
-        
+           
     def _check_integrity(self):
-        """ For each parameter ('abc') ensure that:
-        + there is indeed a list of values (which is at self.__abc) 
-         and a list of bounds (self.__abc_bounds), with the same size.
-        + nothing is outside the boundaries,
-        + if an int has been stored in _NB_ELEM_PER_PARAMS verif that it matches,
-        if it's a string, ensure each param with the same string attached have the
-        same number of element
+        """ Check everything is fine. 
+        For each parameter ('abc') in self._LIST_PARAMETERS:
+            * there is indeed a list of values (which is at self.__abc) 
+            * there is a list of bounds (self.__abc_bounds), with the same size.
+            * nothing is outside the boundaries,
+            * if an int has been stored in _NB_ELEM_PER_PARAMS verif that it matches
+              with the length of self.__abc
+            * if it's a string, ensure each param with the same string attached have 
+              the same number of element
+        
+        Notes
+        -----
+            * Called at init and each time parameters are updated.
+            * should implement type enforcing/check
         """
         list_flag =[]
         list_nb_el = []
@@ -293,6 +297,7 @@ class pFunc_base():
                                      'with `cls.print_params_name()`.' %
                                      (key, self.__class__.__name__))
                 setattr(self, '__' + key, value)
+                self._check_integrity()
         
     @property
     def name(self):
@@ -518,7 +523,8 @@ class pFunc_base():
             res = Product([bFunc, self])
 
         if(isinstance(b, pFunc_wrapper)):
-            res = Composition([b, self])            
+        # pFunc_wrapper * pFunc is understood as a composition
+            res = Composition([b, self])         
         else:
             res = Product([b, self])
 
@@ -530,15 +536,12 @@ class pFunc_base():
             res = Composition([bFunc, self])
         else:
             raise SystemError("{1} not allowed with power operations" .format(type(b)))
-        return res
-
-
-
-                           
+        return res                           
 
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
-        """Evaluate the function."""
+        """Evaluate the function. Implemented in the subclasses"""
+        raise NotImplementedError()
         
 
 
@@ -562,13 +565,14 @@ class pFunc_base():
             try:
                 func = eval(representation)
             except:
+                # Deal with string representing a dict
                 bf = 'cls.build_pfunc('
                 af = ')'
                 st = ut.parse_enclose_with_counter(representation , before = bf, after = af)
                 func = eval(st)
                 
         elif ut.is_dico(representation):
-            name_func = representation['name_func']
+            name_func = representation.pop('name_func')
             func = eval(name_func)(**representation)
             
         else:
@@ -590,6 +594,14 @@ class pFunc_base():
         func1 = ut.eval_from_file(file_name, evfunc = evaluator)
         return func1
 
+    @staticmethod
+    def from_dict(dic_fun):
+        """ Init a func from a dict
+        dict should contain <k = 'name_func',v = name> 
+        """
+        name_func = dic_fun.pop('name_func')
+        return eval(name_func)(dic_fun)
+
 
     #-----------------------------------------------------------------------------#
     # Some extra capabilities
@@ -600,7 +612,7 @@ class pFunc_base():
     #        * smoothness  
     #        * l2_norm 
     #        * smoothness  
-    #     Fitting 
+    #     Fitting:
     #        * fit_to_target_func
     #-----------------------------------------------------------------------------#
     def plot_function(self, range_x, **args_plot):
@@ -716,8 +728,9 @@ class pFunc_fromcallable(pFunc_base):
         return res
 
     def clone(self, theta = None):
-        """Custom implementation of cloning. Probably not perfect as it allows 
-        for only one param - """
+        """Non default implementation of cloning. 
+        Probably not perfect as it allows for only one parameters
+        """
         callable_obj = lambda params: self._callable(params)
         return pFunc_fromcallable(callable_obj = callable_obj)
 
@@ -751,10 +764,14 @@ class pFunc_wrapper(pFunc_base):
         raise SystemError("pFun_wrapper can't act on the right (by *)")
 
 class pFunc_collec(pFunc_base):
-    """Abstract collection of <pFunc_Base> or <pFunc_collect> which can be used 
-    to represent any specific functions composition. Bounds in these context is 
-    a boolean list indicating if the underlying objects are treated as free (True)
-    or fixed (False). It is an iterable object (i.e can do for f in pFunc_collec
+    """Abstract collection of <pFunc_Base> which can be used to represent any specific 
+    composition operations involving several functions. 
+
+    Notes
+    -----
+    * Bounds in these context is a list of boolean: (True) 
+    or fixed (False). 
+    It is an iterable object (i.e can do for f in pFunc_collec
     where f will be the functions stored in 'list_func')
     
     e.g. for a collection of one functions 'f1' and a collection 'c2' 
@@ -889,6 +906,7 @@ class pFunc_collec(pFunc_base):
         plt.plot(np.array(range_x), np.array(y), **args_plot)
 
 class pFunc_List(pFunc_collec):
+    """ Implement iterable and indexing on top of the pFunc_collec """
     def __init__(self, list_func, list_func_bounds = True, **args_func):
         pFunc_collec.__init__(self, list_func, list_func_bounds = True, **args_func)
         self.__init_counter = 0
@@ -909,16 +927,35 @@ class pFunc_List(pFunc_collec):
 
 #==============================================================================
 # Implementations
+#   Collections (subclass pFunc_collec)
+#     * Product                    Product of several functions
+#     * Sum                        Sum of several functions
+#     * Composition                Composition of several functions
+#
+#   Single  (subclass pFunc_base)
+#     * IdFunc:                    Identity function
+#     * StepFunc:                  Piece Wise constant function
+#     * PWL: 
+#     * ExpRamp                    Exponential ramp
+#     * SquareExpFunc
+#     * GRBFunc                       Decomposition in a Gaussian Radial Basis
+#     * FourierFunc                Decomposition in a fourier basis
+#     * LinearFunc 
+#     * ConstantFunc 
+#     * ChebyshevFunc
+#     * LogisticFunc         
+#     
+#
+#   Wrapper (subclass pFunc_wrapper)
+#     * OWriterYWrap               Overwrite on some intervals
+#     * BoundWrap                  Clipping 
 #==============================================================================       
 # --------------------------------------------------------------------------- #
 #   Collections
-#       >> Product  Sum  Composition
 # --------------------------------------------------------------------------- #
 class Product(pFunc_collec):
     """Product of several pFuncs (<pFunc_base> or <pFunc_collec>) 
     [f1, f2, c1](t) >> f1(t) * f2(t) * c1(t) """
-    
-
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
         """Evaluate the function."""
@@ -927,7 +964,6 @@ class Product(pFunc_collec):
 class Sum(pFunc_collec):        
     """Sum of several pFuncs (<pFunc_base> or <pFunc_collec>) 
     [f1, f2, c1](t) >> f1(t) + f2(t) + c1(t) """
-    
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
         """Evaluate the function."""
@@ -935,9 +971,7 @@ class Sum(pFunc_collec):
  
 class Composition(pFunc_collec):
     """Composition of several pFuncs (<pFunc_base> or <pFunc_collec>)
-    g = Composition(list_func = [f1, f2, f3])
-    >>> g(x) = f1(f2(f3(x)))) """
-    
+    g = Composition(list_func = [f1, f2, f3]) >> g(x) = f1(f2(f3(x)))) """
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
         """Evaluate the function by starting from the last function of the list
@@ -953,12 +987,11 @@ class Composition(pFunc_collec):
         
 
 # --------------------------------------------------------------------------- #
-#   Base 
-#       >> IdFunc StepFunc ExpRamp SquareExp FourierFunc 
-#       >> LinearFunc ConstantFunc ChebyshevFun
+#   Single 
 # --------------------------------------------------------------------------- #
 class IdFunc(pFunc_base):
-    """ params : {}
+    """ Identity function
+    IdFunc() 
     >> f(x) = x
     """     
     _LIST_PARAMETERS = []
@@ -970,7 +1003,8 @@ class IdFunc(pFunc_base):
         return X
 
 class PowerFunc(pFunc_base):
-    """ PowerFunc(power=p)
+    """ Power function
+    PowerFunc(power=p) 
     >> f(x) = x ** p 
     """
     _LIST_PARAMETERS = ['power']
@@ -981,16 +1015,17 @@ class PowerFunc(pFunc_base):
         return X ** self._get_one_param('power')[0]
 
 class StepFunc(pFunc_base):
-    """ params : {'F' = [f_1, .., f_N], 'Tstep' = [T_1, .., T_N], F0 = f_0}
-    >> f(t) = (1) f_0 (if t<t_1)  (2) f_n (t in [t_(n-1), t_n[) (3) f_N (if t>=T_N) 
+    """ Piece Wise Constant function ** depreciated now used PWC
+    StepFunc(F = [f_1, .., f_N], Tstep = [T_1, .., T_N], F0 = f_0)
+    >> f(t) = (1) f_0 (if t<t_1)  
+              (2) f_n (t in [t_(n-1), t_n[) 
+              (3) f_N (if t>=T_N) 
     """     
     _LIST_PARAMETERS = ['F', 'F0', 'Tstep']
     _NB_ELEM_PER_PARAMS = ['a', 1, 'a']
 
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
-        """         
-        """
         F, f0, Tstep = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
         if(X < Tstep[0]):
             res = f0[0]
@@ -998,20 +1033,41 @@ class StepFunc(pFunc_base):
             idx = Tstep.searchsorted(X + 1e-15) - 1
             res = F[idx]
         return res
-    
-class PWL(pFunc_base):
-    """ piecewiselinear
-    params : {'F' = [f_1, .., f_N], 'Tstep' = [T_1, .., T_N], F0 = f_0}
-    >> f(t) = (1) f_0 (if t<t_0)  (2) f_(n-1) + (f_(n) - f_(n-1)) * (t - t_(n-1))  
-    (t in [t_(n-1), t_n[) (3) f_N (if t>=T_N) 
+
+class PWC(pFunc_base):
+    """ Piece Wise Constant function
+    StepFunc(F = [f_0 , .., f_N], T = [T_0, .., T_N])
+    >> f(t) = (1) f_0 (if t<t_0)  
+              (2) f_n (t in [t_(n-1), t_n[) 
+              (3) f_N (if t>=T_N) 
     """     
     _LIST_PARAMETERS = ['F', 'T']
     _NB_ELEM_PER_PARAMS = ['a', 'a']
 
     @ut.extend_dim_method(0, True)
     def __call__(self, X, Y=None, eval_gradient=False):
-        """         
-        """
+        F, T = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
+        if(X < T[0]):
+            res = F[0]
+        elif(X >= T[-1]):
+            res = F[-1]
+        else:
+            idx = T.searchsorted(X + 1e-15) - 1
+            res = F[idx]
+        return res
+
+class PWL(pFunc_base):
+    """ Piece Wise Linear
+    f = PWL(F = [f_0, .., f_N], T = [T_0, .., T_N])
+    >> f(t) = (1) f_0 (if t<t_0)  
+              (2) f_(n-1) + (f_(n) - f_(n-1)) * (t - t_(n-1)) (if t in [t_(n-1), t_n[) 
+              (3) f_N (if t>=T_N) 
+    """     
+    _LIST_PARAMETERS = ['F', 'T']
+    _NB_ELEM_PER_PARAMS = ['a', 'a']
+
+    @ut.extend_dim_method(0, True)
+    def __call__(self, X, Y=None, eval_gradient=False):
         F, T= (self._get_one_param(p) for p in self._LIST_PARAMETERS)
         if(X < T[0]):
             res = F[0]
@@ -1022,10 +1078,40 @@ class PWL(pFunc_base):
             res = F[idx] + (F[idx+1] - F[idx]) * (X - T[idx])/(T[idx+1] - T[idx])
         return res
 
+class Spline(pFunc_base):
+    """ Spline interpolation
+    f = Spline(F = [f_0, .., f_N], T = [T_0, .., T_N])
+    >> f(t) = spline(t)
+    Build an underlying spline using scipy 
+    """     
+    _LIST_PARAMETERS = ['F', 'T']
+    _NB_ELEM_PER_PARAMS = ['a', 'a']
+    
+    def __init__(self, **args_func):
+        """ custom init store parameters relating to the spline 
+        (cf. scipy.interpolate.make_interp_spline documentation )"""
+        self._k = args_func.pop('k', 3)
+        self._t = args_func.pop('t', None)
+        self._bc_type = args_func.pop('t', "clamped")
+        pFunc_base.__init__(self, args_func)
+
+    def _check_integrity(self):
+        """ Additional feature: build and maintain the underlying scipy spline
+        """
+        pFunc_base._check_integrity(self)
+        F, T = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
+        self._spline = scipy.interpolate.make_interp_spline(T, F, k=self._k, t=self._t, bc_type=self._bc_type)
+
+    @ut.extend_dim_method(0, True)
+    def __call__(self, X, Y=None, eval_gradient=False):
+        return self._spline (X)
+
+
 class ExpRampFunc(pFunc_base):
-    """ params : {'a' = ymax, 'T':T, 'l' = l}
-        f(t) = ampl * (1 - exp(t/ T * l)) / (1 - exp(l)) 
-        ** The more r is the more convex it is
+    """ Exponential ramp 
+    f=ExpRampFunc(a=a, T=T, l= l)
+    >> f(t) = a * (1 - exp(t/ T * l)) / (1 - exp(l)) 
+    f(0) = 0, f(T) = a, l controls convexity
     """        
     _LIST_PARAMETERS = ['a', 'T', 'l']
     _NB_ELEM_PER_PARAMS = [1, 1, 1]
@@ -1040,8 +1126,10 @@ class ExpRampFunc(pFunc_base):
         return res
 
 class GRBFFunc(pFunc_base):
-    """ Gaussian Radial Basis Functions params : {'A':, 'x0':, 'l' = l} 
-    >> f(x) = sum A[k] exp^{(x-x0[k])^2/(2*l^2)} """
+    """ Gaussian Radial Basis Functions 
+    GRBFFunc(A=[A_0, ..., A_N], 'x0' = [x0_0, ...,x0_N]:, l = [l_0, ..., l_N]) 
+    >> f(x) = sum A[k] exp^{(x-x0[k])^2/(2*l[k]^2)} 
+    """
     _LIST_PARAMETERS = ['A', 'x0', 'l']
     _NB_ELEM_PER_PARAMS = ['a', 'a', 'a']
     
@@ -1143,7 +1231,6 @@ class LogisticFunc(pFunc_base):
 
 # --------------------------------------------------------------------------- #
 #   Wrapper (cf. pFunc_wrapper docstring)
-#       >> OWriterYWrap BoundWrap 
 # --------------------------------------------------------------------------- #
 class OwriterYWrap(pFunc_wrapper):
     """ Carefull there is a little bit of workaround here and names of variable may be confusing..

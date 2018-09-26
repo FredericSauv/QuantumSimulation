@@ -26,18 +26,16 @@ from numpy import array, inf
 import copy, pdb
 
 class pFunc_factory():
-    """Create on demand parametrized function with complicated / ad-hoc patterns
-        Enhance pFunc_base by providing for more flexibility/functionality 
+    """Create on demand parametrized functions with complicated / ad-hoc patterns
+        Enhance pFunc_base by providing for more flexibility, functionality 
         when building the function
 
-        Two ways are provided either by passing a dictionnary structure or a string
+        Two ways are provided:
+        * by passing a dict: with at leadt an entry (key = 'name_func' ,value=<str>)
+          other entries with the parameters of the function
+          custom functions implemented can be found in _LIST_CUSTOM_FUNC
 
-        e.g.1 when building a FourierFunc, doesn't have to provide A and B (which should be 
-        provided when using the constructor FourierFunc) - if not found they will be taken as np.zeros
-        e.g.2 can provide a list of fixed parameters removing the need to provide their bounds
-        e.g.3 some randomization cabilities are provided for the choice of frequencies
-    
-
+        * string
 
     EXAMPLE
     -------
@@ -48,22 +46,9 @@ class pFunc_factory():
     BETTER DOC STRINGS
 
     """
-    # FIRST WAY: From a dictionary of arguments
-    # Custom functions and arguments needed to init them
+    # Custom functions informations
     # <str>key: (<str>:infos, <class>:constructor, <list<list<str>>>: params mandatory, <list<str>>: params optional)
-    _LIST_CUSTOM_FUNC = {} 
-    _LIST_CUSTOM_FUNC['StepFunc'] = ('StepFunction', pf.StepFunc, [['Tstep'],['T', 'nb_steps']], ['F', 'F0'])
-    _LIST_CUSTOM_FUNC['PWL'] = ('StepFunction', pf.PWL, [['Tstep'],['T', 'nb_steps']], ['F', 'F0', 'T0', 'TLast'])
-    _LIST_CUSTOM_FUNC['FourierFunc'] = ('Fourier basis', pf.FourierFunc, [['Om'], ['T', 'nb_H']],['c0', 'phi', 'A', 'B', 'freq_type'])
-    _LIST_CUSTOM_FUNC['ConstantFunc'] = ('Constant function', pf.ConstantFunc, [['c0']],[])
-    _LIST_CUSTOM_FUNC['OwriterYWrap']= ('wrapper: overwritting', pf.OwriterYWrap, ['ow'], [])
-    _LIST_CUSTOM_FUNC['BoundWrap']= ('wrapper: boundaries', pf.BoundWrap, ['bounds'], [])
-    _LIST_CUSTOM_FUNC['LinearFunc'] = ('Linear function', pf.LinearFunc, pf.LinearFunc._LIST_PARAMETERS, [])
-    _LIST_CUSTOM_FUNC['ExpRampFunc'] = ('Exponential Ramp', pf.ExpRampFunc,pf.ExpRampFunc._LIST_PARAMETERS, [])
-    _LIST_CUSTOM_FUNC['ChebyshevFunc']= ('Chebyshev basis', pf.ChebyshevFunc, pf.ChebyshevFunc._LIST_PARAMETERS, [])
-    _LIST_CUSTOM_FUNC['PowerFunc']= ('PowerFunc', pf.PowerFunc, pf.PowerFunc._LIST_PARAMETERS, [])
-    _LIST_CUSTOM_FUNC['LogisticFunc']= ('LogisticFunc', pf.LogisticFunc, pf.LogisticFunc._LIST_PARAMETERS, [])
-    _LIST_CUSTOM_FUNC['GRBFFunc']= ('GRBFFunc', pf.GRBFFunc, pf.GRBFFunc._LIST_PARAMETERS, [])
+
 
 
         
@@ -78,9 +63,24 @@ class pFunc_factory():
             contest: dict 
                 mapping variable name (key) to variable value 
 
+        Attributes
+        ----------
+        self._LIST_CUSTOM_FUNC: list of the custom implemenetations provided 
+            dict(<str> name_func, <obj> infos)
+
+
         """
         self.rdm_gen = rdm_obj
         self.context = context
+
+        #         # With infos = (<str> explicit name, <method> constructor, )
+        _LIST_CUSTOM_FUNC = {} 
+        # Custom implementation
+        _LIST_CUSTOM_FUNC['PWC'] = ('Piece Wise Constant', self._custom_PWC)
+        _LIST_CUSTOM_FUNC['PWL'] = ('Piece Wise Linear', self._custom_PWL)
+        _LIST_CUSTOM_FUNC['FourierFunc'] = ('Fourier basis', self._custom_FourierFunc)
+        _LIST_CUSTOM_FUNC['OwriterYWrap']= ('wrapper: overwritting', self._custom_OW, ['ow'], [])
+         
 
     @classmethod
     def help(cls, name_func = None):
@@ -129,18 +129,26 @@ class pFunc_factory():
         if(ut.is_str(fun_obj)):
             func = self.from_str(fun_obj, **extra_args)
         elif(ut.is_dico(fun_obj)):
-            func = self.
+            func = self.from_dict(fun_obj, **extra_args)
+        else:
+            raise SystemError("create_pfunc: type of fun_obj not recognized")
+        return func
 
 
     #-------------------------------------------------------#
     # SHORTCUT MANAGEMENT
-    # transform a shortcut string into a pFuncBase
+    # transform a shortcut string into a pFunc
     #-------------------------------------------------------#
     def from_str(self, shortcut, **extra_args):
-        full_expr = P.extend_shortcut(shortcut)
+        """
+
+        Example
+        -------
+
+        """
+        full_expr = Parser.extend_shortcut(shortcut)
         func = self.eval_string(full_expr, **extra_args)
         return func
-
 
 
 
@@ -148,129 +156,14 @@ class pFunc_factory():
     #                    EVALUATING ZONE
     #-------------------------------------------------------#
     def eval_string(self, string, context = None):
-        """ eval a string in this environment (string generated 
-        from pFunc_parser.parse)"""
+        """ eval a string in this environment 
+        
+        Example
+        -----
+        """
         if context is None:
             context = self.context
         return eval(string, None, locals().update(context))
-
-      
-    #-------------------------------------------------------#
-    #                    PARSING ZONE // TO BE REMOVED
-    # Dependencies in run_batch.py // gen_config customs
-    # To be linked to Models
-    #-------------------------------------------------------#
-    def parse_and_eval(self, dico_atom, dico_compounds):
-        """ Parse and evaluate. This is a (state-dependent) method as
-        the evaluation may depend on the state of the random generator 
-        and the attribute 
-
-        Warning: each functions created are independent..may be messy 
-        Not used so far.. Think about it
-        """
-        dico_parsed = self.parse(dico_atom, dico_compounds)
-        dico_evaluated = {k:self.eval_string(v) for k,v in dico_parsed}
-        return dico_evaluated
-
-    
-    @classmethod
-    def parse(cls, dico_atom, dico_compounds):
-        """  parse dico of expressions (either atomic i.e. can be cretaed on their
-        own or compounds i.e. rely on other expressions) and return a dico with
-        a string which can be eval to a function"""
-        parsed = {}
-        for k, v in dico_atom.items():
-            parsed_tmp = cls.parse_atom(v)
-            parsed.update({k:parsed_tmp})
-        
-        for k,v in dico_compounds.items():
-            parsed_tmp = cls.parse_compound(v, parsed)
-            parsed.update({k:parsed_tmp})
-
-        return parsed
-    
-    @classmethod
-    def parse_atom(cls, atom):
-        """ parse atomic expression simply append """
-        if(not(ut.is_str(atom))):
-            raise SystemError('prse_atom: atom arg should be a string')
-        res = 'self.build_atom_func(' + atom + ')'
-        return res
-   
-    @classmethod
-    def parse_compound(cls, expr, db_atom):
-        """ Parse compound expressions (based on some atomic expressions defined in db_atom)
-
-        Compound expressions follow the syntax either 
-            '#expr' if expr is an atomic expression
-            '$(expr_0,..,expr_n)' where $ is an operator (#, *, **, +) acting on expr_0 to _n
-        
-        e.g. expr = '**(#a,*(#c,+(#d,#e)))' with db = {'a':xx,'c':yy,'d':qq,'e':zz}
-        """
-        if(not(ut.is_str(expr))):
-            raise SystemError('prse_atom: atom arg should be a string')
-        
-        op, list_sub_expr = cls._split_op_args(expr)
-        if(op == '#'):
-           res = db_atom[list_sub_expr]
-        
-        elif(op in cls._PARSING_DICO_OP):
-            parsed_sub = [cls.parse_compound(sub, db_atom) for sub in list_sub_expr]
-            res = cls._apply_operator(op, parsed_sub)
-        else:
-            raise SystemError('operator {0} not recognized'.format(op))
-            
-        return res
-            
-    @classmethod
-    def _split_op_args(cls, expr):
-        """ 'op(expr1, expr)' >> op='**', list_sub_expr ='[expr1,expr2]'
-        Special case when operator is # 
-        '#expr1 >> op='#', list_sub_expr = expr1
-        """
-        if(expr[0] == "#"):
-           op = '#'
-           list_sub_expr = expr[1:]
-        else:
-            index = expr.find('(')
-            op = expr[:index]
-            list_sub_expr = cls._split_expressions(expr[index+1:-1])
-        return op, list_sub_expr
-
-    @classmethod
-    def _split_expressions(cls, multi):
-        """ split a string with ',' as a delimiter only if not in a nested exp
-        ression i.e. all the open) are closed
-        e.g. '#(f),**(#(g), #(h))' >> ['#(f)', '**(#(g), #(h))']
-        """
-        counter_nested = 0
-        list_expr = []
-        expr_tmp = ''
-        for char in multi:
-            if(char == ','):
-                if counter_nested == 0:
-                    list_expr.append(expr_tmp)
-                    expr_tmp = ''
-                else:
-                    expr_tmp += (char)
-            else:
-                expr_tmp += (char)
-                if(char == '('):
-                    counter_nested += 1 
-                elif(char == ')'):
-                    counter_nested -= 1
-                    
-        if(len(expr_tmp) > 0):
-            list_expr.append(expr_tmp)
-        return list_expr
-                
-
-    @classmethod
-    def _apply_operator(cls, op, list_parsed):
-        beg = cls._PARSING_DICO_OP[op] + '(list_func = ['
-        res = beg + ','.join(list_parsed) + '])'
-        return res
-        
 
 
     
@@ -278,73 +171,76 @@ class pFunc_factory():
     # FROM A DICTIONARY
     # Helps to build function from a dico
     #-------------------------------------------------------#
-    def build_atom_func(self, dico_fun):
-        """ built a pFunc_base based on a dico specifying
-            + key = 'name_func' which func we are expecting 
-            + key = 'paramsXXX' params necessary to gen the function
+    def from_dict(self, dico_fun):
+        """ built a pFunc_base based on a dict specifying
+            + key = 'name_func' which (custom) funcs should be used 
+            + key = 'paramsXXX' params necessary to generate the function
                      the necessary/optional params can be found in the code below 
                      or should be indicated in _LIST_CUSTOM_FUNC provided it is maintained
             + key = 'paramsXXX_bounds' (optional) by default they will be set to False
                     i.e. the params are frozen (cf. docstring of pFunc_base)
+
+        Example
+        -------
+        Default (i.e. where no special implementation has beeen provided):
+
+
+        Custom (i.e. some custom rules have been implemented):
+        self.from_dict({'name_func':'PWL', 'nb_steps':5, 'F_bounds':(0,1)})
         """
         name_func = dico_fun['name_func']
-        if(name_func == 'StepFunc'):
-            func = self._build_custom_StepFunc(dico_fun)
-        elif(name_func == 'PWL'):
-            func = self._build_custom_PWL(dico_fun)
-        elif(name_func == 'FourierFunc'):
-            func = self._build_custom_FourierFunc(dico_fun)
-        elif(name_func == 'BoundWrap'):
-            func = self._build_custom_BoundWrap(dico_fun)
-        elif(name_func == 'OwriterYWrap'):
-            func = self._build_custom_OwriterYWrap(dico_fun)
+        if(name_func in self._LIST_CUSTOM_FUNC)
+            info_func = self._LIST_CUSTOM_FUNC.get(name_func)
+            func = info_func[1](**dico_source)
         else:
-            func = self._build_custom_Default(dico_fun)
-        return func
+            pf.from_dict(dico_fun)
+            
+            
+        return constructor(**dico_source)
 
-    def _build_custom_BoundWrap(self, dico_fun):
-        """ can provides the bounds as {'bounds':[a,b]}"""
-        info_func = self._LIST_CUSTOM_FUNC['BoundWrap']
-        constructor = info_func[1]
-        bounds = dico_fun.get('bounds')
-        if(bounds is not None):
-            dico_constructor = {'bounds_min':bounds[0], 'bounds_max':bounds[1]}
-            res = constructor(**dico_constructor)
-        else:
-            res = self._build_custom_Default(dico_fun)
-        return res
     
-    def _build_custom_OwriterYWrap(self, dico_fun):
-        """ can provide all the needed infos as #
-        bounds=[(min1,max1,ow1), (min2,max2,ow2), ..] """
-        info_func = self._LIST_CUSTOM_FUNC['OwriterYWrap']
-        constructor = info_func[1]
+    def _custom_OW(self, dico_fun):
+        """ 
+        custom rules to build a OwriterYWrap 
+
+        Rules
+        -----
+            * if provided use ow = [(min1,max1,ow1), (min2,max2,ow2), ..] 
+            * if not default dehavior
+        """
+        constructor = pf.OwriterYWrap
         ow = dico_fun.get('ow')
         if(ow is not None):
             bounds = np.array(ow)
             dico_constructor = {'input_min':bounds[:,0], 'input_max':bounds[:,1], 'output_ow':bounds[:,2]}
             res = constructor(**dico_constructor)
         else:
-            res = self._build_custom_Default(dico_fun)
+            res = constructor(**dico_fun)
         return res
 
-    def _build_custom_FourierFunc(self, dico_source, **extra_args):
-        """ custom rules to build a FourierFunc """
-        info_func = self._LIST_CUSTOM_FUNC['FourierFunc']
-        constructor = info_func[1]
+    def _custom_FourierFunc(self, dico_source, **extra_args):
+        """ custom rules to build a PWL function 
+        
+        Rules
+        -----
+        * if Om (frequencies) provided use it else generate it 
+          based on nb_H (number of harmonics), freq_type() 
+          (option, False). len(T) = nb_steps + 1
+        * if F (values at T) provided use them, else 0
+        * if F0 or FLast provided enforce these values and make
+          them fixed (i.e. not part of free parameters elements)
+        """
+        constructor = pf.FourierFunc
         Om = dico_source.get('Om')
-        use_bounds = False
         
         if(Om is None):
             T = dico_source['T']
             nb_H = dico_source['nb_H']
             freq_type = dico_source.get('freq_type')
             Om = self._gen_frequencies(T, nb_H, freq_type)
-            if(isinstance(Om, tuple)):
-                use_bounds = True        
-                Om_bounds = Om[1] 
+            if(isinstance(Om, tuple)):      
+                dico_source.update({'Om_bounds':Om[1]})
                 Om = Om[0]
-                
         elif(ut.is_iter(Om)):
             nb_H = len(Om)
         else:
@@ -356,22 +252,12 @@ class pFunc_factory():
         B = dico_source.get('B', np.zeros(nb_H))
         c0 = dico_source.get('c0', 0)
         dico_constructor = {'A':A, 'B':B, 'c0':c0, 'phi':phi, 'Om':Om}
-        if(use_bounds):
-            dico_constructor['Om_bounds'] = Om_bounds
         self._add_bounds(dico_constructor, dico_source)
         return constructor(**dico_constructor)
     
-    def _build_custom_Default(self, dico_source, **extra_args):
-        """ by Default fetch the relevant constructor and pass dico_source
-        as it is"""
-        name_func = dico_source.get('name_func')
-        info_func = self._LIST_CUSTOM_FUNC[name_func]
-        constructor = info_func[1]
-        return constructor(**dico_source)
-
-
-    def _build_custom_StepFunc(self, dico_source, **extra_args):
-        """ custom rules to build a StepFunc """
+    def _custom_StepFunc(self, dico_source, **extra_args):
+        """ DEPRECIATED Use PWL instead
+        custom rules to build a StepFunc """
         info_func = self._LIST_CUSTOM_FUNC['StepFunc']
         constructor = info_func[1]
         Tstep = dico_source.get('Tstep')
@@ -389,17 +275,33 @@ class pFunc_factory():
         self._add_bounds(dico_constructor, dico_source)
         return constructor(**dico_constructor)
     
-    def _build_custom_PWL(self, dico_source, **extra_args):
-        """ custom rules to build a StepFunc """
-        info_func = self._LIST_CUSTOM_FUNC['PWL']
-        constructor = info_func[1]
+    def _custom_PWL(self, dico_source, **extra_args):
+        """ custom rules to build a PWL function 
+        
+        Rules
+        -----
+        * if T (time anchors) provided use it else generate it 
+          based on TLast, T0(option, 0), nb_steps, reandomized 
+          (option, False). len(T) = nb_steps + 1
+        * if F (values at T) provided use them, else 0
+        * if F0 or FLast provided enforce these values and make
+          them fixed (i.e. not part of free parameters elements)
+        """
+        constructor = pf.PWL
         T = dico_source.get('T')
+        # get the time anchors
         if(T is None):
             T0 = dico_source.get('T0',0)
             TLast = dico_source['TLast']
             nb_step = dico_source['nb_steps']
-            dt = float((TLast-T0)/(nb_step))
-            T = np.r_[np.arange(T0, TLast, dt), TLast]
+            randomized = dico_source.get('randomized', False)
+            if(randomized):
+                T_intermediate = np.random.uniform(T0, TLast, nb_step-1)
+                T_intermediate.sort()
+            else:
+                dt = float((TLast-T0)/(nb_step))    
+                T_intermediate = np.arange(T0 + dt, TLast, dt)
+            T = np.r_[T0, T_intermediate, TLast]
         else:
             nb_step = len(T)
         F = dico_source.get('F', np.zeros_like(T))
@@ -429,10 +331,64 @@ class pFunc_factory():
             constructed.set_params(F_bounds=F_bounds)
         return constructed
 
+    def _custom_PWC(self, dico_source, **extra_args):
+        """ custom rules to build a PWL function 
+        
+        Rules
+        -----
+        * if T (time anchors) provided use it else generate it 
+          based on TLast, T0(option, 0), nb_steps, reandomized 
+          (option, False). len(T) = nb_steps + 1
+        * if F (values at T) provided use them, else 0
+        * if F0 or FLast provided enforce these values and make
+          them fixed (i.e. not part of free parameters elements)
+        """
+        constructor = pf.PWC
+        T = dico_source.get('T')
+        # get the time anchors
+        if(T is None):
+            T0 = dico_source.get('T0',0)
+            TLast = dico_source['TLast']
+            nb_step = dico_source['nb_steps']
+            randomized = dico_source.get('randomized', False)
+            if(randomized):
+                T_intermediate = np.random.uniform(T0, TLast, nb_step-1)
+                T_intermediate.sort()
+            else:
+                dt = float((TLast-T0)/(nb_step))    
+                T_intermediate = np.arange(T0 + dt, TLast, dt)
+            T = np.r_[T0, T_intermediate, TLast]
+        else:
+            nb_step = len(T)
+        F = dico_source.get('F', np.zeros_like(T))
+        F0 = dico_source.get('F0')
+        FLast = dico_source.get('FLast')                
+        if(F0 is not None):
+            F[0]=F0
+            F0_fixed = True
+        else:
+            F0_fixed = False
+        if(FLast is not None):
+            F[-1]=FLast
+            FLast_fixed = True
+        else:
+            FLast_fixed = False
+            
+        dico_constructor = {'F':F,'T':T}
+        self._add_bounds(dico_constructor, dico_source)
+        constructed = constructor(**dico_constructor)
+    
+        if(F0_fixed or FLast_fixed):
+            F_bounds = constructed._get_one_bound('F')
+            if(F0_fixed):
+                F_bounds[0] = False
+            if(FLast_fixed):
+                F_bounds[-1] = False
+            constructed.set_params(F_bounds=F_bounds)
+        return constructed
 
     def _add_bounds(self, dico_target, dico_source):
-        """ look (in dico_source) for potentially missing bounds (in dico_target)
-        and add them (to dico_target)"""
+        """ look in dico_source for bounds to update dico_target"""
         dico_update = {}
         for k, v in dico_target.items():
             bounds_name = k + '_bounds'
@@ -442,16 +398,17 @@ class pFunc_factory():
  
     
     def _gen_frequencies(self, T, nb_freq = 1, freq_type = None):
-        """Generate (potentially randomized) frequencies based on 'freq_type'
-        'principal' or None om[l] = 2 * Pi * l /T  
-        'CRAB' om[l] = 2 * Pi * l * (1 + eps[l]) /T with eps iid U[-0.5, 0.5]  
-        'DCRAB' om[l] ~ U[0, w_max]
-        others 
+        """Generate a set of frequencies based
+        'freq_type' controls the way they are picked:
+            * 'principal' or None om[l] = 2 * Pi * l /T  
+            * 'CRAB' om[l] = 2 * Pi * l * (1 + eps[l]) /T with eps iid U[-0.5, 0.5]  
+            * 'DCRAB' om[l] ~ U[0, w_max]
+            * string encoding some random number gen
         """
         Om_ref = 2 * np.pi / T
         #dico_args = {'freq_type':freq_type}
         args_rdm = freq_type.split("_")
-        rgen = self._rdm_gen #Use this rdamgen (provided or created at init of the factory)
+        rgen = self._rdm_gen #use of the random state
 
         if(args_rdm[0] in [None, 'principal']):
             Om = (1 + np.arange(nb_freq)) * Om_ref
@@ -478,7 +435,6 @@ class pFunc_factory():
             om_bounds = [(0.5 + nb, 1.5 + nb) * Om_ref for nb in np.arange(nb_freq)]
             Om = (om, om_bounds)
 
-
         else:
             Om = rgen.gen_rdmnb_from_string(freq_type, nb_freq)
             Om = np.sort(Om)
@@ -496,7 +452,6 @@ class Parser():
         *Everything is dealt with strings and the evaluation 
          (with potentially context) is dealt with somewhere else.
         * It is not state dependent thus everything is static
-    
 
     """
 
@@ -670,3 +625,124 @@ if __name__ == '__main__':
 
     factory = pFunc_factory(None)
     res3 = factory.eval_string(res2['final'])
+
+
+
+
+
+    # #-------------------------------------------------------#
+    # #                    PARSING ZONE // TO BE REMOVED
+    # # Dependencies in run_batch.py // gen_config customs
+    # # To be linked to Models
+    # #-------------------------------------------------------#
+    # def parse_and_eval(self, dico_atom, dico_compounds):
+    #     """ Parse and evaluate. This is a (state-dependent) method as
+    #     the evaluation may depend on the state of the random generator 
+    #     and the attribute 
+
+    #     Warning: each functions created are independent..may be messy 
+    #     Not used so far.. Think about it
+    #     """
+    #     dico_parsed = self.parse(dico_atom, dico_compounds)
+    #     dico_evaluated = {k:self.eval_string(v) for k,v in dico_parsed}
+    #     return dico_evaluated
+
+    
+    # @classmethod
+    # def parse(cls, dico_atom, dico_compounds):
+    #     """  parse dico of expressions (either atomic i.e. can be cretaed on their
+    #     own or compounds i.e. rely on other expressions) and return a dico with
+    #     a string which can be eval to a function"""
+    #     parsed = {}
+    #     for k, v in dico_atom.items():
+    #         parsed_tmp = cls.parse_atom(v)
+    #         parsed.update({k:parsed_tmp})
+        
+    #     for k,v in dico_compounds.items():
+    #         parsed_tmp = cls.parse_compound(v, parsed)
+    #         parsed.update({k:parsed_tmp})
+
+    #     return parsed
+    
+    # @classmethod
+    # def parse_atom(cls, atom):
+    #     """ parse atomic expression simply append """
+    #     if(not(ut.is_str(atom))):
+    #         raise SystemError('prse_atom: atom arg should be a string')
+    #     res = 'self.from_dict(' + atom + ')'
+    #     return res
+   
+    # @classmethod
+    # def parse_compound(cls, expr, db_atom):
+    #     """ Parse compound expressions (based on some atomic expressions defined in db_atom)
+
+    #     Compound expressions follow the syntax either 
+    #         '#expr' if expr is an atomic expression
+    #         '$(expr_0,..,expr_n)' where $ is an operator (#, *, **, +) acting on expr_0 to _n
+        
+    #     e.g. expr = '**(#a,*(#c,+(#d,#e)))' with db = {'a':xx,'c':yy,'d':qq,'e':zz}
+    #     """
+    #     if(not(ut.is_str(expr))):
+    #         raise SystemError('prse_atom: atom arg should be a string')
+        
+    #     op, list_sub_expr = cls._split_op_args(expr)
+    #     if(op == '#'):
+    #        res = db_atom[list_sub_expr]
+        
+    #     elif(op in cls._PARSING_DICO_OP):
+    #         parsed_sub = [cls.parse_compound(sub, db_atom) for sub in list_sub_expr]
+    #         res = cls._apply_operator(op, parsed_sub)
+    #     else:
+    #         raise SystemError('operator {0} not recognized'.format(op))
+            
+    #     return res
+            
+    # @classmethod
+    # def _split_op_args(cls, expr):
+    #     """ 'op(expr1, expr)' >> op='**', list_sub_expr ='[expr1,expr2]'
+    #     Special case when operator is # 
+    #     '#expr1 >> op='#', list_sub_expr = expr1
+    #     """
+    #     if(expr[0] == "#"):
+    #        op = '#'
+    #        list_sub_expr = expr[1:]
+    #     else:
+    #         index = expr.find('(')
+    #         op = expr[:index]
+    #         list_sub_expr = cls._split_expressions(expr[index+1:-1])
+    #     return op, list_sub_expr
+
+    # @classmethod
+    # def _split_expressions(cls, multi):
+    #     """ split a string with ',' as a delimiter only if not in a nested exp
+    #     ression i.e. all the open) are closed
+    #     e.g. '#(f),**(#(g), #(h))' >> ['#(f)', '**(#(g), #(h))']
+    #     """
+    #     counter_nested = 0
+    #     list_expr = []
+    #     expr_tmp = ''
+    #     for char in multi:
+    #         if(char == ','):
+    #             if counter_nested == 0:
+    #                 list_expr.append(expr_tmp)
+    #                 expr_tmp = ''
+    #             else:
+    #                 expr_tmp += (char)
+    #         else:
+    #             expr_tmp += (char)
+    #             if(char == '('):
+    #                 counter_nested += 1 
+    #             elif(char == ')'):
+    #                 counter_nested -= 1
+                    
+    #     if(len(expr_tmp) > 0):
+    #         list_expr.append(expr_tmp)
+    #     return list_expr
+                
+
+    # @classmethod
+    # def _apply_operator(cls, op, list_parsed):
+    #     beg = cls._PARSING_DICO_OP[op] + '(list_func = ['
+    #     res = beg + ','.join(list_parsed) + '])'
+    #     return res
+    #     

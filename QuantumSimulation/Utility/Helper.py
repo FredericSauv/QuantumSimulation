@@ -50,8 +50,8 @@ def dico2text(dico, fileName = None, typeWrite = 'w', beg = None, end = None):
             
 
 def text2dico(file, delimiter = ' ', skip=['']):
-    """ Transform a txt file into a dico. First element of the line is the key, 
-        and the rest is the value
+    """ DEPRECIATED: Transform a txt file into a dico. First element of the 
+    line is the key, and the rest is the value
     """
     dicoRes = {}
     nbline = 0
@@ -110,6 +110,7 @@ def eval_from_file_supercustom(file, evfunc = eval):
     return evaluated
 
 def parse_supercustom(string):
+    """ Depreciated only used for a really special case(bug) """
     if(string.find("'name_algo':'BO2'") == -1):
         beg, tmp = string.split(",'opt_more'")
         garbage, end = tmp.split(",'init':")
@@ -547,7 +548,8 @@ def as_list(l):
     return res
 
 def parse_enclose_with_counter(string, **extra_args):
-    """ {dico1} + {dico2} >>> str_func({dico1}}"""
+    """ Custom parsing: each time it encounters flag_bef
+    insert before + deal with nesting """
     before = extra_args.get('before', '(') 
     outer = extra_args.get('nested', True)
     after = extra_args.get('after', ')')   
