@@ -74,7 +74,14 @@ class model_base:
         -----
         * DIMENSIONALITY:
             States which don't depend on time are of dim d while states over time have dim d x t
-        * ENSEMBLE BEHAVIOR:
+        
+        * ENSEMBLE BEHAVIOR: self._ensemble_simulation flag the use of this behavior
+            Ensemble simulations means that the different noisy realizations of 
+            the dynamics are simulated. This noise could be introduced either 
+            on the Hamiltonians (e.g. energy scales are noisy) in this case 
+            self._H_ensemble is used or on the initial state (e.g. thermal state, 
+            or imprecision on the state), in this case self._init_ensemble will
+            be used
 
 
         Parameters
@@ -274,10 +281,11 @@ class model_base:
             self._noise_func = dict({})
 
         elif(ut.is_dico(noise)):
-            self._nb_H_ensemble = noise.pop('nb_H_ensemble', 1) # flag
-            self._nb_init_ensemble = noise.pop('nb_init_ensemble', 1) # flag
+            n_dico = copy.copy(noise)
+            self._nb_H_ensemble = n_dico.pop('nb_H_ensemble', 1) 
+            self._nb_init_ensemble = n_dico.pop('nb_init_ensemble', 1)
             self._noise_func = {k:self._gen_noise_function(v) for 
-                                k, v in noise.items()}
+                                k, v in n_dico.items()}
         else:
             raise NotImplementedError('Noise should be passed as a dict or None')
 
@@ -709,8 +717,8 @@ class pcModel_qspin(pcModel_base):
         time = self.t_simul if time is None else time
         fom = self.fom if fom is None else fom
         
-        if(self._ensemble_simulation and H is None and state_init is None):
-            if(self._nb_H_ensemble > 1):
+        if(self._ensemble_simulation and (H is None) and (state_init is None)):
+            if(self._ensemble_simulation):
                 H_ensemble = self._H_ensemble
             else:
                 H_ensemble = [self._H]
@@ -727,8 +735,8 @@ class pcModel_qspin(pcModel_base):
             res = self.Evolution(time = time, H = H, state_init = state_init, method = method, store = store, **extra_args)
             if (fom not in [None, '']):
                 res = self._compute_fom(fom, res)
-            if(extra_args.get('print')):
-                logger.info("FOM="+str(res))
+        if(extra_args.get('print')):
+            logger.info("FOM="+str(res))
         return res
 
     def Simulate_Ensemble(self, time, H, state_init, fom = None, store = False, fom_ensemble = 'avgens', **extra_args):
@@ -796,7 +804,7 @@ class pcModel_qspin(pcModel_base):
         """
         time = self.t_simul if time is None else time 
         if H is None:
-            if(self._nb_H_ensemble >1):
+            if self._ensemble_simulation:
                 logger.warning("Evolution_SE: {0} of H in the ensemble, H[0] has beeen used".format(self._nb_H))
             H = self._H
 
@@ -999,7 +1007,8 @@ class pcModel_qspin(pcModel_base):
         self._fom_func['projSS'] = (lambda x: self._h_projSS_tgt(x))
 
         # measurement projection on the target_state
-        self._fom_func['energy'] = (lambda x: self._h_expect_energy(st = x, time= self.T, H = self._H, normalize=True ))
+        self._fom_func['energy'] = (lambda x: self._h_expect_energy(st = x, time= self.T, H = None, normalize=True ))
+        self._fom_func['energyinf'] = (lambda x: self._h_expect_energy(st = x, time= np.inf, H = None, normalize=True ))
         self._fom_func['proj5'] = (lambda x: self._h_n_measures_tgt(x, nb =5))
         self._fom_func['proj10'] = (lambda x: self._h_n_measures_tgt(x, nb =10))
         self._fom_func['proj100'] = (lambda x: self._h_n_measures_tgt(x, nb =100))
@@ -1175,11 +1184,21 @@ class pcModel_qspin(pcModel_base):
     def _h_n_measures_tgt(self, st, nb = 1, num_precis = 1e-6):  
         return pcModel_qspin._h_n_measures(st, nb , self.state_tgt, num_precis)
 
-    def _h_expect_energy(self, st, time, H, normalize=True):
+    
+    def _h_expect_energy(self, st, time, H=None, normalize=True):
         """ Get <H> for a state"""
+        if H is None:
+            if(self._ensemble_simulation):
+                res = [self._h_expect_energy(st, time, H, normalize) for H in self._H_ensemble]
+                return res
+            else:
+                H = self._H
         en = H.expt_value(st, time=time)
+        if(np.abs(np.imag(en))>1e-10):
+            logger.error('expected energy shouldnt be have a imaginary part: {0}'.format(en))
+        en = np.real(en)
         if(normalize):
-            ev = self._h_get_lowest_energies(time=time, H=H, nb = H.Ns)
+            ev = self._h_get_lowest_energies(time, H=H, nb = H.Ns)
             en = (en - ev[0])/(ev[-1]-ev[0])    
         return en
 
@@ -1192,11 +1211,11 @@ class pcModel_qspin(pcModel_base):
         * ev with dimensionality (n_time x nb)
 
         """
-        ev,_ = self._h_get_eigensystem(time, H, nb)
+        ev, _ = self._h_get_eigensystem(time, H, nb)
         return ev 
     
 
-    def _h_get_eigensystem(self, time=None, H=None, nb_ev=5):
+    def _h_get_eigensystem(self, time, H=None, nb_ev=5):
         """ get instantaneous eigenvalues and eigenvectors 
 
         Output
@@ -1206,17 +1225,22 @@ class pcModel_qspin(pcModel_base):
         with t the time index, d refers to the Hilbert space, and n is the index of the ev/EV
         i.e. at time t H(t) EV[t,:,i] = ev[t,i] EV[t, :, i]
         
+                
+        
         Notes
         -----
         * When several eigenvectors/values are required it may be more exact
           to use eigh (rather eigsh)
+        * even when ensemble 
         """        
         if H is None:
-            if(self._nb_H_ensemble >1):
+            if self._ensemble_simulation:
                 logger.warning("Evolution_SE: {0} of H in the ensemble, H[0] has beeen used".format(self._nb_H))
-            H = self._H  
-        time = self.t_array if time is None else time
-        time = [time] if np.ndim(time) == 0 else time
+            H = self._H
+        if(time is None):
+            time = self.t_array if time is None else time
+        time = [time] if(np.ndim(time)==0) else time
+
         if(nb_ev < H.Ns): 
             eigen_t = [H.eigsh(time=t, k=nb_ev, which='SA',maxiter=1E10) for t in time]
         else:
@@ -1228,8 +1252,9 @@ class pcModel_qspin(pcModel_base):
         idx = [np.argsort(e) for e in ev]
         EV = np.array([E[:,idx[n]] for n, E in enumerate(EV)])
         ev = np.array([e[idx[n]] for n, e in enumerate(ev)])
-        
-        return (ev, EV)
+        res = (np.squeeze(ev), np.squeeze(EV))            
+        return res
+    
     
 
 def evolve(conf):

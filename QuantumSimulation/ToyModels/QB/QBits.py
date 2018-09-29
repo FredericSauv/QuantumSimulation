@@ -28,7 +28,7 @@ else:
 
 
 class Qubits(mod.pcModel_qspin):
-    """ Simulate a 1D - MH model. Implementation of the pcModel_qspin
+    """ Simulate a qubit system. Implementation of the pcModel_qspin
 
     Notes
     -----
@@ -38,40 +38,44 @@ class Qubits(mod.pcModel_qspin):
     """
     _LIST_ARGS = mod.pcModel_qspin._LIST_ARGS
     _LIST_ARGS['setup'] = '<str> string pointing to one of the setup'
-    
     _LIST_ARGS_OPT = mod.pcModel_qspin._LIST_ARGS
-    # _LIST_ARGS_OPT['sym'] = ('<dict> definition of the symmetries to use c.f. quspin doc', {}) 
     _LIST_ARGS_OPT['flag_store'] = ('<bool> Allow the storage of intermediate results', False)  
 
     def __init__(self, **args_model):
-        """ Initialize the simulations of the driven BH  """
+        """ Initialize the system """
         mod.pcModel_qspin.__init__(self, **args_model)
         self._FLAG_STORE = args_model.get('flag_store', False)
         self.state_init = args_model['state_init']
         self.state_tgt = args_model.get('state_tgt')
 
-
     def _setup_basis(self, **args_model):
-        """ Build and store:
-        - the basis (self._ss) and the basis without use of symmetries()
-        - config_system
-        """
+        """ Build and store the basis (self._ss) """
         self.setup = args_model['setup']
         self.L = int(self.setup[0])
         self._ss = spin_basis_1d(L=self.L)
    
+    def _update_model_after_change_of_control_fun(self):
+        """ Regenerate H each time the control_fun is changed"""
+        if(hasattr(self, '_H') and (self._H is not None)):
+            self._setup_H()
+    
     def _setup_H(self, **args_model):
         """  Construct the Hamiltonian (or ensemble of Hamiltonians)
         Notes
         -----
+        * 3 1-qubit hamiltonians have been implemented so far
 
         """
-        map_hamiltonian = {'1Q0': self._gen_H_1Q0, '1Q1': self._gen_H_1Q1,
+        map_hamiltonian = {'1Q0': self._gen_H_1Q0, 
+                           '1Q1': self._gen_H_1Q1,
                            '1Q2': self._gen_H_1Q2}
         h_constructor = map_hamiltonian[self.setup]
         energies = self.get_system_energies() #Noise implemented here
         if(len(energies) > 1):
-            self._H_ensemble = [h_constructor(en) for en in energies]
+            # test Herniticity and Symmetry only for the first element of the
+            # ensemble
+            test_H = [True] + [False] * (len(energies)-1) 
+            self._H_ensemble = [h_constructor(en, check_symm=t, check_herm=t) for en, t in zip(energies, test_H)]
             self._H = self._H_ensemble[0] # arbitrarly taken reference Hamiltonian
             self._energies = energies
             if(not(self._ensemble_simulation)):
@@ -137,7 +141,7 @@ class Qubits(mod.pcModel_qspin):
     #-------------------------------------------------------------------#
     # Implementations of the hamiltonians
     #-------------------------------------------------------------------#
-    def _gen_H_1Q0(self, energies):
+    def _gen_H_1Q0(self, energies, **args):
         """ H(t)=  f(t) X + Z
         with f(t) in {-4, 4} or [-4, 4]
         Ref Bukov (with a - sign // verif )
@@ -150,9 +154,9 @@ class Qubits(mod.pcModel_qspin):
         args_f = [] 
         dynamic = [['x', [[Ex, 0]], f, args_f]]
         static = [['z', [[Ez, 0]]]]
-        return hamiltonian(static, dynamic, basis=self._ss, dtype=np.float64)
+        return hamiltonian(static, dynamic, basis=self._ss, dtype=np.float64, **args)
 
-    def _gen_H_1Q1(self, energies):
+    def _gen_H_1Q1(self, energies, **args):
         """ H(t)=  f(t) X + (1-f(t)) Z  """                
         Ex = energies['Ex']
         Ez = energies['Ez']                
@@ -162,9 +166,9 @@ class Qubits(mod.pcModel_qspin):
         g = lambda t: 1 - f(t)
         args_f = args_g = []    
         dynamic = [['x', [[Ex, 0]], f, args_f], ['z', [[Ez, 0]], g, args_g]]
-        return hamiltonian([], dynamic, basis=self._ss, dtype=np.float64)
+        return hamiltonian([], dynamic, basis=self._ss, dtype=np.float64, **args)
 
-    def _gen_H_1Q2(self, energies):
+    def _gen_H_1Q2(self, energies, **args):
         """ H(t)=  f(t) X + g(t) Z  """                
         Ex = energies['Ex']
         Ez = energies['Ez']                
@@ -174,7 +178,7 @@ class Qubits(mod.pcModel_qspin):
         g = self.control_fun[1]
         args_f = args_g = []                    
         dynamic = [['x', [[Ex, 0]], f, args_f], ['z', [[Ez, 0]], g, args_g]]
-        return hamiltonian([], dynamic, basis=self._ss, dtype=np.float64)
+        return hamiltonian([], dynamic, basis=self._ss, dtype=np.float64, **args)
         
 
 
