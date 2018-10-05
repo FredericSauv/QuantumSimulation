@@ -117,16 +117,19 @@ print(error_warp_n)
 
 
 # 3a Bernouilly
-i_meth = GPy.inference.latent_function_inference.expectation_propagation.EP()
+i_meth = GPy.inference.latent_function_inference.Laplace()
 lik = GPy.likelihoods.Bernoulli()
 m_classi = GPy.core.GP(X=x_train_onem, Y=y_train_onem, kernel=k_classi, 
                 inference_method=i_meth, likelihood=lik)
 _ = m_classi.optimize_restarts(num_restarts=10) #first runs EP and then optimizes the kernel parameters
 
-yp_classi, _ = m_classi.predict(x_test)
-test, _ = m_classi.predict_noiseless(x_test)
-plt.plot(x_test, test)
+yp_classi_tmp, _ = m_classi.predict_noiseless(x_test)
+yp_classi = m_classi.likelihood.gp_link.transf(yp_classi_tmp) 
+test, _ = m_classi.predict(x_test, include_likelihood=False)
 
+plt.plot(x_test, test)
+plt.plot(x_test, p_test, 'r', label = 'real p')
+plt.ylim([0.0,1.0])
 
 error_classi = squerror(yp_classi, p_test)
 print(error_classi)
@@ -134,6 +137,14 @@ print(error_classi)
 m_classi.plot_f()
 plt.plot(x_test, p_test, 'r', label = 'real p')
 plt.ylim([0.0,1.0])
+
+
+new_x = rdm.uniform(*x_range, 1)[:, np.newaxis]
+new_y = measure(new_x, nb_measures = 1)
+x_updated = np.r_[x_train_onem, new_x]
+y_updated = np.r_[y_train_onem, new_y]
+m_classi.set_XY(X=x_updated, Y=y_updated)
+
 
 
 
@@ -152,6 +163,18 @@ plt.plot(x_test, yp_classi_n)
 plt.plot(x_test, p_test, 'r', label = 'real p')
 plt.ylim([0.0,1.0])
 error_classi_n = squerror(yp_classi_n, p_test)
+m_classi_n.plot_f()
+
+new_x = rdm.uniform(*x_range, 1)[:, np.newaxis]
+new_y = measure(new_x, nb_measures = nb_meas)
+x_updated = np.r_[x_train_nm, new_x]
+y_updated = np.r_[y_train_nm, new_y]
+Ymeta_updated= {'trials':np.ones_like(y_updated) * nb_meas}
+m_classi_n.Y_metadata = Ymeta_updated
+m_classi_n.set_XY(X=x_updated, Y=y_updated)
+
+
+
 print(error_classi_n)
 
 
@@ -162,29 +185,4 @@ print(error_classi_n)
 ### ============================================================ ###
 # Testingg
 ### ============================================================ ###
-X = (2 * np.pi) * np.random.random(151) - np.pi
-Y = np.sin(X) + np.random.normal(0,0.2,151)
-Y = np.array([np.power(abs(y),float(1)/3) * (1,-1)[y<0] for y in Y])
-X = X[:, None]
-Y = Y[:, None]
-
-warp_k = GPy.kern.RBF(1)
-warp_f = GPy.util.warping_functions.TanhFunction(n_terms=2)
-warp_m = GPy.models.WarpedGP(X, Y, kernel=warp_k, warping_function=warp_f)
-warp_m['.*\.d'].constrain_fixed(1.0)
-m = GPy.models.GPRegression(X, Y)
-m.optimize_restarts(parallel=False, robust=True, num_restarts=5, max_iters=10)
-warp_m.optimize_restarts(parallel=False, robust=True, num_restarts=5, max_iters=10)
-#m.optimize(max_iters=max_iters)
-#warp_m.optimize(max_iters=max_iters)
-
-print(warp_m)
-print(warp_m['.*warp.*'])
-
-warp_m.predict_in_warped_space = False
-warp_m.plot(title="Warped GP - Latent space")
-warp_m.predict_in_warped_space = True
-warp_m.plot(title="Warped GP - Warped space")
-m.plot(title="Standard GP")
-warp_m.plot_warping()
-pb.show()
+import GPyOpt
