@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Oct  5 18:45:01 2018
+
+@author: fred
+"""
+{
+    "GLOBAL":
+        {
+        },
+        
+    "NM" : 
+        {
+            "arguments" : 
+                {
+                    "disp" : True,
+                    "maxiter" : 200,
+                    "ftol": 1e-6, 
+                    "maxfev" : 200, 
+                    "adaptative" : False, 
+                    "max_time" : None
+                }
+            "call": "self._run_NM"
+        },
+        
+    "NOOPTIM":
+        {
+            "arguments":
+                {
+                }
+            "call" : "self._run_NOOPTIM"
+        },
+        
+    "BO2":
+        {
+            "arguments" :
+                {
+                    "disp" : True, 
+                    "acq" : "EI", 
+                    "maxiter" : 50,
+                    "verbose" : False, 
+                    "model_type" : "GP",
+                    "kernel" : None, 
+                    "flag_MP" : False, 
+                    "num_cores" : 1,
+                    "acq_opt_type" : "lbfgs", 
+                    "initial_design_type" : "latin", 
+                    "optim_num_anchor" : 50, 
+                    "optim_num_samples" : 100000, 
+                    "acquisition_jitter" : 0.001, 
+                    "max_time" : 'inf',
+                    "acquisition_weight" : 2, 
+                    "exploit_steps" : 15, 
+                    "batch_method" : "sequential",
+                    "batch_size" : 1, 
+                    "num_inducing" : 10, 
+                    "ARD" : False, 
+                    "to_transfer" : None,
+                    "acquisition_weight_lindec" : False, 
+                    "constraints" : None        
+                },
+            "call" : self._run_BO2
+        },
+        
+    "DE" : 
+        {
+            "arguments":
+                {
+                    "disp":True, 
+                    "maxiter":500, 
+                    "popsize":10, 
+                    "tol":0.01, 
+                    "max_time":None
+                }, 
+              "call":"self._run_DE"
+        }
+}
