@@ -64,6 +64,7 @@ model_ensemble_custom([1.0, 1.0, 0.0, 0.0, 1.0])
 #===================================================================
 optim_with_noise = True
 optim_ideal = True
+optim_with_noise_custom = True
 optim_args = {'algo': 'BO2', 'maxiter':50, 'num_cores':4, 'init_obj':25, 'acq':'EI'}
 func_test = dico_no_noise['control_obj']
 
@@ -72,6 +73,13 @@ if(optim_with_noise):
     res_ensemble = optim(track_learning=True)
     params_noise = res_ensemble['params']
     params_noise_exp = res_ensemble['params_exp']
+
+if(optim_with_noise_custom):
+    optim = Learner.learner_Opt(model = model_ensemble_custom, **optim_args)
+    res_ensemble_custom = optim(track_learning=True)
+    params_noise_custom = res_ensemble_custom['params']
+    params_noise_custom_exp = res_ensemble_custom['params_exp']
+
 
 if(optim_ideal):
     optim = Learner.learner_Opt(model = model_no_noise, **optim_args)
@@ -85,13 +93,11 @@ func_test.theta = params_noise_exp
 func_test.plot_function(x_plot)
 func_test.theta = params_no_noise
 func_test.plot_function(x_plot)
+func_test.theta = params_noise_custom
+func_test.plot_function(x_plot)
 
 
-
-# ==================================================================
 # TESTING
-# With noise and without noise 
-#===================================================================
 dico_test_noise = copy.copy(dico_ensemble)
 dico_test_noise['noise'] = {'Ez':'normal_0_0.2', 'nb_H_ensemble':1000}
 model_test_noise = QBits.Qubits(**dico_test_noise)
@@ -99,6 +105,9 @@ model_test_noise = QBits.Qubits(**dico_test_noise)
 dico_test_no_noise = copy.copy(dico_no_noise)
 model_test_no_noise = QBits.Qubits(**dico_test_no_noise)
 
+dico_test_noise_custom = copy.copy(dico_ensemble_custom)
+dico_test_noise_custom['noise'] = {'Ez':'normal_0_0.2', 'nb_H_ensemble':1000}
+model_test_noise_custom = QBits.Qubits(**dico_test_noise_custom)
 
 #Trained with no noise, tested with no noise
 res_trainNoNoise_testNoNoise = model_test_no_noise(params_no_noise)
@@ -108,5 +117,20 @@ res_trainNoiseExp_testNoNoise = model_test_no_noise(params_noise_exp)
 res_trainNoNoise_testNoise = model_test_noise(params_no_noise)
 res_trainNoise_testNoise = model_test_noise(params_noise, update_H=False)
 res_trainNoiseExp_testNoise = model_test_noise(params_noise_exp, update_H=False)
+
+
+res_trainNoNoise_testNoiseCustom = model_test_noise_custom(params_no_noise)
+res_trainNoise_testNoiseCustom = model_test_noise_custom(params_noise, update_H=False)
+res_trainNoiseCustom_testNoiseCustom = model_test_noise_custom(params_noise_custom, update_H=False)
+
+
+# ==================================================================
+# OPTIM 2: 
+# fom_ensemble
+#===================================================================
+optim_with_noise = True
+optim_ideal = True
+optim_args = {'algo': 'BO2', 'maxiter':50, 'num_cores':4, 'init_obj':25, 'acq':'EI'}
+func_test = dico_no_noise['control_obj']
 
 
