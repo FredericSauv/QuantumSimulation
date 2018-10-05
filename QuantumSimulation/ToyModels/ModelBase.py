@@ -108,6 +108,11 @@ class model_base:
 
         fom: list of str, optional
             Encode which figure of merit should be used
+        
+        measures: list of str, optional
+            Things to measure. Similar logic as fom except that 'fom' is 
+            the main figure of interest while 'measures' refers extra stuff computed
+            
     
 
         TO DO
@@ -141,6 +146,8 @@ class model_base:
         self.noise = args_model.get('noise')
         self.fom = args_model.get('fom') 
         self.fom_ensemble = args_model.get('fom_ensemble', 'avgens') #For ensemble
+        self.measures = args_model.get('measures') 
+        self.measured = None
         self._fom_print = args_model.get('fom_print', False)
         
 
@@ -156,6 +163,7 @@ class model_base:
         self._fom_func['square'] = np.square
         self._fom_func['neg'] = lambda x: 1- x
         self._fom_func['last'] = model_base._get_last
+        self._fom_func['clip01'] = lambda x: np.clip(0, 1, x)
 
         #To add randomness on top of the FoM
         self._fom_func['rdmplus'] = (lambda x: x + self._noise_func['fom']())
@@ -660,7 +668,7 @@ class pcModel_base(cModel_base):
                 
                 self._track_calls = {'history_nev_fun':[], 'history_time_fun':[],
                     'history_func_fun':[], 'best_fun':None, 'best_fun_full':None, 
-                    'history_nev_params':[], 'history_nev_time':[]}
+                    'history_nev_params':[], 'history_nev_time':[], 'history_measured':[]}
                                 
             best = self._track_calls['best_fun']
             if (best is None) or (best > res):
@@ -671,6 +679,8 @@ class pcModel_base(cModel_base):
                 self._track_calls['history_time_fun'].append([time_elapsed, res])
                 self._track_calls['history_func_fun'].append([repr(self.control_fun), res])
                 self._track_calls['history_nev_params'].append([self._aggregated_nb_call, params])
+                if(self.measured is not None):
+                    self._track_calls['history_nev_measured'].append([self._aggregated_nb_call, self.measured])
 
         return res
 
@@ -716,6 +726,7 @@ class pcModel_qspin(pcModel_base):
             pdb.set_trace()
         time = self.t_simul if time is None else time
         fom = self.fom if fom is None else fom
+        measures = self.measures
         
         if(self._ensemble_simulation and (H is None) and (state_init is None)):
             if(self._ensemble_simulation):
@@ -735,6 +746,8 @@ class pcModel_qspin(pcModel_base):
             res = self.Evolution(time = time, H = H, state_init = state_init, method = method, store = store, **extra_args)
             if (fom not in [None, '']):
                 res = self._compute_fom(fom, res)
+            if(measures not in [None, '']):
+                self.measured = self._compute_fom(measures, res)
         if(extra_args.get('print')):
             logger.info("FOM="+str(res))
         return res
@@ -764,6 +777,10 @@ class pcModel_qspin(pcModel_base):
         if (fom not in [None, '']):
             fom_values = [self._compute_fom(fom, r) for r in res]
             res = self._compute_fom(fom_ensemble, fom_values)
+
+        if (self.measures not in [None, '']):
+            measures = [self._compute_fom(self.measures, r) for r in res]
+            self.measured = self._compute_fom(fom_ensemble, measures)
 
         if(store):
             self._state_t_ensemble = res
