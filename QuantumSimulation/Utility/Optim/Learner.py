@@ -131,7 +131,8 @@ class learner_Opt(learner_base):
                'optim_num_samples':100000, 'acquisition_jitter':0.001, 'max_time':np.inf,
                'acquisition_weight':2, 'exploit_steps':15, 'batch_method':'sequential',
                'batch_size':1, 'num_inducing':10, 'ARD':False, 'to_transfer':None,
-               'acquisition_weight_lindec':False}, self._run_BO2),
+               'acquisition_weight_lindec':False, 'constraints':None}
+                , self._run_BO2),
         'BO':({'disp':True, 'acq':'ei', 'kappa':5.0, 'maxiter':50,'verbose':False, 'kernel':'matern2.5', 
                'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'gp_acq_iter':50, 'gp_n_warmup':10000},
                 self._run_BO),
@@ -376,11 +377,20 @@ class learner_Opt(learner_base):
                 'acquisition_jitter':options['acquisition_jitter'], 'acquisition_weight':options['acquisition_weight'],
                 'batch_size':options['batch_size'], 'evaluator_type':options['batch_method'],
                 'num_inducing':options['num_inducing'], 'model_type':options['model_type'], 'ARD':options['ARD'],
-                'acquisition_weight_lindec':options['acquisition_weight_lindec']}    
+                'acquisition_weight_lindec':options['acquisition_weight_lindec'], 
+                'constraints':options['constraints']}    
 
         # definition of the cost function
         def cost(params):
             return model(np.squeeze(params), **args_call)
+
+        #V0.1 NON DEFAULT LIKELIHOOD
+        if(args_BO['model_type'] == 'GP_CUSTOM_LIK'):
+            args_BO['normalize_Y'] = False
+            args_BO['inf_method'] = 'Laplace'
+            args_BO['likelihood'] = options.get('likelihood', 'Binomial_10') 
+
+
 
         #V0.1 transfer learning
         to_transfer = options['to_transfer']
