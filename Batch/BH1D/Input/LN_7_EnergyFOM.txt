@@ -1,0 +1,14 @@
+model_dico {'L':7,'Nb':7,'sps':None,'kblock':0,'pblock':1,'mu':0,'T':6.6735571351094105,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['energyinf_smooth:0.05'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_pwl15','_FLAG_NAME':'1T'} {'T':10.010335702664115,'_FLAG_NAME':'15T'} {'T':7.340912848620352,'_FLAG_NAME':'11T'} {'T':8.008268562131292,'_FLAG_NAME':'12T'} {'T':8.675624275642233,'_FLAG_NAME':'13T'} {'T':9.342979989153173,'_FLAG_NAME':'14T'}
+
+testing_dico {'fom':['f2t2:neg_smooth:0.05','f2t2','fluence','smooth','energyinf']}
+
+optim_dico {'algo':'NM','init_obj':'uniform_0_1','maxfev':15000,'max_time':83000,'maxiter':None,'_FLAG_NAME':'NM'} {'algo':'DE','maxiter':100,'popsize':10,'init_obj':None,'_FLAG_NAME':'DE'} {'algo':'BO2','maxiter':1500,'init_obj':120,'optim_num_samples':10000,'optim_num_anchor':25,'exploit_steps':150,'acq':'LCB','_FLAG_NAME':'BO_light_lindec','acquisition_weight':5,'acquisition_weight_lindec':True} {'algo':'BO2','maxiter':1500,'init_obj':120,'exploit_steps':150,'acq':'LCB','_FLAG_NAME':'BO_lindec','acquisition_weight':5,'acquisition_weight_lindec':True} {'algo':'BO2','maxiter':1500,'init_obj':120,'optim_num_samples':10000,'optim_num_anchor':5,'exploit_steps':150,'acq':'LCB','_FLAG_NAME':'BO_extralight_lindec','acquisition_weight':5,'acquisition_weight_lindec':True}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
