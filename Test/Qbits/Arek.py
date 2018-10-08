@@ -37,9 +37,7 @@ def evolve_ode(derivative, X0, t0, times, verbose= False, complex_type = False):
     - derivative: func(t, X)
     
     """
-    x0 = np.atleast_2d(X0) 
-    shape0 = np.shape(x0)
-    
+
     ## Set-up the solver
     solver = ode(derivative, jac=None)
     solver_args = {'nsteps': np.iinfo(np.int32).max, 'rtol':1e-9, 'atol':1e-9}
@@ -48,15 +46,15 @@ def evolve_ode(derivative, X0, t0, times, verbose= False, complex_type = False):
 	
     ## Prepare container for the output
     if complex_type:
-        v = np.empty(shape0+(len(times),),dtype=np.complex128)
+        v = np.empty((len(X0),len(times)), dtype=np.complex128)
     else:
-        v = np.empty(shape0+(len(times),),dtype=np.float64)
+        v = np.empty((len(X0),len(times)), dtype=np.float64)
 
     ## Run
     for i,t in enumerate(times):
         if t == t0:
             if verbose: print("evolved to time {0}, norm of state {1}".format(t,np.linalg.norm(solver.y)))
-            v[...,i] = x0
+            v[...,i] = X0
             continue
 
         solver.integrate(t)
@@ -75,7 +73,7 @@ X0 = [href, 0.0]
 t0 = 0.0
 times = np.linspace(t0, T, 2)
 test = evolve_ode(derivative, X0, t0, times)
-print(test[0][0][-1]-href)
+print(test[0][-1]-href)
 
 
 
@@ -83,7 +81,7 @@ print(test[0][0][-1]-href)
 # Same results
 # ---------------------------------#
 h_0 = np.linspace(href - 2 * Delta, href + 20 * Delta, 500)
-scan = np.array([(h_init, evolve_ode(derivative, [h_init, 0.0], t0, times)[0][0][-1] - href) for h_init in h_0])
+scan = np.array([(h_init, evolve_ode(derivative, [h_init, 0.0], t0, [T])[0][-1] - href) for h_init in h_0])
 plt.plot(scan[:,0], scan[:,1])
 
 
