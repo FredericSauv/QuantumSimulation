@@ -1023,9 +1023,17 @@ class pcModel_qspin(pcModel_base):
         self._fom_func['f2t2'] =  (lambda x: self._h_fid2_tgt(x))
         self._fom_func['projSS'] = (lambda x: self._h_projSS_tgt(x))
 
-        # measurement projection on the target_state
+        #Energy
         self._fom_func['energy'] = (lambda x: self._h_expect_energy(st = x, time= self.T, H = None, normalize=True ))
         self._fom_func['energyinf'] = (lambda x: self._h_expect_energy(st = x, time= np.inf, H = None, normalize=True ))
+
+        # measurement projection on the target_state
+        self._fom_func['energyinf5'] =(lambda x: self._h_n_measures_energy(st, time=np.inf, nb=5,  normalize=True)
+        self._fom_func['energyinf10'] =(lambda x: self._h_n_measures_energy(st, time=np.inf, nb=10,  normalize=True)
+        self._fom_func['energyinf100'] =(lambda x: self._h_n_measures_energy(st, time=np.inf, nb=100,  normalize=True)
+        self._fom_func['energyinf1000'] =(lambda x: self._h_n_measures_energy(st, time=np.inf, nb=1000,  normalize=True)
+        self._fom_func['energyinf10000'] =(lambda x: self._h_n_measures_energy(st, time=np.inf, nb=10000,  normalize=True)
+
         self._fom_func['proj5'] = (lambda x: self._h_n_measures_tgt(x, nb =5))
         self._fom_func['proj10'] = (lambda x: self._h_n_measures_tgt(x, nb =10))
         self._fom_func['proj100'] = (lambda x: self._h_n_measures_tgt(x, nb =100))
@@ -1037,8 +1045,10 @@ class pcModel_qspin(pcModel_base):
         ----------
         state_obj:
             + <str> GS_t: Ground state at t
-            + <str> EES_n_t: nth Energy eigenstate at t
-            + <str> ESS_n_t: nth energy subspace at t
+            + <str> EES_n_t: nth Energy EigenState at t
+            + <str> ESS_n_t: nth Energy SubSpace at t
+            + <str> uniform
+            + <str> 
 
         """
         basis = self._ss
@@ -1058,16 +1068,16 @@ class pcModel_qspin(pcModel_base):
                 state_res = state_res[0]
                 state_res = state_res[:, n_ev] if n_ev > 0 else state_res
             
-            elif(state_obj[:3] == 'ESS'):
+            elif(components[0] == 'ESS'):
                 n_ev = int(components[1])
                 t = self._get_time_from_string(components[2])
-                _, state_res = self._h_get_eigensystem(time=[t])
-                state_res = state_res[min(n_ev, len(state_res) - 1)]
+                _, EV_SS = self._h_get_eigensubspace(time=[t])
+                state_res = np.transpose(EV_SS[0, n_ev])
             
-            elif(state_obj == 'uniform'):
-                #GS at t = T
+            elif(components[0] == 'uniform'):
                 state_res = np.random.uniform(-1, 1, size=basis.Ns)
                 state_res = state_res / self.pcModel_qspin._h_norm(state_res)
+
             else:
                 i_res = basis.index(state_obj)
                 state_res = np.zeros(basis.Ns, dtype=np.float64)
@@ -1096,7 +1106,17 @@ class pcModel_qspin(pcModel_base):
 
 
     #-----------------------------------------------------------------------------#
-    # Helper functions: functions to manipulate QuSpin objects (states, operators, etc..) 
+    # Helper functions: functions to manipulate QuSpin objects (states, operators, etc..)
+    #  Static methods
+    #  _h_ip
+    #  _h_norm
+    #  _h_fid2
+    #  _h_fid
+    #  _h_fid_SS
+    #  _h_state2proba
+    #  _h_variance
+    #  _h_ip
+    #  _h_ip
     #-----------------------------------------------------------------------------#
     @staticmethod
     def _h_ip(V1, V2):
@@ -1118,18 +1138,24 @@ class pcModel_qspin(pcModel_base):
         """ compute fidelity between V1 and V2"""
         return np.abs(pcModel_qspin._h_ip(V1, V2))
 
+    @staticmethod
+    def _h_fid_SS(V1, SS):
+        """ compute projection of V1 on a SS shape = (N,d) 
+        N is the dim of the subspace, d the dim ofthe original H-space """
+        residual = np.copy(V1)
+        for st in SS:
+            residual -= pcModel_qspin._h_ip(st, V1) * st
+        res = 1 - np.square(pcModel_qspin._h_norm(residual))
+        return res
+
     def _h_fid2_tgt(self,V1):
         """ compute fidelity(square conv) between V1 and V2"""
         return pcModel_qspin._h_fid2(self.state_tgt, V1)
     
     def _h_projSS_tgt(self,V1):
         """ compute the projection on a subspace"""
-        residual = np.copy(V1)
-        tgt = self.state_tgt if(np.ndim(self.state_tgt) > 1) else [self.state_tgt]
-        for st in tgt:
-            residual -= pcModel_qspin._h_ip(st, V1) * st
-        res = 1 - np.square(pcModel_qspin._h_norm(residual))
-        return res
+        tgt_SS = self.state_tgt if(np.ndim(self.state_tgt) > 1) else [self.state_tgt]
+        return pcModel_qspin._h_fid_SS(V1, tgt_SS)
 
     def _h_fid_tgt(self,V1):
         """ compute fidelity(square conv) between V1 and V2"""
@@ -1158,18 +1184,17 @@ class pcModel_qspin(pcModel_base):
     
 
     @staticmethod
-    def _h_n_measures(ket1, nb = 1, measur_basis = None, num_precis = 1e-6):        
+    def _h_n_measures(ket1, nb = 1, measur_basis = None):        
         """ Projective measurements of the state(s) <ket1> in the basis <measur_basis>  
         repeated <nb> times 
-        
 
         Arguments
         ---------
-        * ket1: 1D-2D np.array
+        * ket1: <1D np.array> shape = (d)
                 state(s) to measure 
-        * nb: int
+        * nb: <int>
               number of measurements 
-        * measur_basis:  np.array dim = N x D 
+        * measur_basis:  <2D np.array> shape = (N x D) 
               with N the dim of the basis, D dim of the entire H-space
               it should be an ORTHOGONAL basis      
               by default it is the computational basis of the full H-space 
@@ -1183,35 +1208,30 @@ class pcModel_qspin(pcModel_base):
         """
         dim_ket = len(ket1)
         single_value = False
-
         if(measur_basis is None):
             measur_basis = np.eye(dim_ket) #Computational basis
-        elif (len(measur_basis.shape) == 1):
-            assert(len(measur_basis) == dim_ket), "problem with the dimension"
+        elif (np.ndim(measur_basis) == 1):
+            assert(len(measur_basis) == dim_ket), 
+                "Dimensions dont match {0} against {1}".format(dim_ket, len(measur_basis))
             measur_basis = [measur_basis] # just reshape it
             single_value = True
         else:
-            assert(measur_basis.shape[1] == dim_ket)
+            assert(measur_basis.shape[1] == dim_ket), 
+                "Dimensions dont match {0} against {1}".format(dim_ket, measur_basis.shape[1])
             
-        index_measure = np.arange(len(measur_basis))
-        proj = [pcModel_qspin._h_ip(basis, ket1) for basis in measur_basis]
-        proba = pcModel_qspin._h_state2proba(proj)
-        assert(np.sum(proba)<=(1.0 + num_precis)), "not a valid proba distrib" #should it be relaxed 
-        proba_cum = np.concatenate(([0],np.cumsum(proba)))
-        samples = np.random.sample(nb)
-        observations = [np.sum((samples > proba_cum[i]) * (samples <= proba_cum[i+1])) for i in index_measure]
-        frequencies = np.array(observations)/nb
+        proba = pcModel_qspin._h_state2proba([pcModel_qspin._h_ip(b, ket1) for b in measur_basis])
+        frequencies = sample_from_proba_distrib(proba, nb)
         if(single_value):
             assert(len(frequencies) == 1), "pb"
             frequencies = frequencies[0]
         return frequencies    
     
-    def _h_n_measures_tgt(self, st, nb = 1, num_precis = 1e-6):  
-        return pcModel_qspin._h_n_measures(st, nb , self.state_tgt, num_precis)
+    def _h_n_measures_tgt(self, st, nb = 1):  
+        return pcModel_qspin._h_n_measures(st, nb, self.state_tgt)
 
     
     def _h_expect_energy(self, st, time, H=None, normalize=True):
-        """ Get <H> for a state"""
+        """ Get <H> for a given state"""
         if H is None:
             if(self._ensemble_simulation):
                 res = [self._h_expect_energy(st, time, H, normalize) for H in self._H_ensemble]
@@ -1227,6 +1247,24 @@ class pcModel_qspin(pcModel_base):
             en = (en - ev[0])/(ev[-1]-ev[0])    
         return en
 
+    def _h_n_measures_energy(self, st, time, nb=1, H=None, normalize=True):
+        """ Get average energy based on nb observations"""
+        if H is None:
+            if(self._ensemble_simulation):
+                res = [self._h_n_measures_energy(st, time, H, normalize) for H in self._H_ensemble]
+                return res
+            else:
+                H = self._H
+        ev, EV = self._h_get_eigensystem(times = [time], H, nb_ev=H.Ns)
+        frequencies = pcModel_qspin._h_n_measures(st, nb, np.transpose(EV))
+        measured_energy = np.dot(frequencies, ev)
+        if(np.abs(np.imag(measured_energy))>1e-10):
+            logger.error('expected energy shouldnt be have a imaginary part: {0}'.format(en))
+        measured_energy = np.real(measured_energy)
+        if(normalize):
+            measured_energy = (measured_energy - ev[0])/(ev[-1]-ev[0])    
+        return measured_energy
+
     @ut.extend_dim_method(0, True)
     def _h_get_lowest_energies(self, time=None, H=None, nb = 2):
         """ Get the nb lowest energies of the Hamiltonian at time(s) t
@@ -1240,34 +1278,36 @@ class pcModel_qspin(pcModel_base):
         return ev 
     
 
-    def _h_get_eigensystem(self, time, H=None, nb_ev=5):
-        """ get instantaneous eigenvalues and eigenvectors 
+    def _h_get_eigensystem(self, times, H=None, nb_ev=5):
+        """ get instantaneous eigenvalues and eigenvectors for a list of times
 
         Output
         -----
-        ev sorted (ascending) eigenvalues DIM = [t, n]
-        EV eigen vectors dim = [t, d, n] 
-        with t the time index, d refers to the Hilbert space, and n is the index of the ev/EV
-        i.e. at time t H(t) EV[t,:,i] = ev[t,i] EV[t, :, i]
+        res = (ev, EV) with
+            + ev: sorted (ascending) eigenvalues with [t, nb_ev]
+            + EV: eigenvectors with dim = [t, d, nb_ev] 
+        t is the time index, d refers to the size of thes Hilbert space, and n 
+        is the index of the ev/EV 
+        i.e. at time t H(t)*EV[t,:,i] = ev[t,i]*EV[t, :, i]
         
         Notes
         -----
         * When several eigenvectors/values are required it may be more exact
-          to use eigh (rather eigsh)
-        * even when ensemble 
+          to use eigh (rather than eigsh)
+        * works even when _ensemble_simulation (use only one _H) 
         """        
         if H is None:
             if self._ensemble_simulation:
                 logger.warning("Evolution_SE: {0} of H in the ensemble, H[0] has beeen used".format(self._nb_H))
             H = self._H
-        if(time is None):
-            time = self.t_array if time is None else time
-        time = [time] if(np.ndim(time)==0) else time
+        if(times is None):
+            times = self.t_array if times is None else times
+        times = [times] if(np.ndim(times)==0) else times
 
         if(nb_ev < H.Ns): 
-            eigen_t = [H.eigsh(time=t, k=nb_ev, which='SA',maxiter=1E10) for t in time]
+            eigen_t = [H.eigsh(time=t, k=nb_ev, which='SA',maxiter=1E10) for t in times]
         else:
-            eigen_t = [H.eigh(time=t) for t in time]
+            eigen_t = [H.eigh(time=t) for t in times]
         ev = [ev for ev, _ in eigen_t]
         EV = [EV for _, EV in eigen_t]
         
@@ -1280,26 +1320,44 @@ class pcModel_qspin(pcModel_base):
 
 
     def _h_get_eigensubspace(self, time, H=None):
-        """ get instantaneous eigensubspaces 
-
+        """ get instantaneous eigensubspaces for a list of time
+        
         Output
         -----
-        ev sorted (ascending) eigenvalues DIM = [t, n]
-        EV eigen vectors dim = [t, d, n] 
-        with t the time index, d refers to the Hilbert space, and n is the index of the ev/EV
-        i.e. at time t H(t) EV[t,:,i] = ev[t,i] EV[t, :, i]
-        
+        res = (ev_SS, EV) with
+            + ev_SS: sorted (ascending) unique eigenvalues with shape = (n_t, n_unique)
+            + EV_SS: eigenvectors with shape = (n_t, n_unique, d, n_ev_SS_i) 
+        n_t is the number of time, d is the size of the Hilbert space,  
+        n_unique is the number of degenerate subspace (also number of unique eigenvalues), 
+        and n_ev_SS_i the degenerancy of the ith subspace (1 if not degenerate) 
+        i.e. at time t H(t)*EV[t,j,:,i] = ev[t,j] * EV[t,j, :, i]
         """        
         ev, EV = self._h_get_eigensystem(time, H, nb_ev = H.Ns)
         ev_ss, EV_ss = [pcModel_qspin._gather_subspace(e, E) for e, E in unzip(ev, EV)]
-        return res    
+        return ev_ss, EV_ss  
 
     @staticmethod
-    def _gather_subspace(ev, EV, precision = 1e-8):
+    def _gather_subspace(ev, EV, decimal = 8):
         """ For a list of eigenvalues (ev) and eigenvectors EV gather them 
         final length of ev, EV is the number of unique eigenvalues
         """
+        ev_rounded = np.round(ev, dec)
+        range_index = np.arange(len(ev_rounded))
+        ev_uniques = np.sort(np.unique(ev_rounded))
+        list_degen = [range_index[ev_rounded == v] for v in ev_uniques]
+        EV_degen = [EV[:, l]for l in list_degen]        
+        return ev_uniques, EV_degen
 
+
+def sample_from_proba_distrib(proba, nb_samples, num_precis = 1e-5)
+    """ Sample from a discrete proba distribution. 
+    Return the frequency associated to each proba"""
+    assert(np.sum(proba)<=(1.0 + num_precis)), "not a valid proba distrib" #should it be relaxed 
+    proba_cum = np.cumsum(proba)
+    samples = np.random.sample(nb_samples)
+    observations = [np.argmax(s < proba_cum) for s in samples]
+    frequencies = [np.sum(observations == v) for v in range(len(proba))]/nb_samples
+    return frequenies
 
 def evolve(conf):
     """ Evolve 
