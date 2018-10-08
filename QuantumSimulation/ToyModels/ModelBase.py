@@ -1033,41 +1033,35 @@ class pcModel_qspin(pcModel_base):
 
     def get_state(self, state_obj = None):
         """ Generate quantum states from state_obj <str> or <array/list<num>>
+        Parameters
+        ----------
+        state_obj:
+            + <str> GS_t: Ground state at t
+            + <str> EES_n_t: nth Energy eigenstate at t
+            + <str> ESS_n_t: nth energy subspace at t
+
         """
         basis = self._ss
         if(state_obj is None):
             state_res = None
 
         elif(isinstance(state_obj, str)):
-            if(state_obj == 'GS_i'):
-                # GS at t=0
-                _, state_res = self._H.eigsh(time = 0.0, k=1, which='SA',maxiter=1E10)
-            elif(state_obj == 'GS_f'):
-                #GS at t = T
-                _, state_res = self._H.eigsh(time = self.T, k=1, which='SA',maxiter=1E10) 
-            elif(state_obj == 'GS_inf'):
-                #GS at t = 5*T (to use with owritten functions)
-                _, state_res = self._H.eigsh(time = 5 * self.T, k=1, which='SA',maxiter=1E10) 
-            elif(state_obj[:3] == 'EES'):
-                # Energy EigenState e.g. 'EES_0_0.0' is the first Energy Eigen 
-                # State at t = 0
-                extra = state_obj[4:]
-                n_ev, t = extra.split('_')
-                n_ev = int(n_ev)
-                t = float(t)
-                
+            components = state_obj.split('_')
+            if(components[0] == 'GS'):
+                t = self._get_time_from_string(components[1])
+                _, state_res = self._H.eigsh(time = t, k=1, which='SA',maxiter=1E10)
+
+            elif(components[0] == 'EES'):
+                n_ev = int(components[1])
+                t = self._get_time_from_string(components[2])
                 _, state_res = self._h_get_eigensystem(time=[t], nb_ev=n_ev+1)
                 state_res = state_res[0]
                 state_res = state_res[:, n_ev] if n_ev > 0 else state_res
             
             elif(state_obj[:3] == 'ESS'):
-                # Energy SubSPace e.g. 'EES_0_0.0' is the first Energy Eigen 
-                # State at t = 0
-                n_ev, t = state_obj[4:].split('_')
-                n_ev = int(n_ev)
-                t = float(t)
-                
-                _, state_res = self._h_get_eigensystem(time=t)
+                n_ev = int(components[1])
+                t = self._get_time_from_string(components[2])
+                _, state_res = self._h_get_eigensystem(time=[t])
                 state_res = state_res[min(n_ev, len(state_res) - 1)]
             
             elif(state_obj == 'uniform'):
@@ -1084,9 +1078,23 @@ class pcModel_qspin(pcModel_base):
 
         return np.squeeze(state_res)
 
+    def _get_time_from_string(self, time_string):
+        if(time_string == 'i'):
+            t = 0.0
+        elif(time_string == 'f'):
+            t = self.T
+        elif(time_string == 'inf'):
+            t = np.inf
+        else:
+            t = float(t)
+        return t
+
     def _state_to_pop(self, st):
         """ compute pop from state"""
         return pcModel_qspin._h_state2proba(st)
+
+
+
     #-----------------------------------------------------------------------------#
     # Helper functions: functions to manipulate QuSpin objects (states, operators, etc..) 
     #-----------------------------------------------------------------------------#
@@ -1115,7 +1123,7 @@ class pcModel_qspin(pcModel_base):
         return pcModel_qspin._h_fid2(self.state_tgt, V1)
     
     def _h_projSS_tgt(self,V1):
-        """ compute """
+        """ compute the projection on a subspace"""
         residual = np.copy(V1)
         tgt = self.state_tgt if(np.ndim(self.state_tgt) > 1) else [self.state_tgt]
         for st in tgt:
@@ -1242,8 +1250,6 @@ class pcModel_qspin(pcModel_base):
         with t the time index, d refers to the Hilbert space, and n is the index of the ev/EV
         i.e. at time t H(t) EV[t,:,i] = ev[t,i] EV[t, :, i]
         
-                
-        
         Notes
         -----
         * When several eigenvectors/values are required it may be more exact
@@ -1271,8 +1277,29 @@ class pcModel_qspin(pcModel_base):
         ev = np.array([e[idx[n]] for n, e in enumerate(ev)])
         res = (np.squeeze(ev), np.squeeze(EV))            
         return res
-    
-    
+
+
+    def _h_get_eigensubspace(self, time, H=None):
+        """ get instantaneous eigensubspaces 
+
+        Output
+        -----
+        ev sorted (ascending) eigenvalues DIM = [t, n]
+        EV eigen vectors dim = [t, d, n] 
+        with t the time index, d refers to the Hilbert space, and n is the index of the ev/EV
+        i.e. at time t H(t) EV[t,:,i] = ev[t,i] EV[t, :, i]
+        
+        """        
+        ev, EV = self._h_get_eigensystem(time, H, nb_ev = H.Ns)
+        ev_ss, EV_ss = [pcModel_qspin._gather_subspace(e, E) for e, E in unzip(ev, EV)]
+        return res    
+
+    @staticmethod
+    def _gather_subspace(ev, EV, precision = 1e-8):
+        """ For a list of eigenvalues (ev) and eigenvectors EV gather them 
+        final length of ev, EV is the number of unique eigenvalues
+        """
+
 
 def evolve(conf):
     """ Evolve 
