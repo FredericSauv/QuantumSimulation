@@ -146,8 +146,7 @@ class pFunc_factory():
     # MAIN ENTRY POINT
     # create pFunc
     #-------------------------------------------------------#
-    def create_pfunc(self, fun_obj, **extra_args)
-        if(ut.is_str())
+
 
 
     #-------------------------------------------------------#
@@ -155,8 +154,7 @@ class pFunc_factory():
     # transform a shortcut string into a pFuncBase
     #-------------------------------------------------------#
     def from_shortcut(self, shortcut, context):
-        full_expr = type(self).extend_shortcut(shortcut)
-        func = 
+        pass
 
     @staticmethod
     def get_shortctut_atom_expr(shortcut):
