@@ -845,7 +845,7 @@ class pcModel_qspin(pcModel_base):
         time = self.t_array if time is None else time 
         patch_degen= args_evolve.pop('patch_degen', False) # correction when there is degen in the spectrum
         state_t = self.EvolutionSE(time = time, H = H, state_init = state_init, **args_evolve)
-        ev, EV = self._h_get_eigensystem(time = time, H = H, nb_ev = nb_ev)
+        ev, EV = self._h_get_eigensystem(time, H, nb_ev)
         
         n_t = len(time)
         if  state_t.shape[1] != n_t:
@@ -1026,13 +1026,22 @@ class pcModel_qspin(pcModel_base):
         #Energy
         self._fom_func['energy'] = (lambda x: self._h_expect_energy(st = x, time= self.T, H = None, normalize=True ))
         self._fom_func['energyinf'] = (lambda x: self._h_expect_energy(st = x, time= np.inf, H = None, normalize=True ))
+        self._fom_func['energyraw'] = (lambda x: self._h_expect_energy(st = x, time= self.T, H = None, normalize=False))
+        self._fom_func['energyinfraw'] = (lambda x: self._h_expect_energy(st = x, time= np.inf, H = None, normalize=False))
+
 
         # measurement projection on the target_state
-        self._fom_func['energyinf5'] =(lambda x: self._h_n_measures_energy(st, time=np.inf, nb=5,  normalize=True)
-        self._fom_func['energyinf10'] =(lambda x: self._h_n_measures_energy(st, time=np.inf, nb=10,  normalize=True)
-        self._fom_func['energyinf100'] =(lambda x: self._h_n_measures_energy(st, time=np.inf, nb=100,  normalize=True)
-        self._fom_func['energyinf1000'] =(lambda x: self._h_n_measures_energy(st, time=np.inf, nb=1000,  normalize=True)
-        self._fom_func['energyinf10000'] =(lambda x: self._h_n_measures_energy(st, time=np.inf, nb=10000,  normalize=True)
+        self._fom_func['energyinf5raw'] =(lambda x: self._h_n_measures_energy(x, time=np.inf, nb=5,  normalize=False))
+        self._fom_func['energyinf10raw'] =(lambda x: self._h_n_measures_energy(x, time=np.inf, nb=10,  normalize=False))
+        self._fom_func['energyinf100raw'] =(lambda x: self._h_n_measures_energy(x, time=np.inf, nb=100,  normalize=False))
+        self._fom_func['energyinf1000raw'] =(lambda x: self._h_n_measures_energy(x, time=np.inf, nb=1000,  normalize=False))
+        self._fom_func['energyinf10000raw'] =(lambda x: self._h_n_measures_energy(x, time=np.inf, nb=10000,  normalize=False))
+
+        self._fom_func['energyinf5'] =(lambda x: self._h_n_measures_energy(x, time=np.inf, nb=5,  normalize=True))
+        self._fom_func['energyinf10'] =(lambda x: self._h_n_measures_energy(x, time=np.inf, nb=10,  normalize=True))
+        self._fom_func['energyinf100'] =(lambda x: self._h_n_measures_energy(x, time=np.inf, nb=100,  normalize=True))
+        self._fom_func['energyinf1000'] =(lambda x: self._h_n_measures_energy(x, time=np.inf, nb=1000,  normalize=True))
+        self._fom_func['energyinf10000'] =(lambda x: self._h_n_measures_energy(x, time=np.inf, nb=10000,  normalize=True))
 
         self._fom_func['proj5'] = (lambda x: self._h_n_measures_tgt(x, nb =5))
         self._fom_func['proj10'] = (lambda x: self._h_n_measures_tgt(x, nb =10))
@@ -1064,15 +1073,14 @@ class pcModel_qspin(pcModel_base):
             elif(components[0] == 'EES'):
                 n_ev = int(components[1])
                 t = self._get_time_from_string(components[2])
-                _, state_res = self._h_get_eigensystem(time=[t], nb_ev=n_ev+1)
-                state_res = state_res[0]
+                _, state_res = self._h_get_eigensystem(times = [t], nb_ev=n_ev+1)
                 state_res = state_res[:, n_ev] if n_ev > 0 else state_res
             
             elif(components[0] == 'ESS'):
                 n_ev = int(components[1])
                 t = self._get_time_from_string(components[2])
-                _, EV_SS = self._h_get_eigensubspace(time=[t])
-                state_res = np.transpose(EV_SS[0, n_ev])
+                _, EV_SS = self._h_get_eigensubspace(t)
+                state_res = np.transpose(EV_SS[n_ev])
             
             elif(components[0] == 'uniform'):
                 state_res = np.random.uniform(-1, 1, size=basis.Ns)
@@ -1211,13 +1219,11 @@ class pcModel_qspin(pcModel_base):
         if(measur_basis is None):
             measur_basis = np.eye(dim_ket) #Computational basis
         elif (np.ndim(measur_basis) == 1):
-            assert(len(measur_basis) == dim_ket), 
-                "Dimensions dont match {0} against {1}".format(dim_ket, len(measur_basis))
+            assert(len(measur_basis) == dim_ket), "Dimensions dont match {0} against {1}".format(dim_ket, len(measur_basis))
             measur_basis = [measur_basis] # just reshape it
             single_value = True
         else:
-            assert(measur_basis.shape[1] == dim_ket), 
-                "Dimensions dont match {0} against {1}".format(dim_ket, measur_basis.shape[1])
+            assert(measur_basis.shape[1] == dim_ket), "Dimensions dont match {0} against {1}".format(dim_ket, measur_basis.shape[1])
             
         proba = pcModel_qspin._h_state2proba([pcModel_qspin._h_ip(b, ket1) for b in measur_basis])
         frequencies = sample_from_proba_distrib(proba, nb)
@@ -1255,15 +1261,12 @@ class pcModel_qspin(pcModel_base):
                 return res
             else:
                 H = self._H
-        ev, EV = self._h_get_eigensystem(times = [time], H, nb_ev=H.Ns)
+        ev, EV = self._h_get_eigensystem([time], H, H.Ns)
         frequencies = pcModel_qspin._h_n_measures(st, nb, np.transpose(EV))
-        measured_energy = np.dot(frequencies, ev)
-        if(np.abs(np.imag(measured_energy))>1e-10):
-            logger.error('expected energy shouldnt be have a imaginary part: {0}'.format(en))
-        measured_energy = np.real(measured_energy)
+        avg_energy = np.dot(frequencies, ev)
         if(normalize):
-            measured_energy = (measured_energy - ev[0])/(ev[-1]-ev[0])    
-        return measured_energy
+            avg_energy = (avg_energy - ev[0])/(ev[-1]-ev[0])    
+        return avg_energy
 
     @ut.extend_dim_method(0, True)
     def _h_get_lowest_energies(self, time=None, H=None, nb = 2):
@@ -1278,16 +1281,22 @@ class pcModel_qspin(pcModel_base):
         return ev 
     
 
-    def _h_get_eigensystem(self, times, H=None, nb_ev=5):
+    def _h_get_eigensystem(self, times, H=None, nb_ev=None):
         """ get instantaneous eigenvalues and eigenvectors for a list of times
+
+        Parameters
+        ---------
+        times: <list<float>> or can be a <float>
+        H: QuSpin.Hamiltonian
 
         Output
         -----
         res = (ev, EV) with
-            + ev: sorted (ascending) eigenvalues with [t, nb_ev]
-            + EV: eigenvectors with dim = [t, d, nb_ev] 
-        t is the time index, d refers to the size of thes Hilbert space, and n 
-        is the index of the ev/EV 
+            + ev: sorted (ascending) eigenvalues with shape = (n_t, nb_ev)
+            + EV: eigenvectors with shape = [t, d, nb_ev] 
+        n_t is the number of times, d is the dim of the Hilbert space, and nb_ev 
+        the number of eigenvalues/states requested - if n_t = 1 first dimension
+        vanishes (i.e. np.squeeze)
         i.e. at time t H(t)*EV[t,:,i] = ev[t,i]*EV[t, :, i]
         
         Notes
@@ -1300,8 +1309,8 @@ class pcModel_qspin(pcModel_base):
             if self._ensemble_simulation:
                 logger.warning("Evolution_SE: {0} of H in the ensemble, H[0] has beeen used".format(self._nb_H))
             H = self._H
-        if(times is None):
-            times = self.t_array if times is None else times
+        nb_ev = H.Ns if nb_ev is None else nb_ev
+        times = self.t_array if times is None else times
         times = [times] if(np.ndim(times)==0) else times
 
         if(nb_ev < H.Ns): 
@@ -1318,9 +1327,9 @@ class pcModel_qspin(pcModel_base):
         res = (np.squeeze(ev), np.squeeze(EV))            
         return res
 
-
+    @ut.extend_dim_method(0, False)
     def _h_get_eigensubspace(self, time, H=None):
-        """ get instantaneous eigensubspaces for a list of time
+        """ get instantaneous eigensubspaces for a specific time, list of times
         
         Output
         -----
@@ -1332,8 +1341,8 @@ class pcModel_qspin(pcModel_base):
         and n_ev_SS_i the degenerancy of the ith subspace (1 if not degenerate) 
         i.e. at time t H(t)*EV[t,j,:,i] = ev[t,j] * EV[t,j, :, i]
         """        
-        ev, EV = self._h_get_eigensystem(time, H, nb_ev = H.Ns)
-        ev_ss, EV_ss = [pcModel_qspin._gather_subspace(e, E) for e, E in unzip(ev, EV)]
+        ev, EV = self._h_get_eigensystem(time, H, nb_ev = None)
+        ev_ss, EV_ss = pcModel_qspin._gather_subspace(ev, EV)
         return ev_ss, EV_ss  
 
     @staticmethod
@@ -1341,7 +1350,7 @@ class pcModel_qspin(pcModel_base):
         """ For a list of eigenvalues (ev) and eigenvectors EV gather them 
         final length of ev, EV is the number of unique eigenvalues
         """
-        ev_rounded = np.round(ev, dec)
+        ev_rounded = np.round(ev, decimal)
         range_index = np.arange(len(ev_rounded))
         ev_uniques = np.sort(np.unique(ev_rounded))
         list_degen = [range_index[ev_rounded == v] for v in ev_uniques]
@@ -1349,15 +1358,15 @@ class pcModel_qspin(pcModel_base):
         return ev_uniques, EV_degen
 
 
-def sample_from_proba_distrib(proba, nb_samples, num_precis = 1e-5)
+def sample_from_proba_distrib(proba, nb_samples, num_precis = 1e-5):
     """ Sample from a discrete proba distribution. 
-    Return the frequency associated to each proba"""
-    assert(np.sum(proba)<=(1.0 + num_precis)), "not a valid proba distrib" #should it be relaxed 
+    Return the frequency associated to each proba entries """
+    assert(np.sum(proba) <= (1.0 + num_precis)), "not a valid proba distrib" #should it be relaxed 
     proba_cum = np.cumsum(proba)
     samples = np.random.sample(nb_samples)
-    observations = [np.argmax(s < proba_cum) for s in samples]
-    frequencies = [np.sum(observations == v) for v in range(len(proba))]/nb_samples
-    return frequenies
+    observations = np.array([np.argmax(s < proba_cum) for s in samples])
+    frequencies = np.array([np.sum(observations == v) for v in range(len(proba))])/nb_samples
+    return frequencies
 
 def evolve(conf):
     """ Evolve 

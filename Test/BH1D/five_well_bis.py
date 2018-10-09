@@ -2,15 +2,14 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-import sys
+import sys, copy
 sys.path.append("../../../QuantumSimulation")
 from QuantumSimulation.ToyModels.BH.learn_1DBH import learner1DBH
 from QuantumSimulation.ToyModels.BH import BH1D as bh1d
 from QuantumSimulation.Utility.Optim import Learner, pFunc_base
 from QuantumSimulation.Utility import Helper as ut
-import copy
 import numpy as np
-import imp
+
 
 
 L = 5
@@ -23,7 +22,7 @@ T = np.pi / 0.612950061075626
 T_long = 10
 fom = ['f2t2:neg_fluence:0.0001_smooth:0.05']
 dico_simul = {'L':L, 'Nb':L,'sps':None,'mu':0, 'T':T, 'dt':0.001, 'flag_intermediate':False, 
-              'setup':'1', 'state_init':'GS_i', 'state_tgt':'GS_inf', 'fom':fom, 
+              'setup':'1', 'state_init':'GS_i', 'state_tgt':'ESS_5_inf', 'fom':['energyinf5raw'], 
               'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_pwl15',
               'kblock':0,'pblock':1}
 
@@ -41,8 +40,32 @@ func_fivewells_linear = model_linear.control_fun
 if(False):
     func_fivewells_linear.save_to_file(prefix+'func_linear')
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 optim_args = {'algo': 'BO2', 'maxiter':200, 'num_cores':4, 'init_obj':100, 'exploit_steps':49,
               'acq':'EI', 'optim_num_anchor':25, 'optim_num_samples':10000}
+
+
+
+
+
+
+
+
+
 
 
 

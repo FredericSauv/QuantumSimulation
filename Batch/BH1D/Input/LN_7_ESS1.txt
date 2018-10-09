@@ -1,4 +1,4 @@
-model_dico {'L':7,'Nb':7,'sps':None,'kblock':0,'pblock':1,'mu':0,'T':6.6735571351094105,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['energyinfraw_smooth:0.05'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_pwl15','_FLAG_NAME':'1T'} {'T':10.010335702664115,'_FLAG_NAME':'15T'} {'T':7.340912848620352,'_FLAG_NAME':'11T'} {'T':8.008268562131292,'_FLAG_NAME':'12T'} {'T':8.675624275642233,'_FLAG_NAME':'13T'} {'T':9.342979989153173,'_FLAG_NAME':'14T'}
+model_dico {'L':7,'Nb':7,'sps':None,'kblock':0,'pblock':1,'mu':0,'T':6.6735571351094105,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'ESS_1_inf','fom':['f2t2:neg_fluence:0.0001_smooth:0.05'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_pwl15','_FLAG_NAME':'1T'} {'T':10.010335702664115,'_FLAG_NAME':'15T'} {'T':7.340912848620352,'_FLAG_NAME':'11T'} {'T':8.008268562131292,'_FLAG_NAME':'12T'} {'T':8.675624275642233,'_FLAG_NAME':'13T'} {'T':9.342979989153173,'_FLAG_NAME':'14T'}
 
 testing_dico {'fom':['f2t2:neg_smooth:0.05','f2t2','fluence','smooth','energyinf']}
 
