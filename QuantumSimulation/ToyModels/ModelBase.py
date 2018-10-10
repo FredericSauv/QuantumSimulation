@@ -642,6 +642,8 @@ class pcModel_base(cModel_base):
         * Could add a gradient if available
 
         """
+        if(args_call.pop('debug', False)):
+            pdb.set_trace()
         self._aggregated_nb_call += 1
         args_call_dupl = copy.copy(args_call)
         track = args_call_dupl.pop('track_learning', False)
@@ -1128,7 +1130,11 @@ class pcModel_qspin(pcModel_base):
     #-----------------------------------------------------------------------------#
     @staticmethod
     def _h_ip(V1, V2):
-        """ compute an inner product between V1 and V2"""
+        """ compute an inner product between V1 and V2
+        
+        """
+        if((np.ndim(V1)>2) or (np.ndim(V2)>2) or ((np.ndim(V2) == 2) and (np.ndim(V1) == 2))):
+            logger.error("shapes {0} and {1}".format(np.shape(V1), np.shape(V2)))
         return np.dot(np.conj(np.squeeze(V1)), np.squeeze(V2))
     
     @staticmethod
@@ -1147,7 +1153,7 @@ class pcModel_qspin(pcModel_base):
         return np.abs(pcModel_qspin._h_ip(V1, V2))
 
     @staticmethod
-    def _h_fid_SS(V1, SS):
+    def _h_fid2_SS(V1, SS):
         """ compute projection of V1 on a SS shape = (N,d) 
         N is the dim of the subspace, d the dim ofthe original H-space """
         residual = np.copy(V1)
@@ -1158,12 +1164,16 @@ class pcModel_qspin(pcModel_base):
 
     def _h_fid2_tgt(self,V1):
         """ compute fidelity(square conv) between V1 and V2"""
-        return pcModel_qspin._h_fid2(self.state_tgt, V1)
+        if(np.ndim(self.state_tgt) == 1):
+            res = pcModel_qspin._h_fid2(self.state_tgt, V1)
+        elif(np.ndim(self.state_tgt) == 2):
+            res = pcModel_qspin._h_fid2_SS(V1, self.state_tgt)
+        return res
     
     def _h_projSS_tgt(self,V1):
         """ compute the projection on a subspace"""
         tgt_SS = self.state_tgt if(np.ndim(self.state_tgt) > 1) else [self.state_tgt]
-        return pcModel_qspin._h_fid_SS(V1, tgt_SS)
+        return pcModel_qspin._h_fid2_SS(V1, tgt_SS)
 
     def _h_fid_tgt(self,V1):
         """ compute fidelity(square conv) between V1 and V2"""
