@@ -20,9 +20,10 @@ prefix = 'five_wells'
 #==============================================================================
 T = np.pi / 0.612950061075626
 T_long = 10
+fomen = ['energyinf5raw']
 fom = ['f2t2:neg_fluence:0.0001_smooth:0.05']
 dico_simul = {'L':L, 'Nb':L,'sps':None,'mu':0, 'T':T, 'dt':0.001, 'flag_intermediate':False, 
-              'setup':'1', 'state_init':'GS_i', 'state_tgt':'ESS_5_inf', 'fom':['energyinf5raw'], 
+              'setup':'1', 'state_init':'GS_i', 'state_tgt':'ESS_5_inf', 'fom':fom, 
               'fom_print':True, 'track_learning': True, 'ctl_shortcut':'owbds01_pwl15',
               'kblock':0,'pblock':1}
 
@@ -32,7 +33,7 @@ dico_linear = copy.copy(dico_simul)
 dico_linear['control_obj'] = linear
 dico_linear['T'] = T_long
 model_linear = bh1d.BH1D(**dico_linear)
-res_test_linear = model_linear([], trunc_res=False)
+res_test_linear = model_linear([], trunc_res=True)
 state_tmp = model_linear.EvolutionPopAdiab(nb_ev =16)
 # min_gap = model_linear.FindMinDelta()
 model_linear.plot_pop_adiab(plot_gap = True)
