@@ -40,38 +40,58 @@ class model:
         """ for a given h get big_omega"""
         return np.pi/np.sqrt(2 * h)
 
-    def f(self, omega, h_0 = 10.0, noise_h0 = 0.0, nb_repeat = 10, s = 40):
+    def simulate_noisy_h0(self, omega, h_ref = 10.0, noise_h0 = 0.1, nb_repeat = 10, 
+                          s = 40, nb_period = 1, verbose = False, return_to_init = False):
         """ For a given h_0 and omega how close do we get to href after one cycle
         i.e. return h(T) - href
         
         Parameters
         ----------
-        h_0: the ideal initial height
+        h_ref: the ideal initial height
         omega: driving of the miror
-        
         noise_h0: noise in the preparation of the initial position 
-        nb_repeat
+                  x0_i ~ N(h_ref, noise_h0^2)
+        nb_repeat: number of repetition ofthe experiment
+        nb_period: number of period (T) after which we measure the height of the
+                  atom - with T = s * 2 Pi / omega
+        s:
+        verbose: <boolean>
+                if True print the result
+        return_to_init: <boolean>
+                instead of using h_ref as the reference we use the real h_0 
+                (i.e. h_ref + some noise)
+        Output
+        ------
+            res = 1/nb_repeat * sum |h(nb_period * T) - h_ref|
+        
         """
         big_omega = omega / s
         T =  2 * np.pi/ big_omega
         noise = np.random.normal(0.0, scale = noise_h0, size = nb_repeat)
-        res = [np.abs(self.simulate_one_period(omega, T, h_0*(1+n))[0] - h_0) for n in noise]
+        if(return_to_init):
+            res = [np.abs(self.simulate_to_t(omega, T, h_ref*(1+n))[0] - h_ref*(1+n)) for n in noise]
+        else:
+            res = [np.abs(self.simulate_to_t(omega, T, h_ref*(1+n))[0] - h_ref) for n in noise]
+        if(verbose):
+            print(np.average(res))
         return np.average(res)
     
 
+
     def scan_h(self, delta, href, omega, s = 1.0):
-        """ For a given href and omega plot |h(T) - href| for different starting
-        heights (h(0) in [href - 2 delta, href+20 delta])
+        """ Replicate Arek's Mathematica. For a given h_ref and omega plot 
+        |h(T) - href| for different starting heights (h(0) in 
+        [href - 2 delta, href+20 delta])
         """
         h0_list = np.linspace(href - 2 * delta, href + 20 * delta, 500)
         T = s * 2*np.pi/omega
-        res = [self.simulate_one_period(omega, T, h0)[0] - href for h0 in h0_list]
+        res = [self.simulate_to_t(omega, T, h0)[0] - href for h0 in h0_list]
         plt.plot(h0_list, res)
         plt.scatter(href, 0)
         
-    def simulate_one_period(self, omega, T, h_0 = 10.0, p_0 = 0.0):
-        """ return x and p after one period (T) for a given driving omega"""
-        times = [T]
+    def simulate_to_t(self, omega, t, h_0 = 10.0, p_0 = 0.0):
+        """ return x and p after a time t for a given driving omega"""
+        times = [t]
         der = functools.partial(self.derivative, omega = omega)
         evol = model.evolve_ode(der, [h_0, p_0], t0=0, times=times)
         return evol[0,-1], evol[1,-1]
@@ -87,7 +107,19 @@ class model:
     @staticmethod
     def evolve_ode(derivative, X0, t0, times, verbose= False, complex_type = False):
         """ wrap the ODE solver
-        - derivative: func(t, X)
+        X state of the system (i.e. here [x, p])
+        Parameters
+        ----------
+            + derivative: func(t, X) -> X'(t)
+            + X0: an array with the initial conditon
+            + t0: starting time
+            + times : List of times for which we want state o the system
+            + verbose: print some info about the solver
+            + complex_type: allow for complex values
+        Output
+        ------
+        State of the system over the requested times shape = (size(X), time)
+        i.e. transpose([X(times[0]), ..., X(times[-1])])
         
         """
         ## Set-up the solver
@@ -118,17 +150,34 @@ class model:
         return v
 
 
+if __name__ == '__main__':
+    mod = model()
+
+    #Arek's Mathematica
+    mod.scan_h(delta = 1, href = 1/2 * (3*np.pi)**(2/3), omega = np.pi**(2/3)/(3**(1/3)), s=1.0)
 
 
-#--------------------------------#
-model = model()
-# scan for h around an h reference
-model.scan_h(delta = 1, href = 1/2 * (3*np.pi)**(2/3), omega = np.pi**(2/3)/(3**(1/3)), s=1.0)
+    # Look at the impact of changing omega when there is nois ein the initial
+    # height (h_ref). Results are obtained for s = 40 (still it doesn't seem
+    # that changing it has impact)
+    h_ref = 10.0
+    s = 40
+    omega_range = np.linspace(0.8, 1.2, 200)
+    res_noise_10trials = np.zeros(len(omega_range))
+    res_noise_100trials = np.zeros(len(omega_range))
+    res_no_noise = np.zeros(len(omega_range))
 
-
-#
-h=10.0
-omega = 40 * np.pi/np.sqrt(2*h)
-model.f(omega, h_0 = h, noise_h0 = 0.2)
-
+    omega_ref = s * np.pi/np.sqrt(2 * h_ref)
+    for n_om, om in enumerate(omega_ref * omega_range):
+        res_noise_10trials[n_om] = mod.simulate_noisy_h0(om, h_ref, noise_h0 = 0.2, nb_repeat = 10, s = s, nb_period = 1)
+        res_noise_100trials[n_om] = mod.simulate_noisy_h0(om, h_ref, noise_h0 = 0.2, nb_repeat = 100, s = s, nb_period = 1)
+        res_no_noise[n_om] = mod.simulate_noisy_h0(om, h_ref, noise_h0 = 0, nb_repeat = 1, s = s, nb_period = 1)
+    
+    plt.plot(omega_range,res_noise_10trials, label = 'noise_20pc_10trials')
+    plt.plot(omega_range,res_noise_100trials, label = 'noise_20pc_100trials')
+    plt.plot(omega_range,res_no_noise, label = 'no noise')
+    plt.legend()
+    plt.xlabel('omega / omega_ref')
+    plt.ylabel('|h(T)-h_ref|')
+    plt.savefig('noise_0.2_h0_vary_omega.pdf')
 
