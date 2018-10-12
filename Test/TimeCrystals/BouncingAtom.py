@@ -63,20 +63,22 @@ class model:
         Output
         ------
             res = 1/nb_repeat * sum |h(nb_period * T) - h_ref|
+            shape = (len(nb_period), )
         
         """
         big_omega = omega / s
-        T =  2 * np.pi/ big_omega
+        T_ref =  2 * np.pi/ big_omega
+        T = nb_period * T_ref if(np.ndim(nb_period) == 0) else T_ref * np.array(nb_period)
         noise = np.random.normal(0.0, scale = noise_h0, size = nb_repeat)
         if(return_to_init):
             res = [np.abs(self.simulate_to_t(omega, T, h_ref*(1+n))[0] - h_ref*(1+n)) for n in noise]
         else:
             res = [np.abs(self.simulate_to_t(omega, T, h_ref*(1+n))[0] - h_ref) for n in noise]
+        avg = np.average(res, axis = 0)
         if(verbose):
-            print(np.average(res))
-        return np.average(res)
+            print(avg)
+        return avg
     
-
 
     def scan_h(self, delta, href, omega, s = 1.0):
         """ Replicate Arek's Mathematica. For a given h_ref and omega plot 
@@ -90,11 +92,13 @@ class model:
         plt.scatter(href, 0)
         
     def simulate_to_t(self, omega, t, h_0 = 10.0, p_0 = 0.0):
-        """ return x and p after a time t for a given driving omega"""
-        times = [t]
+        """ return [X(t_0), ... X(t_n)] where X(t) = [x(t), p(t)]
+        shape = (2 x len(t))
+        """
+        times = [t] if np.ndim(t) == 0 else t
         der = functools.partial(self.derivative, omega = omega)
         evol = model.evolve_ode(der, [h_0, p_0], t0=0, times=times)
-        return evol[0,-1], evol[1,-1]
+        return evol
     
     def derivative(self, t, X, omega):
         """ X = [x, p], X'(t) = [p(t)/m, -m * g * Lambda * cos(Omega * t) * (-1 if X[t]==0])"""
@@ -169,7 +173,7 @@ if __name__ == '__main__':
 
     omega_ref = s * np.pi/np.sqrt(2 * h_ref)
     for n_om, om in enumerate(omega_ref * omega_range):
-        res_noise_10trials[n_om] = mod.simulate_noisy_h0(om, h_ref, noise_h0 = 0.2, nb_repeat = 10, s = s, nb_period = 1)
+        res_noise_10trials[n_om] = mod.simulate_noisy_h0(om, h_ref, noise_h0 = 0.2, nb_repeat = 10, s = s, nb_period = [1, 4])
         res_noise_100trials[n_om] = mod.simulate_noisy_h0(om, h_ref, noise_h0 = 0.2, nb_repeat = 100, s = s, nb_period = 1)
         res_no_noise[n_om] = mod.simulate_noisy_h0(om, h_ref, noise_h0 = 0, nb_repeat = 1, s = s, nb_period = 1)
     
