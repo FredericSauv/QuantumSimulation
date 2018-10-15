@@ -1045,6 +1045,7 @@ class pcModel_qspin(pcModel_base):
         self._fom_func['energyinf1000'] =(lambda x: self._h_n_measures_energy(x, time=np.inf, nb=1000,  normalize=True))
         self._fom_func['energyinf10000'] =(lambda x: self._h_n_measures_energy(x, time=np.inf, nb=10000,  normalize=True))
 
+        self._fom_func['proj1'] = (lambda x: self._h_n_measures_tgt(x, nb =1))
         self._fom_func['proj5'] = (lambda x: self._h_n_measures_tgt(x, nb =5))
         self._fom_func['proj10'] = (lambda x: self._h_n_measures_tgt(x, nb =10))
         self._fom_func['proj100'] = (lambda x: self._h_n_measures_tgt(x, nb =100))
@@ -1369,10 +1370,11 @@ class pcModel_qspin(pcModel_base):
 
 
 def sample_from_proba_distrib(proba, nb_samples, num_precis = 1e-5):
-    """ Sample from a discrete proba distribution. 
+    """ Sample from a discrete proba distribution.
     Return the frequency associated to each proba entries """
-    assert(np.sum(proba) <= (1.0 + num_precis)), "not a valid proba distrib" #should it be relaxed 
-    proba_cum = np.cumsum(proba)
+    total= np.sum(proba)
+    assert(total <= (1.0 + num_precis)), "not a valid proba distrib" #should it be relaxed 
+    proba_cum = np.append(np.cumsum(proba), max(1 + num_precis, total))
     samples = np.random.sample(nb_samples)
     observations = np.array([np.argmax(s < proba_cum) for s in samples])
     frequencies = np.array([np.sum(observations == v) for v in range(len(proba))])/nb_samples
@@ -1383,3 +1385,9 @@ def evolve(conf):
     conf: (quspin.Hamiltonian, state, time)
     """
     return conf[0].evolve(conf[1], t0=0, times = conf[2])
+
+
+
+if __name__ == '__main__':
+    sample_from_proba_distrib([0.3, 0.6], 1000)
+    
