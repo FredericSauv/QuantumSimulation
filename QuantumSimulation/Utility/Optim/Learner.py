@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 import scipy.optimize as sco
 import numpy as np
 import sys, copy, time, pdb
-sys.path.append('/home/fred/Desktop/GPyOpt/')
+sys.path.insert(0, '/home/fred/Desktop/GPyOpt/')
+sys.path.insert(0, '/Users/frederic/Desktop/GPyOpt') #Laptop's loc
 import GPyOpt
 
 
@@ -123,20 +124,52 @@ class learner_Opt(learner_base):
         # <dico>{<str>'name_algo': (<dico> default_hyperparameters, <method> method)> 
         # used in such a way that only parameters appearing here can be used
         self._ALGO_INFOS ={
-        'NM':({'disp':True, 'maxiter':200, 'ftol':1e-6, 'maxfev':200, 'adaptative':False, 'max_time':None}, self._run_NM),        
-        'NOOPTIM':({}, self._run_NOOPTIM), 
-        'BO2':({'disp':True, 'acq':'EI', 'maxiter':50,'verbose':False, 'model_type':'GP',
-               'kernel':None, 'flag_MP':False, 'num_cores':1,
-               'acq_opt_type':'lbfgs', 'initial_design_type':'latin', 'optim_num_anchor':50, 
-               'optim_num_samples':100000, 'acquisition_jitter':0.001, 'max_time':np.inf,
-               'acquisition_weight':2, 'exploit_steps':15, 'batch_method':'sequential',
-               'batch_size':1, 'num_inducing':10, 'ARD':False, 'to_transfer':None,
-               'acquisition_weight_lindec':False, 'constraints':None}
-                , self._run_BO2),
+        'NM':({'disp':True, 
+               'maxiter':200, 
+               'ftol':1e-6, 
+               'maxfev':200, 
+               'adaptative':False, 
+               'max_time':None},
+              self._run_NM),     
+               
+        'NOOPTIM':({}, 
+              self._run_NOOPTIM), 
+        
+        'BO2':({'disp':True, 
+                'acq':'EI',                         # Acquisition fonction type
+                'maxiter':50,                       # Number of iterations for the BO
+                'verbose':False,                    # print extra information
+                'model_type':'GP',                  # Type of Guassian process GP, GP_
+                'kernel':None,                      # Type of Kernel for the GP
+                'flag_MP':False,                    # Use of Multi processing
+                'num_cores':1,                      # Number of core to use
+                'acq_opt_type':'lbfgs',             # Optimizer to use when maximizing the acqu function
+                'initial_design_type':'latin',      # Choice of the random 
+                'optim_num_anchor':50,              # Used when minimizing the acq function
+                'optim_num_samples':100000,         # Used when minimizing the acq function
+                'acquisition_jitter':0.001, 
+                'max_time':np.inf,
+                'acquisition_weight':2, 
+                'exploit_steps':15, 
+                'batch_method':'sequential',
+                'batch_size':1, 
+                'num_inducing':10,
+                'ARD':False,
+                'to_transfer':None,
+                'acquisition_weight_lindec':False,
+                'constraints':None,                 # Constraints on the parameter space
+                'likelihood':None},                 # Likelihood to use (by default 'Gaussian', could be 'Bernouilli', 'Binomial_10')
+               self._run_BO2),
+                
         'BO':({'disp':True, 'acq':'ei', 'kappa':5.0, 'maxiter':50,'verbose':False, 'kernel':'matern2.5', 
                'whiteNoise':0.1, 'scalingKer':0.1, 'flag_MP':False, 'gp_acq_iter':50, 'gp_n_warmup':10000},
                 self._run_BO),
-        'DE':({'disp':True, 'maxiter':500, 'popsize':10, 'tol':0.01, 'max_time':None}, 
+        
+        'DE':({'disp':True, 
+               'maxiter':500, 
+               'popsize':10, 
+               'tol':0.01, 
+               'max_time':None}, 
               self._run_DE)}
         
         learner_base.__init__(self, model=model, **params_learner)
@@ -202,6 +235,8 @@ class learner_Opt(learner_base):
         """ effectively run the optimization. Rely on a <model> which is an object which should
         at least have a method __call__(params) and may have attributes _info_simulations.
         Run the adequate optimization, save the results"""
+        if (args_call.pop('debug', False)):
+            pdb.set_trace()
         options = self.options_learner
         algo_run = self._ALGO_INFOS[options['algo']][1]
         res_optim_raw = algo_run(options, **args_call)
@@ -357,9 +392,18 @@ class learner_Opt(learner_base):
         def run_optimization(self, maxiter = 0, max_time = np.inf, eps = 1e-8, 
         context = None, verbosity=False, save_models_parameters= True, 
         report_file = None, evaluations_file = None, models_file=None):
-        ## NEW PARAMS
-        acq_optim_type
-        initial_design_type='random'
+        parameters
+        ----------
+        options.constraints: <str> or None
+            encode the type of constraints which can be used. This string is converted
+            to be passed to the BayesianOptimizer constructor with the following structure  
+            [{'name':'name1', 'constraint':obj_constraint1}, .., {'name':'nameN', 'constraint':obj_constraintN}]
+            where obj_constraintX can be a function or a string which can be exec to generate a function
+            a constraint is of the form c(x) <= 0 (i.e. a parameter is accepted if c(x) <= 0) 
+            e.g. 'step_a' difference between two consecutive parameters should be less than a
+            e.g. 'step_a_a0_aN' same as above plus the first (last) parameter is also compared to a0 (aN)
+            e.g. 'smooth_s' smoothness calculated should be <=s
+
         
         """
         #Init BO
@@ -370,15 +414,24 @@ class learner_Opt(learner_base):
         options['name_params'] = name_params        
         bounds_bo = [{'name': name_params[i], 'type': 'continuous', 
                    'domain': options['bounds_params'][i]} for i in range(nb_params)]
-                    
-        args_BO = {'acquisition_type':options['acq'], 'acquisition_optimizer_type':options['acq_opt_type'], 
-                'num_cores':options['num_cores'], 'domain': bounds_bo,
-                'optim_num_anchor':options['optim_num_anchor'], 'optim_num_samples':options['optim_num_samples'],
-                'acquisition_jitter':options['acquisition_jitter'], 'acquisition_weight':options['acquisition_weight'],
-                'batch_size':options['batch_size'], 'evaluator_type':options['batch_method'],
-                'num_inducing':options['num_inducing'], 'model_type':options['model_type'], 'ARD':options['ARD'],
-                'acquisition_weight_lindec':options['acquisition_weight_lindec'], 
-                'constraints':options['constraints']}    
+        constraints = options.get('constraints')
+        cst = self._build_constraints(constraints, **options)        
+
+        args_BO = {'acquisition_type':options['acq'], 
+                   'acquisition_optimizer_type':options['acq_opt_type'], 
+                   'num_cores':options['num_cores'], 
+                   'domain': bounds_bo,
+                   'optim_num_anchor':options['optim_num_anchor'], 
+                   'optim_num_samples':options['optim_num_samples'],
+                   'acquisition_jitter':options['acquisition_jitter'], 
+                   'acquisition_weight':options['acquisition_weight'],
+                   'batch_size':options['batch_size'], 
+                   'evaluator_type':options['batch_method'],
+                   'num_inducing':options['num_inducing'], 
+                   'model_type':options['model_type'], 
+                   'ARD':options['ARD'],
+                   'acquisition_weight_lindec':options['acquisition_weight_lindec'], 
+                   'constraints':cst}    
 
         # definition of the cost function
         def cost(params):
@@ -386,6 +439,8 @@ class learner_Opt(learner_base):
 
         #V0.1 NON DEFAULT LIKELIHOOD
         if(args_BO['model_type'] == 'GP_CUSTOM_LIK'):
+            logger.info('Use of GP_CUSTOM_LIK: enforce **normalize_Y** as False ')
+            logger.info('Use of GP_CUSTOM_LIK: enforce **inf_method** as Laplace')
             args_BO['normalize_Y'] = False
             args_BO['inf_method'] = 'Laplace'
             args_BO['likelihood'] = options.get('likelihood', 'Binomial_10') 
@@ -448,13 +503,16 @@ class learner_Opt(learner_base):
                 if(bo.batch_size > 1):
                     bo.batch_size = 1
                 bo.evaluator = bo._evaluator_chooser()
-                                        
+                                     
+                logger.info('Exploitation (i.e. ucb with k=0) for {}'.format(exploit_steps))
+                logger.info('Still {} s left'.format(time_left))
                 bo.run_optimization(exploit_steps, max_time = time_left)
                 time_left -= bo.cum_time
                 max_reached = (time_left < 0)
 
         if((_still_potentially_better(bo)) and (exploit_steps <= 50) and not(max_reached)):
-            print('2nd round of exploitation')
+            logger.info('2nd round of exploitation for {}'.format(exploit_steps))
+            logger.info('Still {} s left'.format(time_left))
             bo.run_optimization(exploit_steps, max_time = time_left)
 
         # generate results
@@ -481,8 +539,67 @@ class learner_Opt(learner_base):
         self.mp.close_mp()
         return resultTest
 
+    def _build_constraints(self, constraint_obj, **xargs):
+        # Creation of constraints
+        if constraint_obj is not None:
+            if ut.is_str(constraint_obj):
+                components = constraint_obj.split('_')
+                if(components[0] == 'step'):
+                    limit = float(components[1])
+                    logger.info("use of constraints: step with step value {0}".format(limit))
+                    nb_params = xargs['nb_params']
+                    cst = [{'name':str(i), 'constraint': 'abs(x[:,{0}]-x[:,{1}])-{2}'.format(i-1, i, limit)} for i in range(1, nb_params)]
+                    if(len(components) >= 3):
+                        xref = float(components[2])
+                        cst += [{'name':'0', 'constraint':'abs(x[:,0]-{0})-{1}'.format(xref, limit)}]
+                    if(len(components) >= 4):
+                        xref = float(components[3])
+                        cst += [{'name':str(nb_params), 'constraint':'abs(x[:,-1]-{0})-{1}'.format(xref, limit)}]
 
+                elif(components[0] == 'smooth'):
+                    # quite costly to compute
+                    model = xargs['model']
+                    func = model.control_fun[0].clone()
+                    if model.n_controls > 1:
+                        logger.warning('smoothness constraints have just been computed on the first control function')
+                    limit = float(components[1])
+                    time = model.t_array.copy()
+                    time[0] = time[0] - 1e-6
+                    time[-1] = time[-1] + 1e-6
+                    logger.info("use of constraints: smoothness is capped to {0}".format(limit))
+                    
+                    def compute_smoothness(x, func, limit):
+                        func.theta = x
+                        return func.smoothness(time) - limit
+                    
+                    def smooth_constr(x):
+                        return np.array([compute_smoothness(xx, func, limit) for xx in x])
+                    
+                    cst = [{'name':'smooth', 'constraint':smooth_constr}]
+                    
+                elif(components[0] == 'smoothlin'):
+                    limit = float(components[1])
+                    if(len(components) == 4):
+                        xinit = float(components[2])
+                        xfinal = float(components[3])
+                        def smoothlin_constr(x):
+                            res = np.sum(np.square(np.diff(x)), axis =1) + np.square(x[:,0] -xinit) + np.square(x[:,-1] -xfinal)
+                            return res / (x.shape[1] + 1) -limit
+                    else:
+                        def smoothlin_constr(x):
+                            return np.sum(np.square(np.diff(x)), axis = 1)  / (x.shape[1] -1) -limit
+                    logger.info("use of constraints: smoothness linear is capped to {0}".format(limit))
 
+                    
+                    cst = [{'name':'smooth', 'constraint':smoothlin_constr}]
+
+                else:
+                    logger.error("Constraints for BO {} is not recognized".format(components[0]))
+            else:
+                 logger.error("Constraints for BO {} is not recognized".format(constraint_obj))
+        else:
+            cst = None
+        return cst
 
     def _process_kappa(self, options_GP):
         """ static or dynamic kappa"""
@@ -598,6 +715,7 @@ class learner_Opt(learner_base):
 
 
 def _still_potentially_better(bo, nb_last = 5, nb_thr = 2, accept_thr = 1e-7):
+    """ """
     last_Y = np.squeeze(bo.Y[-(nb_last+1):])
     nb_better = np.sum(np.diff(last_Y)<-accept_thr)
     return nb_better >= nb_thr

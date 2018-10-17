@@ -7,66 +7,221 @@ from QuantumSimulation.ToyModels.QB import QBits, learn_QBits
 from QuantumSimulation.Utility.Optim import Learner, pFunc_base
 import numpy as np
 
-# Create a model
-fid = ['last:f2t2:neg'] # 'proj100:neg_fluence:0.0001_smooth:0.01'
-energy = ['last:energyinf']
-binomial_clipped = ['last::clip01:neg']
-TQSL = np.pi/np.sqrt(2)
+# ==================================================================
+# Parameters
+#===================================================================
+nb_parameters = 9
+nb_meas = 10
+smooth_coeff = 0.002
+
+TQSL = np.pi/2
 T= 1 * TQSL
-x_plot = np.linspace(-0.01, T)
+x_plot = np.linspace(-0.01, T+0.01)
+
+do_base, do_proj10, do_proj10_b = True, True, True
+do_base_smooth, do_proj10_smooth, do_proj10_b_smooth = True, True, True
+do_base_smoothconstr, do_proj10_smoothconstr, do_proj10_b_smoothconstr = True, True, True
+do_base_stepconstr, do_proj10_stepconstr, do_proj10_b_stepconstr = True, True, True
 
 # ==================================================================
-# NO NOISE
+# Models
 #===================================================================
+proj10 = ['last:proj10:neg', 'smooth'] 
+fid = ['last:f2t2:neg', 'smooth']
+proj10_smooth = ['last:proj10:neg_smooth:'+ str(smooth_coeff), 'smooth', 'f2t2']
+fid_smooth = ['last:f2t2:neg_smooth:'+str(smooth_coeff), 'smooth', 'f2t2']
+
 dico_base = {'T':T, 'dt':0.01, 'flag_intermediate':False, 'setup':'1Q1', 
-              'state_init':'0', 'state_tgt':'m', 'fom':fid, 'fom_print':True, 
-              'track_learning': True, 'ctl_shortcut':'owbds01_pwl10'}
+             'state_init':'0', 'state_tgt':'m', 'fom':fid, 'fom_print':True, 
+             'track_learning': True, 'ctl_shortcut':'owbds01_pwc'+ str(nb_parameters)}
 dico_base = learn_QBits.learnerQB._process_controler(dico_base)
 dico_base['control_obj'] = learn_QBits.learnerQB._build_control_from_string(
                     dico_base['control_obj'], None, context_dico = dico_base)
-func_base = dico_base['control_obj']
-func_base.plot_function(x_plot)
+func_base = dico_base['control_obj'].clone()
+dico_proj10 = copy.copy(dico_base)
+dico_proj10.update({'fom': proj10})
+dico_proj10_smooth = copy.copy(dico_base)
+dico_proj10_smooth.update({'fom': proj10_smooth})
+dico_base_smooth = copy.copy(dico_base)
+dico_base_smooth.update({'fom': fid_smooth})
+
+## Models
 model_base = QBits.Qubits(**dico_base)
-perfect = [1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0,0.0]
+model_proj10 = QBits.Qubits(**dico_proj10)
+model_base_smooth = QBits.Qubits(**dico_base_smooth)
+model_proj10_smooth = QBits.Qubits(**dico_proj10_smooth)
+
+## Test
+perfect = [1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0,0.0, 0.0]
 model_base(perfect)
-model_base.control_fun.plot_function(x_plot)
 
 # ==================================================================
-# OPTIM 1: 
-# is there a better way
+# Optim parameters
+# Simple ('_base') or using binomial likelihood ('_b')
+# with constraints on the space of accessible parameters
+#
 #===================================================================
-optim_with_constraints = True
-optim_ideal = True
-optim_with_noise_custom = True
-optim_base = {'algo': 'BO2', 'maxiter':50, 'num_cores':4, 'init_obj':25, 'acq':'EI', 'optim_num_anchor':15, 
-               'optim_num_samples':10000}
+optim_base = {'algo': 'BO2', 'maxiter':100, 'num_cores':2, 'init_obj':50, 
+              'acq':'LCB', 'optim_num_anchor':15,  'optim_num_samples':10000, 
+              'acquisition_weight':5,'acquisition_weight_lindec':True, 
+              'initial_design_type':'random'}
 
+optim_max_step = copy.copy(optim_base)
+optim_max_step['constraints'] = 'step_0.4_0_1'
+optim_max_smooth = copy.copy(optim_base)
+optim_max_smooth['constraints'] = 'smoothlin_0.1_0_1'
 
+optim_b = copy.copy(optim_base)
+optim_b.update({'model_type':'GP_CUSTOM_LIK', 'inf_method':'Laplace', 
+                'likelihood':'Binomial_'+str(nb_meas), 'normalize_Y':False})
+optim_b_max_step = copy.copy(optim_b)
+optim_b_max_step['constraints'] = 'step_0.4_0_1'
+optim_b_max_smooth = copy.copy(optim_b)
+optim_b_max_smooth['constraints'] = 'smoothlin_0.1_0_1'
+    
 # ==================================================================
-# OPTIM WITH CONSTRAINTS
+# Without constraints, with binomial observations (i.e. )
+# 
 #===================================================================
-constraints = [{'name':'ct_'+str(i), 'constraint': 'abs(x[:,{0}]-x[:,{1}])-0.2'.format(i,i+1)} for i in range(8)]
-optim_constraints = copy.copy(optim_base)
-optim_constraints['constraints'] = constraints
-optim_constraints['initial_design_type'] = 'random'
-
-
-if(optim_with_constraints):
-    optim = Learner.learner_Opt(model = model_base, **optim_constraints)
-    res_ct = optim(track_learning=True)
-    params_ct = res_ct['params']
-    func_base.theta = params_ct
+if(do_base):
+    optim = Learner.learner_Opt(model = model_base, **optim_base)
+    res_base = optim(track_learning=True)
+    p_base = res_base['params']
+    p_base_exp = res_base['params_exp']
+    func_base.theta = p_base
     func_base.plot_function(x_plot)
+    model_base(p_base)
 
+if(do_proj10):    
+    optim = Learner.learner_Opt(model = model_proj10, **optim_base)
+    res_proj10 = optim(track_learning=True)
+    p_proj10 = res_proj10['params']
+    p_proj10_exp = res_proj10['params_exp']
+    func_base.theta = p_proj10
+    func_base.plot_function(x_plot)
+    model_base(p_proj10)
+    model_base(p_proj10_exp)
+
+if(do_proj10_b):    
+    optim = Learner.learner_Opt(model = model_proj10, **optim_b)
+    res_proj10_b = optim(track_learning=True)
+    p_proj10_b = res_proj10_b['params']
+    p_proj10_b_exp = res_proj10_b['params_exp']
+    func_base.theta = p_proj10_b_exp
+    func_base.plot_function(x_plot)
+    model_base(p_proj10_b)
+    model_base(p_proj10_b_exp)
+    
+
+
+    
+# ==================================================================
+# With smoothness penalization
+#===================================================================
+if(do_base_smooth):
+    optim = Learner.learner_Opt(model = model_base_smooth, **optim_base)
+    res_base_smooth = optim(track_learning=True)
+    p_base_smooth = res_base_smooth['params']
+    p_base_smooth_exp = res_base_smooth['params_exp']
+    func_base.theta = p_base_smooth
+    func_base.plot_function(x_plot)
+    model_base_smooth(p_base_smooth)
+
+if(do_proj10_smooth):    
+    optim = Learner.learner_Opt(model = model_proj10_smooth, **optim_base)
+    res_proj10_smooth = optim(track_learning=True)
+    p_proj10_smooth = res_proj10_smooth['params']
+    p_proj10_smooth_exp = res_proj10_smooth['params_exp']
+    func_base.theta = p_proj10_smooth
+    func_base.plot_function(x_plot)
+    model_base_smooth(p_proj10_smooth)
+    model_base_smooth(p_proj10_smooth_exp)
+
+if(do_proj10_b_smooth):    
+    optim = Learner.learner_Opt(model = model_proj10_smooth, **optim_b)
+    res_proj10_b_smooth = optim(track_learning=True)
+    p_proj10_b_smooth = res_proj10_b_smooth['params']
+    p_proj10_b_smooth_exp = res_proj10_b_smooth['params_exp']
+    func_base.theta = p_proj10_b_smooth_exp
+    func_base.plot_function(x_plot)
+    model_base_smooth(p_proj10_b_smooth)
+    model_base_smooth(p_proj10_b_smooth_exp)
+    
+
+
+  
+# ==================================================================
+# With   smoothness constraints
+#==================================================================    
+if(do_base_smoothconstr):
+    optim = Learner.learner_Opt(model = model_base, **optim_max_smooth)
+    res_base_smoothconstr = optim(track_learning=True, debug = True)
+    p_base_smoothconstr = res_base_smoothconstr['params']
+    p_base_smoothconstr_exp = res_base_smoothconstr['params_exp']
+    func_base.theta = p_base_smoothconstr
+    func_base.plot_function(x_plot)
+    model_base(p_base_smoothconstr)
+
+if(do_proj10_smoothconstr):    
+    optim = Learner.learner_Opt(model = model_proj10, **optim_max_smooth)
+    res_proj10_smoothconstr = optim(track_learning=True)
+    p_proj10_smoothconstr = res_proj10_smoothconstr['params']
+    p_proj10_smoothconstr_exp = res_proj10_smoothconstr['params_exp']
+    func_base.theta = p_proj10_smoothconstr_exp
+    func_base.plot_function(x_plot)
+    model_base(p_proj10_smoothconstr)
+    model_base(p_proj10_smoothconstr_exp)
+
+if(do_proj10_b_smoothconstr):    
+    optim = Learner.learner_Opt(model = model_proj10, **optim_b_max_smooth)
+    res_proj10_b_smoothconstr = optim(track_learning=True)
+    p_proj10_b_smoothconstr = res_proj10_b_smoothconstr ['params']
+    p_proj10_b_smoothconstr_exp = res_proj10_b_smoothconstr ['params_exp']
+    func_base.theta = p_proj10_b_smoothconstr_exp
+    func_base.plot_function(x_plot)
+    model_base(p_proj10_b_smoothconstr)
+    model_base(p_proj10_b_smoothconstr_exp)
+    
+
+    
+    
+    
 
 # ==================================================================
-# NO CT:  BINOMIAL BERNOUILLI // NEXT TO TRY
-#===================================================================
-extra_bernouilly = {'model_type':'GP_CUSTOM_LIK','likelihood':'Bernouilli', 'initial_design_numdata':50}
-extra_binomial = {'model_type':'GP_CUSTOM_LIK', 'likelihood':'Binomial_10', 'initial_design_numdata':50}
+# With max_step_size constraints
+#==================================================================   
+if(do_base_stepconstr):
+    optim = Learner.learner_Opt(model = model_base, **optim_max_step)
+    res_base_stepconstr = optim(track_learning=True, debug = True)
+    p_base_stepconstr = res_base_stepconstr['params']
+    p_base_stepconstr_exp = res_base_smoothconstr['params_exp']
+    func_base.theta = p_base_stepconstr
+    func_base.plot_function(x_plot)
+    model_base(p_base_stepconstr)
 
-model_bernouilly
-model_binomial
+if(do_proj10_stepconstr):    
+    optim = Learner.learner_Opt(model = model_proj10, **optim_max_step)
+    res_proj10_stepconstr = optim(track_learning=True)
+    p_proj10_stepconstr = res_proj10_stepconstr['params']
+    p_proj10_stepconstr_exp = res_proj10_stepconstr['params_exp']
+    func_base.theta = p_proj10_stepconstr_exp
+    func_base.plot_function(x_plot)
+    model_base(p_proj10_stepconstr)
+    model_base(p_proj10_stepconstr_exp)
+
+if(do_proj10_b__stepconstr):    
+    optim = Learner.learner_Opt(model = model_proj10, **optim_b_max_step)
+    res_proj10_b_stepconstr = optim(track_learning=True)
+    p_proj10_b_stepconstr = res_proj10_b_stepconstr['params']
+    p_proj10_b_stepconstr_exp = res_proj10_b_stepconstr['params_exp']
+    func_base.theta = p_proj10_b_stepconstr_exp
+    func_base.plot_function(x_plot)
+    model_base(p_proj10_b_stepconstr)
+    model_base(p_proj10_b_stepconstr_exp)
+    
+
+
+
 
 # ==================================================================
 # OPTIM WITH CONSTRAINTS: NEW DESIGN_SPACE step = 0.15 // 15 params
