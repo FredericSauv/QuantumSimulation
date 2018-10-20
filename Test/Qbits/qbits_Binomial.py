@@ -26,9 +26,9 @@ do_base_stepconstr, do_proj10_stepconstr, do_proj10_b_stepconstr = True, True, T
 # ==================================================================
 # Models
 #===================================================================
-proj10 = ['last:proj10:neg', 'smooth'] 
+proj10 = ['last:proj10:neg:{0}'.format(nb_meas), 'smooth', 'f2t2'] 
 fid = ['last:f2t2:neg', 'smooth']
-proj10_smooth = ['last:proj10:neg_smooth:'+ str(smooth_coeff), 'smooth', 'f2t2']
+proj10_smooth = ['last:proj10:neg_smooth:{0}:{1}'.format(smooth_coeff, nb_meas), 'smooth', 'f2t2']
 fid_smooth = ['last:f2t2:neg_smooth:'+str(smooth_coeff), 'smooth', 'f2t2']
 
 dico_base = {'T':T, 'dt':0.01, 'flag_intermediate':False, 'setup':'1Q1', 
@@ -51,9 +51,13 @@ model_proj10 = QBits.Qubits(**dico_proj10)
 model_base_smooth = QBits.Qubits(**dico_base_smooth)
 model_proj10_smooth = QBits.Qubits(**dico_proj10_smooth)
 
+
+
 ## Test
 perfect = [1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0,0.0, 0.0]
 model_base(perfect)
+model_proj10(perfect)
+model_proj10_smooth(perfect)
 
 # ==================================================================
 # Optim parameters
@@ -61,7 +65,7 @@ model_base(perfect)
 # with constraints on the space of accessible parameters
 #
 #===================================================================
-optim_base = {'algo': 'BO2', 'maxiter':100, 'num_cores':2, 'init_obj':50, 
+optim_base = {'algo': 'BO2', 'maxiter':50, 'num_cores':2, 'init_obj':35, 
               'acq':'LCB', 'optim_num_anchor':15,  'optim_num_samples':10000, 
               'acquisition_weight':5,'acquisition_weight_lindec':True, 
               'initial_design_type':'random'}
@@ -80,10 +84,12 @@ optim_b_max_smooth = copy.copy(optim_b)
 optim_b_max_smooth['constraints'] = 'smoothlin_0.1_0_1'
     
 # ==================================================================
-# Without constraints, with binomial observations (i.e. )
+# Without constraints
+# with binomial observations ()
 # 
 #===================================================================
 if(do_base):
+    # perfect measurement
     optim = Learner.learner_Opt(model = model_base, **optim_base)
     res_base = optim(track_learning=True)
     p_base = res_base['params']
@@ -93,6 +99,7 @@ if(do_base):
     model_base(p_base)
 
 if(do_proj10):    
+    # binomial measurement, gaussian likelihood
     optim = Learner.learner_Opt(model = model_proj10, **optim_base)
     res_proj10 = optim(track_learning=True)
     p_proj10 = res_proj10['params']
@@ -103,6 +110,7 @@ if(do_proj10):
     model_base(p_proj10_exp)
 
 if(do_proj10_b):    
+    # binomial measurement, binomial likelihood
     optim = Learner.learner_Opt(model = model_proj10, **optim_b)
     res_proj10_b = optim(track_learning=True)
     p_proj10_b = res_proj10_b['params']
@@ -155,7 +163,7 @@ if(do_proj10_b_smooth):
 #==================================================================    
 if(do_base_smoothconstr):
     optim = Learner.learner_Opt(model = model_base, **optim_max_smooth)
-    res_base_smoothconstr = optim(track_learning=True, debug = True)
+    res_base_smoothconstr = optim(track_learning=True)
     p_base_smoothconstr = res_base_smoothconstr['params']
     p_base_smoothconstr_exp = res_base_smoothconstr['params_exp']
     func_base.theta = p_base_smoothconstr
@@ -209,7 +217,7 @@ if(do_proj10_stepconstr):
     model_base(p_proj10_stepconstr)
     model_base(p_proj10_stepconstr_exp)
 
-if(do_proj10_b__stepconstr):    
+if(do_proj10_b_stepconstr):    
     optim = Learner.learner_Opt(model = model_proj10, **optim_b_max_step)
     res_proj10_b_stepconstr = optim(track_learning=True)
     p_proj10_b_stepconstr = res_proj10_b_stepconstr['params']
