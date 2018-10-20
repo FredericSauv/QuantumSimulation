@@ -82,7 +82,7 @@ class restricted_qubit(model_examples):
     with x \in [0, np.pi]
     
     """
-    def __init__(self, nb_measures = 1, noise_out = 0, discrete = None, target = 1):
+    def __init__(self, nb_measures = 1, noise_out = 0, noise_in = 0, discrete = None, target = 1):
         bests = np.arcsin(target)
         model_examples.__init__(params_bounds = [(0, np.pi)], noise_out = noise_out, bests = bests)
         
@@ -108,7 +108,7 @@ class restricted_qubit(model_examples):
         
     
 class localglobal(model_examples):
-    """ A model which allows to fine tune
+    """ A model which allows to fine tune the numbers of local global minimas in n-dim
     
     """
 
