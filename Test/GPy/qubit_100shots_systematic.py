@@ -192,7 +192,7 @@ list_to_simul_f1_noise = [(f1_gaussian_noise, np.inf, f1_perfect, 50, 50, 'f1_ga
 # ------------------------------------------ #
 # GOGOGOGOGOGOGOGOGGOGOGHOGGOOG
 # ------------------------------------------ #
-nb_repetitions = 15
+nb_repetitions = 1
 
 # simple rabbi dynamics
 dico_res_f0 = {}

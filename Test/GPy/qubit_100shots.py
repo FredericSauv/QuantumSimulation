@@ -41,6 +41,40 @@ def squerror(p_pred, p_true):
     eps = np.squeeze(p_pred - p_true)
     return np.dot(eps, eps) /len(eps)
 
+x_range = (0, np.pi)
+
+### ============================================================ ###
+# MODEL2: restricted qubits with projective measurement
+# |phi(x)> = sin(x) |1> + cos(x) |0>
+### ============================================================ ###
+def proba2(x, noise=0):
+    #generate underlying proba p(|1>)
+    n=3
+    s=2
+    if(noise>0):
+        x_noise = x + rdm.normal(0, noise, size = x.shape)
+    else:
+        x_noise = x
+        
+        
+    res = np.abs(np.sin(n * x_noise) * np.exp(- np.square((x_noise-np.pi/2) / s)))
+    return res
+
+
+def measure2(x, underlying_p = proba2, nb_measures = 1, verbose = False):
+    p = underlying_p(x)
+    if(nb_measures == np.inf):
+        res = p
+    elif(nb_measures < 1):
+        res = p +np.random.normal(0, nb_measures, size = np.shape(p))
+    else:
+        res = rdm.binomial(nb_measures, p)/nb_measures
+        
+    if(verbose):
+        print(np.around(np.c_[res, p, x], 3))
+    return res
+
+
 
 
 ### ============================================================ ###
@@ -49,20 +83,44 @@ def squerror(p_pred, p_true):
 # 2- Use of a bernouilli Likelihood
 ### ============================================================ ###
 # ------------------------------------------ #
-# 0 - preparation: data + kernels
+# -1 - plot some data
 # ------------------------------------------ #
-nb_measures = 5
-x_range = (0, np.pi)
-nb_init = 20
 x_test = np.linspace(*x_range)[:, np.newaxis]
 p_test = proba(x_test)
+p_test2 = proba2(x_test)
+
+plt.plot(x_test, p_test, label = r'$p_1$')
+plt.plot(x_test, p_test2, label = r'$p_2$')
+plt.xlim([0, np.pi])
+plt.ylim([0,1])
+plt.legend()
+plt.xlabel(r'$\alpha$')
+plt.ylabel(r'$p$')
+plt.savefig('twodynamics.pdf', bbox_inches = 'tight')
+
+x_oneshot = rdm.uniform(*x_range, 50)[:, np.newaxis]
+y_oneshot = measure(x_oneshot, nb_measures = 1)
+x_threeshots = rdm.uniform(*x_range, 16)[:, np.newaxis]
+y_threeshots = measure(x_threeshots, nb_measures = 3)
+x_thousandshots = rdm.uniform(*x_range, 16)[:, np.newaxis]
+y_thousandshots = measure(x_thousandshots, nb_measures = 1000)
+
+plt.plot(x_test, p_test, 'r--', label = r'$p_1$')
+plt.scatter(x_oneshot, y_oneshot, c='black',marker ='x', s = 30, label='one shot')
+plt.scatter(x_threeshots, y_threeshots, color='b', marker = 'o',  s = 30, label='three shots')
+#plt.scatter(x_thousandshots, y_thousandshots, color='r', marker = 'o', label='thousand shots')
+plt.legend(loc = 1)
+plt.xlabel(r'$\alpha$')
+#plt.savefig('exampleobs.pdf', bbox_inches = 'tight')
+
+
+# ------------------------------------------ #
+# -1 data for the regression
+# ------------------------------------------ #
+nb_measures = 3
+nb_init = 16
 x_init = rdm.uniform(*x_range, nb_init)[:, np.newaxis]
 y_init = measure(x_init, nb_measures = nb_measures)
-
-plt.plot(x_test, p_test, label = 'real proba')
-plt.scatter(x_init, y_init, label='one shot')
-plt.legend()
-
 #Same kernel for all
 k = GPy.kern.Matern52(input_dim = 1, variance = 1., lengthscale = (x_range[1]-x_range[0])/4)
 k_binomial = GPy.kern.Matern52(input_dim = 1, variance = 1., lengthscale = (x_range[1]-x_range[0])/4)
@@ -75,10 +133,12 @@ m_reg.optimize_restarts(num_restarts = 10)
 yp_reg, _ = m_reg.predict(x_test)
 error_reg = squerror(yp_reg, p_test)
 print(error_reg)
-m_reg.plot()
-plt.plot(x_test, p_test, 'r', label = 'real p')
+m_reg.plot(lower=15.85, upper=84.15)
+plt.plot(x_test, p_test, 'r--', label = 'p')
+plt.xlim([0, np.pi])
+plt.ylim([-0.05, 1.2])
 plt.legend()
-
+#plt.savefig('gausslikelihood.pdf', bbox_inches = 'tight')
 
 # ------------------------------------------ #
 # 2 Binomial likelihood
@@ -90,27 +150,17 @@ m_classi = GPy.core.GP(X=x_init, Y=y_init * nb_measures, kernel=k_binomial,
                 inference_method=i_meth, likelihood=lik, Y_metadata = Y_metadata)
 _ = m_classi.optimize_restarts(num_restarts=10) #first runs EP and then optimizes the kernel parameters
 
-
-y2, v2 = m_classi._raw_predict(x_test) ## Before link
-y3, v3 = m_classi.predict_noiseless(x_test) ## same
-y4 = m_classi.likelihood.gp_link.transf(y3) 
-
-y = y4
-v = v2
-
-plt.plot(x_test, y)
-plt.plot(x_test, y+1.96*v)
-plt.plot(x_test, y-1.96*v)
-plt.plot(x_test, p_test, 'r', label = 'real p')
-plt.scatter(x_init, y_init, label = 'obs')
-plt.ylim([0.0,1.3])
+m_classi.plot(lower=15.85, upper=84.15,predict_kw = { 'Y_metadata':{'trials':nb_measures}})
+plt.plot(x_test, nb_measures* p_test,'r--', label = 'p')
+plt.xlim([0, np.pi])
+plt.ylim([-0.05, 1.05])
 plt.legend()
+plt.savefig('binlikelihood.pdf', bbox_inches = 'tight')
 
-error_reg = squerror(y4, p_test)
-print(error_reg)
 
-m_classi.plot(predict_kw = {'Y_metadata':{'trials':nb_measures}})
 m_classi.plot_f()
+
+
 
 plt.plot(x_test, nb_measures*p_test, 'r', label = 'real p')
 
@@ -257,6 +307,7 @@ nb_init = 50
 
 cost = lambda x: nb_measures * (1- measure(x, nb_measures = nb_measures, verbose = True))
 cost_gaussian = lambda x: 1 - measure(x, nb_measures = 0.1, verbose = True)
+cost_perfect
 
 x_init = rdm.uniform(*x_range, nb_init)[:, np.newaxis]
 y_init = cost(x_init)
@@ -323,7 +374,11 @@ BO_EI_bern.run_optimization(max_iter = nb_iter)
 xy0_EI_bern, xy1_EI_bern = get_bests_from_BO(BO_EI_bern)
 y0_EI_bern_test = measure(xy0_EI_bern[0], nb_measures = np.inf, verbose = True)
 y1_EI_bern_test = measure(xy1_EI_bern[0], nb_measures = np.inf, verbose = True)
+
 BO_EI_bern.model.model.plot(lower=10, upper=90, predict_kw = {'Y_metadata':{'trials':nb_measures}})
+
+
+
 BO_EI_bern.model.model.plot_f()
 
 BO_LCB_bern = GPyOpt.methods.BayesianOptimization(cost, **args_LCB_bern)
