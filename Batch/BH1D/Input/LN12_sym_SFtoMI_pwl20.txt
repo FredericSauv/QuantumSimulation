@@ -1,0 +1,14 @@
+model_dico {'L':12,'Nb':12,'mu':0,'sps':None,'kblock':0,'pblock':1,'T':9.372112417261688,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['f2t2:neg_fluence:0.0001_smooth:0.05'],'fom_print':True,'track_learning':True,'ctl_shortcut':'owbds01_pwl20','_FLAG_NAME':'1T'} {'T':18.744224834523376,'_FLAG_NAME':'2T'} {'T':4.686056208630844,'_FLAG_NAME':'05T'} {'T':14.058168625892531,'_FLAG_NAME':'15T'} {'T':10.309323658987857,'_FLAG_NAME':'11T'} {'T':11.246534900714025,'_FLAG_NAME':'12T'} {'T':12.183746142440194,'_FLAG_NAME':'13T'} {'T':13.120957384166362,'_FLAG_NAME':'14T'}
+
+testing_dico {'fom':['f2t2:neg_smooth:0.05','f2t2','fluence','smooth']}
+
+optim_dico {'algo':'NM','init_obj':'uniform_0_1','maxfev':2500,'max_time':83000,'maxiter':None,'_FLAG_NAME':'NM'} {'algo':'DE','maxiter':50,'popsize':10,'init_obj':None,'_FLAG_NAME':'DE'} {'algo':'BO2','maxiter':1500,'init_obj':120,'optim_num_samples':10000,'optim_num_anchor':25,'exploit_steps':150,'_FLAG_NAME':'BO_light'} {'algo':'BO2','maxiter':1500,'init_obj':120,'exploit_steps':150,'_FLAG_NAME':'BO'} {'algo':'BO2','maxiter':1500,'init_obj':120,'optim_num_samples':10000,'optim_num_anchor':25,'exploit_steps':150,'acq':'LCB','_FLAG_NAME':'BO_light_lindec','acquisition_weight':5,'acquisition_weight_lindec':True} {'algo':'BO2','maxiter':1500,'init_obj':120,'exploit_steps':150,'acq':'LCB','_FLAG_NAME':'BO_lindec','acquisition_weight':5,'acquisition_weight_lindec':True} {'algo':'BO2','maxiter':1500,'init_obj':120,'optim_num_samples':10000,'optim_num_anchor':5,'exploit_steps':150,'acq':'LCB','_FLAG_NAME':'BO_extralight_lindec','acquisition_weight':5,'acquisition_weight_lindec':True}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False

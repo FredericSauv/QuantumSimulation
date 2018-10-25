@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# relies on some assumption on where the files are stored
+# 2 inputs: Where the metaconfig file is stored (relative to run_bash_array)
+# and the name of the folder we are going to create to store the results
+
+NAME_SETUP="FewShots"
+NAME_BATCH_PY="batch_fewshots.py"
+CONDA_ENVT="py36q"
+
+input_file=$1
+output_folder=$2
+walltime=${3:-24}
+nb_cpus=${4:-1}
+mem=${5:-32}
+
+# Where the final results are going to be stored TOADAPT TO NEW MODELS
+output_path="$WORK/$NAME_SETUP/${output_folder}"
+output_log_path="${output_path}/Log"
+mkdir -p "${output_path}"
+mkdir -p "${output_log_path}"
+
+# amend the input_bash (such that it points to the right output place) and store 
+# it in the output folder
+output_python_path="Output/${output_folder}" #relative path used by python to store res
+input_bash="$output_path/input_bash"
+prefix_res=$(grep '^_OUT_PREFIX' "${input_file}" | sed "s/.*'\(.*\)'/\\1/")
+Beg=$(grep '^_OUT_COUNTER' "${input_file}" | sed "s/_OUT_COUNTER //")
+sed "s@^_OUT_FOLDER.*\$@_OUT_FOLDER '${output_python_path}'@" "${input_file}" >"${input_bash}"
+
+# generate the configs (from the input bash file) and store them in a subfolder of
+# the output path. Then assign to the variable N the number of configs found
+# configs are stored as /Config/config_res0 /Config/config_res1 etc..
+module load anaconda3/personal  
+source activate py36q
+config_store_folder="$output_path/Config"
+config_store_name="${config_store_folder}/config_${prefix_res}"
+export PYTHONPATH="${HOME}/Testing/GPyOpt"
+python ${NAME_BATCH_PY} "gen_configs_custom" "${input_bash}" "${config_store_folder}"
+if [ -e log.log ]
+ then mv log.log "${output_path}/log_gen_config"
+fi
+N=$(ls "${config_store_folder}" | wc -l)
+End=$((Beg+N-1))
+
+cp ${NAME_BATCH_PY} "${output_path}/${NAME_BATCH_PY}"
+cd "${output_path}"
+
+# Create Array job
+cat >to_qsub <<ScriptEnd
+#!/bin/bash
+#PBS -J ${Beg}-${End} 
+#PBS -l walltime=${walltime}:00:00,select=1:ncpus=${nb_cpus}:mem=${mem}gb
+
+cp -r "$HOME/Testing/QuantumSimulation/QuantumSimulation" .
+cp -r "$HOME/Testing/GPyOpt/GPyOpt" .
+cp "${output_path}/${NAME_BATCH_PY}" .
+
+module load anaconda3/personal
+source activate "${CONDA_ENVT}"
+python ${NAME_BATCH_PY} "run_one_config" "${config_store_name}\${PBS_ARRAY_INDEX}.txt"
+
+cp -r "${output_python_path}" "${output_path}"
+if [ -e log.log ]
+ then cp log.log "${output_log_path}/log_${PBS_ARRAY_INDEX}"
+fi
+ScriptEnd
+
+
+#Submit
+
+qsub to_qsub
+
+# Copy back to WORK directory
+# cp to_qsub "${output_path}"/
+# rm to_qsub
+
