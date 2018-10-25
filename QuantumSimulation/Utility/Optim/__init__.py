@@ -1,1 +1,1 @@
-from . import Batch, pFunc_base, pFunc_zoo, Learner 
+from . import Batch, batch_base, pFunc_base, pFunc_zoo, Learner
