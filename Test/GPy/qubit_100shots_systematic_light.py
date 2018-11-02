@@ -10,6 +10,7 @@ import numpy as np
 import numpy.random as rdm
 import matplotlib.pylab as plt
 import GPy
+sys.path.insert(0, '/Users/frederic/Desktop/GPyOpt') #Laptop's loc
 sys.path.append('/home/fred/Desktop/GPyOpt/')
 import GPyOpt
 
@@ -74,7 +75,7 @@ def do_one_BO_optim(type_acq = 'EI', type_gp='gaussian', X_init = None, Y_init =
     elif type_acq == 'LCB':
         base_dico = {'acquisition_type':'LCB', 'domain': bounds_bo, 
                      'optim_num_anchor':15, 'optim_num_samples':10000, 
-                     'acquisition_weight':2, 'acquisition_weight_lindec':True} 
+                     'acquisition_weight':5, 'acquisition_weight_lindec':True} 
     
     base_dico['X'] = X_init
     base_dico['Y'] = Y_init
@@ -118,6 +119,29 @@ def test_two_BOs(x_range, nb_init, model, model_test, nb_iter, nb_measures):
         res[1] = na
     
     return res
+
+def plot_mean(model, transfo = lambda x: x, predict_kw = None):
+    """self, Xgrid, plot_raw, apply_link, percentiles, which_data_ycols, predict_kw, samples=0):
+    """
+    Xgrid = np.linspace(0, np.pi, 200)[:, np.newaxis]
+    # Put some standards into the predict_kw so that prediction is done automatically:
+    if predict_kw is None:
+        predict_kw = {}
+    if 'Y_metadata' not in predict_kw:
+        predict_kw['Y_metadata'] = {}
+    if 'output_index' not in predict_kw['Y_metadata']:
+        predict_kw['Y_metadata']['output_index'] = Xgrid[:,-1:].astype(np.int)
+
+    mu, _ = model.predict(Xgrid, **predict_kw)
+    X_data, Y_data = model.X, model.Y
+
+    x = np.squeeze(Xgrid)    
+    m = np.squeeze(transfo(mu))
+    xd = np.squeeze(X_data)
+    yd = np.squeeze(transfo(Y_data))
+    
+    plt.plot(x, m, label = 'proxy')
+    plt.scatter(xd, yd, c='black', marker='x', label = 'observations')
 
 ### ============================================================ ###
 # Main results
@@ -182,59 +206,46 @@ dico_res = {}
 # Interlude PLOTTING
 # ------------------------------------------ #
 model, nb_measures, model_test, nb_init, nb_iter, name = list_to_simul_f1_1[0]
-res = np.zeros((2))
+nb_init = 20
+nb_iter = 80
 x_init = rdm.uniform(*x_range, nb_init)[:, np.newaxis]
 y_init = model(x_init)
 
+
+x_plotting = np.linspace(0, np.pi, 200)
+y_plotting = model_test(x_plotting)
 #test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='gaussian', 
 #        X_init = x_init, Y_init = y_init, cost = model, cost_test = model_test, 
 #        x_range = (0, np.pi), nb_iter = nb_iter, nb_measures = nb_measures)
 
+
+#BEFORE OPTIM
+test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='binomial', 
+        X_init = x_init, Y_init = y_init, cost = model, cost_test = model_test, 
+        x_range = (0, np.pi), nb_iter = 0, nb_measures = nb_measures)
+
+plot_mean(BO.model.model,transfo = lambda x: 1-x, predict_kw = {'Y_metadata':{'trials':nb_measures}})
+plt.plot(x_plotting, y_plotting, 'r--', label = 'p')
+plt.xlim([0, np.pi])
+plt.ylim([-0.05, 1.05])
+plt.legend(loc = 1)
+plt.savefig('before_optim_bin1_e.pdf', bbox_inches = 'tight')
+
+
+
+#OPTIM
 test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='binomial', 
         X_init = x_init, Y_init = y_init, cost = model, cost_test = model_test, 
         x_range = (0, np.pi), nb_iter = nb_iter, nb_measures = nb_measures)
 
 
-x_test = np.linspace(0, np.pi, 1000)[:, np.newaxis]
-y_test = f1_perfect(x_test)
-BO.model.model.plot(lower = 15, upper = 85, predict_kw = {'Y_metadata':{'trials':nb_measures}}, plot_density=True)
-plt.plot(x_test, 1 - y_test, 'r--', label = '1 - p')
-plt.xlim([0, np.pi])
-plt.ylim([-0.05, 1.05])
-plt.legend()
-plt.savefig('gaussian_likelihoop_optim.pdf', bbox_inches = 'tight')
-
-
-
-def plot_mean(model, transfo = lambda x: x, predict_kw = None):
-    """self, Xgrid, plot_raw, apply_link, percentiles, which_data_ycols, predict_kw, samples=0):
-    """
-    Xgrid = np.linspace(0, np.pi, 200)[:, np.newaxis]
-    # Put some standards into the predict_kw so that prediction is done automatically:
-    if predict_kw is None:
-        predict_kw = {}
-    if 'Y_metadata' not in predict_kw:
-        predict_kw['Y_metadata'] = {}
-    if 'output_index' not in predict_kw['Y_metadata']:
-        predict_kw['Y_metadata']['output_index'] = Xgrid[:,-1:].astype(np.int)
-
-    mu, _ = model.predict(Xgrid, **predict_kw)
-    X_data, Y_data = model.X, model.Y
-
-    x = np.squeeze(Xgrid)    
-    m = np.squeeze(transfo(mu))
-    xd = np.squeeze(X_data)
-    yd = np.squeeze(transfo(Y_data))
-    
-    plt.plot(x, m)
-    plt.scatter(xd, yd, c='black', marker='x')
 
 plot_mean(BO.model.model,transfo = lambda x: 1-x, predict_kw = {'Y_metadata':{'trials':nb_measures}})
-plt.plot(x_test, y_test, 'r--', label = '1 - p')
+plt.plot(x_plotting, y_plotting, 'r--', label = 'p')
 plt.xlim([0, np.pi])
 plt.ylim([-0.05, 1.05])
-plt.legend()
-plt.savefig('gaussian_likelihoop_optim.pdf', bbox_inches = 'tight')
+plt.legend(loc = 1)
+plt.savefig('after_optim_bin1_ee.pdf', bbox_inches = 'tight')
 
 
 
