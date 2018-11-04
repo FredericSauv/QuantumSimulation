@@ -5,19 +5,21 @@ Created on Sun Sep 16 13:46:15 2018
 
 @author: frederic
 """
-import copy , sys
+import sys
 import numpy as np
 import numpy.random as rdm
 import matplotlib.pylab as plt
-import GPy
 sys.path.insert(0, '/Users/frederic/Desktop/GPyOpt') #Laptop's loc
-sys.path.append('/home/fred/Desktop/GPyOpt/')
+sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/GPyOpt') #Desktop's loc
+sys.path.insert(0, '/home/fred/Desktop/GPyOpt/')
+
 import GPyOpt
 
 
 ### ============================================================ ###
 # Preparation:
 ### ============================================================ ###
+x_range = (0, np.pi)
 def proba(x, noise=0, model = 0):
     #generate underlying proba p(|1>)
     n = 3
@@ -46,6 +48,14 @@ def measure(x, nb_measures = 1, verbose = False, model = 0, noise_input = 0):
     if(verbose):
         print(np.around(np.c_[res, p, x], 3))
     return res
+
+def c_model(m=np.inf, mod=0, noise = 0):
+    """ Create a model"""
+    if(m == np.inf):
+        model = lambda x: measure(x, nb_measures = m, verbose = True, model = mod, noise_input = noise)
+    else:
+        model = lambda x: m * (1 - measure(x, nb_measures = m, verbose = True, model = mod, noise_input = noise))
+    return model
 
 def squerror(p_pred, p_true):
     eps = np.squeeze(p_pred - p_true)
@@ -106,7 +116,6 @@ def test_two_BOs(x_range, nb_init, model, model_test, nb_iter, nb_measures):
 
     res[0] = test_exp
     
-
     if(nb_measures != np.inf):
         test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='binomial', 
             X_init = x_init, Y_init = y_init, cost = model, cost_test = model_test, 
@@ -119,6 +128,8 @@ def test_two_BOs(x_range, nb_init, model, model_test, nb_iter, nb_measures):
         res[1] = na
     
     return res
+
+
 
 def plot_mean(model, transfo = lambda x: x, predict_kw = None):
     """self, Xgrid, plot_raw, apply_link, percentiles, which_data_ycols, predict_kw, samples=0):
@@ -143,116 +154,116 @@ def plot_mean(model, transfo = lambda x: x, predict_kw = None):
     plt.plot(x, m, label = 'proxy')
     plt.scatter(xd, yd, c='black', marker='x', label = 'observations')
 
+
+def plot_link(model, transfo = lambda x:x, percentiles = None, link = True,
+                likelihood = False, n_measures = None):
+    Xgrid = np.linspace(0, np.pi, 200)[:, np.newaxis]
+    mu_f, var_f = model._raw_predict(Xgrid, full_cov=False, kern=None)
+    
+    s_f = np.random.randn(mu_f.shape[0], 1000) * np.sqrt(var_f) + mu_f
+    s_f = transfo(s_f)
+    if(link):
+        if(likelihood):
+            s_p = model.likelihood(s_f, Y_metadata={'trials':n_measures})
+        else:
+            s_p = model.likelihood.gp_link.transf(s_f)
+    else:
+        s_p = s_f
+    mu_p = np.mean(s_p, axis = 1)
+    if(percentiles is None):
+        var_p = np.std(s_p, axis = 1)
+        muplus = mu_p + 1.96 * var_p
+        muminus = mu_p - 1.96 * var_p
+    else:
+        muminus, muplus = np.percentile(s_p, percentiles, axis = 1)
+    
+    X_data, Y_data = model.X, model.Y
+    x = np.squeeze(Xgrid)    
+    xd = np.squeeze(X_data)
+    yd = np.squeeze(transfo(Y_data))
+    
+    plt.plot(x, mu_p, 'b', label = 'proxy')
+    plt.fill_between(x, muminus, muplus, color = 'blue', alpha = 0.5, label = 'confidence')
+    plt.scatter(xd, yd, c='black', marker='x', label = 'observations')
+    
+def get_init(n_init, model, eps=0):
+    if(eps == 0):
+        x_range = (0, np.pi)
+        x = rdm.uniform(*x_range, n_init)[:, np.newaxis]
+    else:
+        half_init = int(n_init/2)
+        x_range_first = (0, np.pi/2 - eps)
+        x_range_last = (np.pi/2 + eps, np.pi)
+        first = rdm.uniform(*x_range_first, half_init)[:, np.newaxis]
+        last = rdm.uniform(*x_range_last, half_init)[:, np.newaxis]
+        x = np.r_[first, last]
+    y = model(x)
+    return x, y
+
 ### ============================================================ ###
 # Main results
 ### ============================================================ ###
-x_range = (0, np.pi)
 # ------------------------------------------ #
 # models to simulate
 # ------------------------------------------ #
-verbose = True
-f0_perfect = lambda x: measure(x, nb_measures = np.inf, verbose = verbose, model = 0, noise_input = 0)
-f0_perfect_neg = lambda x: 1 - measure(x, nb_measures = np.inf, verbose = verbose, model = 0, noise_input = 0)
-f0_gaussian = lambda x: 1- measure(x, nb_measures = 0.2, verbose = verbose, model = 0, noise_input = 0)
-f0_bin1 = lambda x: 1- measure(x, nb_measures = 1, verbose = verbose, model = 0, noise_input = 0)
-f0_bin3 = lambda x: 3 * (1- measure(x, nb_measures = 3, verbose = verbose, model = 0, noise_input = 0))
-f0_bin50 = lambda x: 50 * (1- measure(x, nb_measures = 50, verbose = verbose, model = 0, noise_input = 0))
-f0_bin1000 = lambda x: 1000 * (1- measure(x, nb_measures = 1000, verbose = verbose, model = 0, noise_input = 0))
-
-f0_gaussian_noise = lambda x: 1- measure(x, nb_measures = 0.2, verbose = verbose, model = 0, noise_input = 0.05)
-f0_bin1_noise5 = lambda x: 1- measure(x, nb_measures = 1, verbose = verbose, model = 0, noise_input = 0.05)
-f0_bin3_noise5 = lambda x: 3 * (1- measure(x, nb_measures = 3, verbose = verbose, model = 0, noise_input = 0.05))
-f0_bin50_noise5 = lambda x: 50 * (1- measure(x, nb_measures = 50, verbose = verbose, model = 0, noise_input = 0.05))
-f0_bin1_noise10 = lambda x: 1- measure(x, nb_measures = 1, verbose = verbose, model = 0, noise_input = 0.1)
-f0_bin3_noise10 = lambda x: 3 * (1- measure(x, nb_measures = 3, verbose = verbose, model = 0, noise_input = 0.1))
-f0_bin50_noise10 = lambda x: 50 * (1- measure(x, nb_measures = 50, verbose = verbose, model = 0, noise_input = 0.1))
-
-
-
-
-f1_perfect = lambda x: measure(x, nb_measures = np.inf, verbose = verbose, model = 1, noise_input = 0)
-f1_perfect_neg = lambda x: 1 - measure(x, nb_measures = np.inf, verbose = verbose, model = 1, noise_input = 0)
-f1_gaussian = lambda x: 1- measure(x, nb_measures = 0.2, verbose = verbose, model = 1, noise_input = 0)
-f1_bin1 = lambda x: 1- measure(x, nb_measures = 1, verbose = verbose, model = 1, noise_input = 0)
-f1_bin3 = lambda x: 3 * (1- measure(x, nb_measures = 3, verbose = verbose, model = 1, noise_input = 0))
-f1_bin50 = lambda x: 50 * (1- measure(x, nb_measures = 50, verbose = verbose, model = 1, noise_input = 0))
-
-f1_gaussian_noise = lambda x: 1- measure(x, nb_measures = 0.2, verbose = verbose, model = 1, noise_input = 0.05)
-f1_bin1_noise = lambda x: 1- measure(x, nb_measures = 1, verbose = verbose, model = 1, noise_input = 0.05)
-f1_bin3_noise = lambda x: 3 * (1- measure(x, nb_measures = 3, verbose = verbose, model = 1, noise_input = 0.05))
-f1_bin50_noise = lambda x: 50 * (1- measure(x, nb_measures = 50, verbose = verbose, model = 1, noise_input = 0.05))
-
-
-
+f0_perfect = c_model()
+f1_perfect = c_model(mod = 1)
 # model, nb_measures, model_test, nb_init, nb_iter, name
-list_to_simul_f0_1 = [(f0_bin1, 1, f0_perfect, 50, 50, 'f0_bin1')] # OK
-list_to_simul_f0_3 = [(f0_bin3, 3, f0_perfect, 16, 17, 'f0_bin3')] # OK                
-list_to_simul_f0_1_noise_5 = [(f0_bin1_noise5, 1, f0_perfect, 50, 50, 'f0_bin1_noise5')] # OK
-list_to_simul_f0_3_noise_5 = [(f0_bin3_noise5, 3, f0_perfect, 16, 17, 'f0_bin3_noise5')] # OK
-list_to_simul_f0_1_noise_10 = [(f0_bin1_noise5, 1, f0_perfect, 50, 50, 'f0_bin1_noise10')]
-list_to_simul_f1_1 = [(f1_bin1, 1, f1_perfect, 50, 50, 'f1_bin1')] #OK
-list_to_simul_f1_3 = [(f1_bin3, 3, f1_perfect, 16, 17, 'f1_bin3')] #ok
-list_to_simul_f0_50 = [(f0_bin50, 50, f0_perfect, 16, 84, 'f0_bin50')]
-
-list_to_simul_f0_perfect = [(f0_perfect_neg, np.inf, f0_perfect, 15, 85, 'f0_perfect')]
-list_to_simul_f1_perfect = [(f1_perfect_neg, np.inf, f1_perfect, 15, 85, 'f1_perfect')]
-
-
-nb_repetitions = 10
-dico_res = {}
-
+list_to_simul_f0_1 = [(c_model(m=1), 1, f0_perfect, 50, 50, 'f0_bin1')] # OK
+list_to_simul_f0_3 = [(c_model(m=3), 3, f0_perfect, 16, 17, 'f0_bin3')] # OK                
+list_to_simul_f0_1_noise_5 = [(c_model(m=1, noise=0.05), 1, f0_perfect, 50, 50, 'f0_bin1_noise5')] # OK
+list_to_simul_f0_3_noise_5 = [(c_model(m=3, noise=0.05), 3, f0_perfect, 16, 17, 'f0_bin3_noise5')] # OK
+list_to_simul_f0_1_noise_10 = [(c_model(m=1, noise=0.1), 1, f0_perfect, 50, 50, 'f0_bin1_noise10')]
+list_to_simul_f1_1 = [(c_model(m=1, mod=1), 1, f1_perfect, 50, 50, 'f1_bin1')] #OK
+list_to_simul_f1_3 = [(c_model(m=3, mod=1), 3, f1_perfect, 16, 17, 'f1_bin3')] #ok
+list_to_simul_f0_50 = [(c_model(m=50), 50, f0_perfect, 16, 84, 'f0_bin50')]
 
 # ------------------------------------------ #
 # Interlude PLOTTING
 # ------------------------------------------ #
 model, nb_measures, model_test, nb_init, nb_iter, name = list_to_simul_f1_1[0]
-nb_init = 20
-nb_iter = 80
-x_init = rdm.uniform(*x_range, nb_init)[:, np.newaxis]
-y_init = model(x_init)
-
-
+#nb_init = 30
+#nb_iter = 70
+x_init, y_init = get_init(nb_init, model, eps=0.3)
 x_plotting = np.linspace(0, np.pi, 200)
 y_plotting = model_test(x_plotting)
-#test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='gaussian', 
-#        X_init = x_init, Y_init = y_init, cost = model, cost_test = model_test, 
-#        x_range = (0, np.pi), nb_iter = nb_iter, nb_measures = nb_measures)
-
-
+# plt.scatter(x_init, y_init)
 #BEFORE OPTIM
-test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='binomial', 
+test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='gaussian', 
         X_init = x_init, Y_init = y_init, cost = model, cost_test = model_test, 
         x_range = (0, np.pi), nb_iter = 0, nb_measures = nb_measures)
 
-plot_mean(BO.model.model,transfo = lambda x: 1-x, predict_kw = {'Y_metadata':{'trials':nb_measures}})
+#plot_mean(BO.model.model,transfo = lambda x: 1-x, predict_kw = {'Y_metadata':{'trials':nb_measures}})
+plot_link(BO.model.model, transfo = lambda x: 1-x, percentiles = [5, 95])
 plt.plot(x_plotting, y_plotting, 'r--', label = 'p')
 plt.xlim([0, np.pi])
 plt.ylim([-0.05, 1.05])
-plt.legend(loc = 1)
-plt.savefig('before_optim_bin1_e.pdf', bbox_inches = 'tight')
+plt.legend(loc = 4)
+#plt.savefig('nomiddle_before_optim_bin1_a.pdf', bbox_inches = 'tight')
 
 
 
 #OPTIM
-test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='binomial', 
+test, test_exp, BO = do_one_BO_optim(type_acq = 'LCB', type_gp='binomial', 
         X_init = x_init, Y_init = y_init, cost = model, cost_test = model_test, 
         x_range = (0, np.pi), nb_iter = nb_iter, nb_measures = nb_measures)
 
-
-
-plot_mean(BO.model.model,transfo = lambda x: 1-x, predict_kw = {'Y_metadata':{'trials':nb_measures}})
+#plot_mean(BO.model.model,transfo = lambda x: 1-x, predict_kw = {'Y_metadata':{'trials':nb_measures}})
+plot_link(BO.model.model, transfo = lambda x: 1-x, percentiles = [5, 95])
 plt.plot(x_plotting, y_plotting, 'r--', label = 'p')
 plt.xlim([0, np.pi])
 plt.ylim([-0.05, 1.05])
-plt.legend(loc = 1)
-plt.savefig('after_optim_bin1_ee.pdf', bbox_inches = 'tight')
+plt.legend(loc = 4)
+plt.savefig('nomiddle_after_optim_bin1_a.pdf', bbox_inches = 'tight')
+#plt.savefig('after_optim_bin1_c.pdf', bbox_inches = 'tight')
 
 
 
 # ------------------------------------------ #
 # GOGOGOGOGOGOGOGOGGOGOGHOGGOOG
 # ------------------------------------------ #
-
+nb_repetitions = 10
+dico_res = {}
 # simple rabbi dynamics
 
 for model, nb_measures, model_test, nb_init, nb_iter, name in list_to_simul_f0_1:
