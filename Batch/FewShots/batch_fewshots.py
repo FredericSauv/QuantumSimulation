@@ -73,7 +73,8 @@ class BatchFS(BatchBase):
         test = f_test(xy[0])
         test_exp = f_test(xy_exp[0])
         
-        return {'test':test, 'test_exp':test_exp}
+        return {'test':test, 'test_exp':test_exp, 'params_BO': BO.model.model.param_array, 
+                'params_BO_names': BO.model.model.param_names()}
 
 
 
