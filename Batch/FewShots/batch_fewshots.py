@@ -69,7 +69,9 @@ class BatchFS(BatchBase):
             estim = get_max(ll, domain_mle, 7, 1000, 1e-10)
             x_opt = p_to_t(estim, p_target, model)
             test = f_test(x_opt)
-            dico_res = {'test': test, 'test_exp': None, 'estim':estim, 'ptarget':p_target, 'x':x_opt}
+            abs_diff = np.abs(p_target - test)
+            dico_res = {'test': test, 'test_exp': None, 'estim':estim, 'ptarget':p_target, 
+                        'x':x_opt, 'abs_diff':abs_diff}
 
         #Bayesian Optimization
         elif(type_optim == 'BO'):
@@ -110,10 +112,11 @@ class BatchFS(BatchBase):
             xy, xy_exp = get_bests_from_BO(BO, f_target)
             test = f_test(xy[0])
             test_exp = f_test(xy_exp[0])
-        
+            abs_diff = np.abs(p_target - test_exp)
+            
             dico_res = {'test':test, 'test_exp':test_exp, 'params_BO': BO.model.model.param_array, 
                 'params_BO_names': BO.model.model.parameter_names(), 'ptarget':p_target, 
-                'x':xy[0], 'xy_exp':xy_exp[0]} 
+                'x':xy[0], 'xy_exp':xy_exp[0], 'abs_diff':abs_diff} 
 
         return dico_res 
 
@@ -125,23 +128,33 @@ class BatchFS(BatchBase):
         for k, v in collection_res.items():
             #test = _stats_one_field('test', v)
             test_exp = _stats_one_field('test_exp', v)
-            processed.update({k:{'test_exp': test_exp}})
+            test = _stats_one_field('test', v)
+            processed.update({k:{'test_exp': test_exp, 'test':test}})
         return processed
             
             
 def _stats_one_field(field, list_res, dico_output = False):
     field_values = np.array([res[field] for res in list_res])
-    field_avg = np.average(field_values)
-    field_std = np.std(field_values)
-    field_min = np.min(field_values)
-    field_max = np.max(field_values)
-    field_median = np.median(field_values)
-
+    mask_none = np.array([f is not None for f in field_values])
+    f = field_values[mask_none]
+    if(len(f) > 0):
+        field_avg = np.average(f)
+        field_std = np.std(f)
+        field_min = np.min(f)
+        field_max = np.max(f)
+        field_median = np.median(f)
+    else:
+        field_avg = np.nan
+        field_std = np.nan
+        field_min = np.nan
+        field_max = np.nan
+        field_median = np.nan
     if dico_output:
         res = {'avg':field_avg, 'median': field_median, 'std': field_std, 'min': field_min, 'max':field_max}
     else:
         res = [field_avg, field_median, field_std, field_min, field_max]
     return res
+
 
 def proba(x, noise=0, model = 0):
     """"generate underlying proba p(|1>)"""
