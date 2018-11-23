@@ -39,16 +39,16 @@ def get_plot_infos(data, cmap):
     list_color_value = (data - np.min(data)) / (np.max(data) - np.min(data))
     return [np.array(cmap(l))[:3] for l in list_color_value]
     
-save_plt = True
+save_plt = False
 col_ref = np.array([0.03137255, 0.18823529, 0.41960784])
 #==============================================================================
 # Init optim
 #==============================================================================
-myf = lambda x: cost_func(x, noise = 0.15)
+myf = lambda x: cost_func(x, noise = 0.0)
 bounds = [{'name': 'var_1', 'type': 'continuous', 'domain': (0,1)}]
 
 #Init (how to select how many we want)
-myOpt = GPyOpt.methods.BayesianOptimization(myf,bounds, initial_design_numdata = 7, acquisition_type ='LCB')
+myOpt = GPyOpt.methods.BayesianOptimization(myf,bounds, initial_design_numdata = 5, acquisition_type ='LCB')
 myOpt.run_optimization()
 Y_obs = np.squeeze(myOpt.Y)
 X_obs = np.squeeze(myOpt.X)
@@ -61,22 +61,24 @@ Y_best = cost_func(X_best, 0)
 Y_best_resc = (Y_best-shift)/sd
 
 
-myOpt.plot_acquisition()
+myOpt.plot_acquisition(flo_mode = True)
 plt.plot(X, Y_tmp, 'r--', label = 'F')
 plt.scatter(X_obs, Y_obs_resc, marker = 'o', color='red', label = r'$Observations$')
-plt.scatter(X_best, Y_best_resc, marker = '*', s = 120, color='green', label = r'$To\;find$')
-plt.ylabel(r"$F(x)$")
-plt.legend(loc=4)
+#plt.scatter(X_best, Y_best_resc, marker = '*', s = 120, color='green', label = r'$To\;find$')
+plt.ylabel(r"$F(x)$", fontsize=16)
+plt.xlabel(r"$x$", fontsize=16)
+#plt.legend(loc=4)
 if(save_plt):
-    plt.savefig("fitting_init.pdf",bbox_inches='tight')
+    plt.savefig("init_custom_b_plustwo.pdf",bbox_inches='tight')
+myOpt.run_optimization(1)
 
 
 plt.plot(X, Y_tmp, '--', color = col_ref, label = 'F')
 plt.scatter(X_obs, Y_obs_resc, marker = 'o', color='red', label = r'$Observations$')
 plt.scatter(X_best, Y_best_resc, marker = '*', s = 100, color='green', label = r'$To\;find$', zorder = 100)
-plt.ylabel(r"$F(x)$")
-plt.xlabel(r"$x$")
-plt.legend()
+plt.ylabel(r"$F(x)$", fontsize=20)
+plt.xlabel(r"$x$", fontsize=20)
+#plt.legend()
 if(save_plt):
     plt.savefig("goal_init.pdf",bbox_inches='tight')
     
