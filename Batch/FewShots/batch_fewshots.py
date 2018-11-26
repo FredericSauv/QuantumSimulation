@@ -165,10 +165,23 @@ def proba(x, noise=0, model = 0):
         x_noise = x + np.random.normal(0, noise, size = x.shape)
     else:
         x_noise = x
+    
+    #simple rabbi flip
     if model == 0:
-        p = np.square(np.sin(x))
+        p = np.square(np.sin(x_noise))        
+    
+    #model 0 with decoherence
+    elif model // 10 == 1:
+        s = model % 10
+        p = np.square(np.sin(x_noise)) * np.exp(- 0.5 * np.square(x_noise/s))
+        
     elif model == 1:    
         p = np.abs(np.sin(n * x_noise) * np.exp(- np.square((x_noise-np.pi/2) / s)))
+    
+    elif model // 30 == 1:
+        s = model % 20
+        p = np.square(np.sin(3 * x_noise)) * np.exp(- 0.5 * np.square(x_noise/ s))
+        
     else:
         raise NotImplementedError()
     return p
@@ -217,7 +230,7 @@ def probit(p):
 # Parameters estimation
 #---------------------------------#
 def loglik(params, x, y, model = 0, N = 1): 
-    if(model == 0):
+    if((model == 0) or (model // 10 == 1)):
         # assume y~Bin(sin^2(param * x), N) / N
         # To be extended to binomial
         phase = (x * params) 
@@ -256,7 +269,7 @@ def p_to_t(estimate, p, model):
     """ For a given omega and p find the associated 
     TODO: Implement model 1
     """
-    if(model == 0):
+    if(model == 0 or (model // 10 == 1)):
         t = np.arcsin(np.sqrt(p))/estimate
     else:
         raise NotImplementedError()
