@@ -110,13 +110,16 @@ class BatchFS(BatchBase):
             BO = GPyOpt.methods.BayesianOptimization(f_BO, **bo_args)
             BO.run_optimization(max_iter = nb_iter, eps = 0)
             xy, xy_exp = get_bests_from_BO(BO, f_target)
-            test = f_test(xy[0])
-            test_exp = f_test(xy_exp[0])
-            abs_diff = np.abs(p_target - test_exp)
+            test = f_test(xy_exp[0])
+            #test_exp = f_test(xy_exp[0])
+            abs_diff = np.abs(p_target - test)
             
-            dico_res = {'test':test, 'test_exp':test_exp, 'params_BO': BO.model.model.param_array, 
+            dico_res = {'test':test, 'params_BO': BO.model.model.param_array, 
                 'params_BO_names': BO.model.model.parameter_names(), 'ptarget':p_target, 
                 'x':xy[0], 'xy_exp':xy_exp[0], 'abs_diff':abs_diff} 
+
+
+
 
         return dico_res 
 
@@ -169,14 +172,19 @@ def proba(x, noise=0, model = 0):
     #simple rabbi flip
     if model == 0:
         p = np.square(np.sin(x_noise))        
+
+    elif model == 1:    
+        p = np.abs(np.sin(n * x_noise) * np.exp(- np.square((x_noise-np.pi/2) / s)))
     
     #model 0 with decoherence
     elif model // 10 == 1:
         s = model % 10
         p = np.square(np.sin(x_noise)) * np.exp(- 0.5 * np.square(x_noise * s))
         
-    elif model == 1:    
-        p = np.abs(np.sin(n * x_noise) * np.exp(- np.square((x_noise-np.pi/2) / s)))
+    #model 0 with decoherence
+    elif model // 20 == 1:
+        s = model % 10
+        p = np.square(np.sin(2 * x_noise)) * np.exp(- 0.5 * np.square(x_noise * s))
     
     elif model // 30 == 1:
         s = model % 20
