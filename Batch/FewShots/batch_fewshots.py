@@ -190,6 +190,10 @@ def proba(x, noise=0, model = 0):
     elif model // 30 == 1:
         s = model % 20
         p = np.square(np.sin(3 * x_noise)) * np.exp(- 0.5 * np.square(x_noise * s))
+
+    elif model // 50 == 1:
+        phase_shift = model % 50
+        p = np.square(np.sin(x_noise + phase_shift))
         
     else:
         raise NotImplementedError()
