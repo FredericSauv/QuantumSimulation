@@ -177,23 +177,22 @@ def proba(x, noise=0, model = 0):
     elif model == 1:    
         p = np.abs(np.sin(n * x_noise) * np.exp(- np.square((x_noise-np.pi/2) / s)))
     
-    #model 0 with decoherence
-    elif model // 10 == 1:
-        s = model % 10
-        p = np.square(np.sin(x_noise)) * np.exp(- 0.5 * np.square(x_noise * s))
-        
-    #model 0 with decoherence
-    elif model // 20 == 1:
-        s = model % 10
-        p = np.square(np.sin(2 * x_noise)) * np.exp(- 0.5 * np.square(x_noise * s))
-    
+    #modelwith phase shift
+    elif model // 50 == 1:
+        phase_shift = model % 50
+        p = np.square(np.sin(x_noise + phase_shift))
+
+    #model with phase shift
     elif model // 30 == 1:
         s = model % 20
         p = np.square(np.sin(3 * x_noise)) * np.exp(- 0.5 * np.square(x_noise * s))
 
-    elif model // 50 == 1:
-        phase_shift = model % 50
-        p = np.square(np.sin(x_noise + phase_shift))
+
+    elif model // 10 == 1:
+        s = model % 10
+        p = np.square(np.sin(x_noise)) * np.exp(- 0.5 * np.square(x_noise * s))
+        
+
         
     else:
         raise NotImplementedError()
@@ -324,6 +323,6 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_oneshot100_model10.txt', output_folder = '_configs', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_oneshot100_model14.txt', output_folder = '_configs', update_rules = True)
         batch = BatchFS('_configs/config_res0.txt')
         batch.run_procedures(save_freq = 1)
