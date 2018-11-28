@@ -278,10 +278,10 @@ def p_to_t(estimate, p, model):
     """ For a given omega and p find the associated 
     TODO: Implement model 1
     """
-    if(model == 0 or (model // 10 == 1)):
-        t = np.arcsin(np.sqrt(p))/estimate
+    if(model == 1):
+        raise NotImplementedError
     else:
-        raise NotImplementedError()
+        t = np.arcsin(np.sqrt(p))/estimate
 
     return t
 
