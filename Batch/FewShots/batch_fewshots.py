@@ -63,7 +63,8 @@ class BatchFS(BatchBase):
 
         #MLE
         if(type_optim == 'MLE'):
-            domain_mle = (0.5, 2)
+            max_param = (model // 10) * 2
+            domain_mle = (0.5, min(2, max_param))
             Y_init = f(X_init) * nb_measures
             ll = lambda x: loglik(x, X_init, Y_init, model, nb_measures)
             estim = get_max(ll, domain_mle, 7, 1000, 1e-10)
@@ -138,7 +139,7 @@ class BatchFS(BatchBase):
             
             
 def _stats_one_field(field, list_res, dico_output = False):
-    field_values = np.array([res[field] for res in list_res])
+    field_values = np.array([res.get(field) for res in list_res])
     mask_none = np.array([f is not None for f in field_values])
     f = field_values[mask_none]
     if(len(f) > 0):
@@ -237,16 +238,16 @@ def probit(p):
 #---------------------------------#
 # Parameters estimation
 #---------------------------------#
-def loglik(params, x, y, model = 0, N = 1): 
-    if((model == 0) or (model // 10 == 1)):
+def loglik(params, x, y, model = 0, N = 1):     
+    if(model == 1):
+        raise NotImplementedError
+    else:
         # assume y~Bin(sin^2(param * x), N) / N
         # To be extended to binomial
         phase = (x * params) 
         ll = np.sum(np.log(np.power(np.sin(phase), 2 * N * y)))
         ll += np.sum(np.log(np.power(np.cos(phase), 2 * N * (1 - y))))
-        
-    elif(model == 1):
-        raise NotImplementedError
+    
     return ll
 
 
