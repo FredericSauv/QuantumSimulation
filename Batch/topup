@@ -33,7 +33,8 @@ cp missings.txt "${path_missing}"
 
 #CHANGE
 cd "${path_main}" 
-sed -e "s/#PBS -J.*/#PBS -J 1-${nb_new}/"  -e "s/\${PBS_ARRAY_INDEX}/\${num_res}/" -e "s|pbsexec|num_res=\$(sed \"\${PBS_ARRAY_INDEX}q;d\" '"${path_missing}"')\npbsexec|" "${path_to_qsub}" > to_qsub_topup 
+#careful it relies on the syntax of to_qsub (e.g. the fact that there is only one occurence of python)
+sed -e "s/#PBS -J.*/#PBS -J 1-${nb_new}/"  -e "s/\${PBS_ARRAY_INDEX}/\${num_res}/" -e "s|python |num_res=\$(sed \"\${PBS_ARRAY_INDEX}q;d\" '"${path_missing}"')\npython |" "${path_to_qsub}" > to_qsub_topup 
  
 # 
 
