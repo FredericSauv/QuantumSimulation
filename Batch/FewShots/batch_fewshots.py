@@ -142,6 +142,7 @@ def _stats_one_field(field, list_res, dico_output = False):
     field_values = np.array([res.get(field) for res in list_res])
     mask_none = np.array([f is not None for f in field_values])
     f = field_values[mask_none]
+    N = len(f)
     if(len(f) > 0):
         field_avg = np.average(f)
         field_std = np.std(f)
@@ -155,9 +156,9 @@ def _stats_one_field(field, list_res, dico_output = False):
         field_max = np.nan
         field_median = np.nan
     if dico_output:
-        res = {'avg':field_avg, 'median': field_median, 'std': field_std, 'min': field_min, 'max':field_max}
+        res = {'avg':field_avg, 'median': field_median, 'std': field_std, 'min': field_min, 'max':field_max, 'N':N}
     else:
-        res = [field_avg, field_median, field_std, field_min, field_max]
+        res = [field_avg, field_median, field_std, field_min, field_max, N]
     return res
 
 
