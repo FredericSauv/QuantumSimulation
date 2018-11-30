@@ -11,6 +11,7 @@ def log_uncaught_exceptions(*exc_info):
     logging.critical('Unhandled exception:', exc_info=exc_info) 
 sys.excepthook = log_uncaught_exceptions
 
+import time
 import csv
 import os
 import pathlib
@@ -120,7 +121,9 @@ class BatchBase:
         res_list_tmp = []
 
         for i_config, conf in enumerate(list_configs):
+            _time_zero = time.time()
             res_tmp = self.run_one_procedure(conf) 
+            res_tmp['time_elapsed'] = time.time() - _time_zero
             logger.info("{0}th config ran ".format(i_config))
             res_list_tmp.append(res_tmp)
             conf_list_tmp.append(conf)
