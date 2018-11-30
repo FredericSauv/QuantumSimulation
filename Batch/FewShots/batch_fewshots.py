@@ -185,7 +185,7 @@ def proba(x, noise=0, model = 0):
 
     #model with phase shift
     elif model // 30 == 1:
-        s = model % 20
+        s = model % 30
         p = np.square(np.sin(3 * x_noise)) * np.exp(- 0.5 * np.square(x_noise * s))
 
 
