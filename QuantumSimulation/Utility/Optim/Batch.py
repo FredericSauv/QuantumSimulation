@@ -64,7 +64,8 @@ class Batch:
     METAPARAMS_INFO = {'_RDM_RUNS': (1, 'int'), '_RDM_FIXSEED': (False, 'bool'),
                       '_OUT_PREFIX': ('res_','str'),'_OUT_FOLDER': (None, 'str'),
                       '_OUT_COUNTER': (None, 'int'), '_OUT_NAME': (None, 'list'),
-                      '_OUT_STORE_CONFIG': (True, 'bool'), '_MP_FLAG':(False, 'bool')}
+                      '_OUT_STORE_CONFIG': (True, 'bool'), '_MP_FLAG':(False, 'bool'),
+                      '_WALL_TIME': (None, 'float')}
     METAPARAMS_NAME = METAPARAMS_INFO.keys()
     
 
@@ -125,6 +126,7 @@ class Batch:
         +splitRes: (False) only one file /(True):generate a file for each simulations 
         """
         #pdb.set_trace()#
+        
         if(debug):
             pdb.set_trace()
         if(config is None):
@@ -138,8 +140,10 @@ class Batch:
         i_config = 0
 
         for conf in list_configs:
+            _time_zero = time.time()
             #conf_filt = ut.filter_dico_first_char(conf, self.METAPARAMS_FIRST_CHAR, keep = False)
             tmp = self.run_one_procedure(conf) # run the simulation for one config
+            tmp['time_elapsed'] = time.time() - _time_zero
             i_config +=1
             if(printInfo):
                 logger.info(i_config)
