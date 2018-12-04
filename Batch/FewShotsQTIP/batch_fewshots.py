@@ -116,6 +116,7 @@ class BatchFS(BatchBase):
                 if(verbose):
                     res_perfect = self.dyn.fid_computer.get_fidelity_perfect()
                     print([res, res_perfect])
+                    print(np.squeeze(self.dyn.ctrl_amps))
             return np.atleast_1d(res)
 
         def f_test(x, verbose = verbose):
@@ -128,6 +129,7 @@ class BatchFS(BatchBase):
                 res = self.dyn.fid_computer.get_fidelity_perfect()
                 if(verbose):
                     print(res)
+                    print(np.squeeze(self.dyn.ctrl_amps))
             return res
         
         return f, f_test
@@ -182,7 +184,7 @@ class BatchFS(BatchBase):
             elif type_acq == 'LCB':
                 bo_args = {'acquisition_type':'LCB', 'domain': bounds_bo, 
                            'optim_num_anchor':15, 'optim_num_samples':10000, 
-                            'acquisition_weight':2, 'acquisition_weight_lindec':True} 
+                            'acquisition_weight':4, 'acquisition_weight_lindec':True} 
             elif type_acq == 'EI_target':
                 bo_args = {'acquisition_type':'EI_target', 'domain': bounds_bo, 
                            'optim_num_anchor':15, 'optim_num_samples':10000,
@@ -190,7 +192,7 @@ class BatchFS(BatchBase):
             elif type_acq == 'LCB_target':
                 bo_args = {'acquisition_type':'LCB_target', 'domain': bounds_bo, 
                            'optim_num_anchor':15, 'optim_num_samples':10000, 
-                            'acquisition_weight':2, 'acquisition_weight_lindec':True,
+                            'acquisition_weight':4, 'acquisition_weight_lindec':True,
                             'acquisition_ftarget': f_target} 
             else:
                 logger.error('type_acq {} not recognized'.format(type_acq))
@@ -317,5 +319,5 @@ if __name__ == '__main__':
     testing = False 
     if(testing):
         BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test.txt', output_folder = '_configs', update_rules = True)
-        batch = BatchFS('_configs/config_res1.txt')
+        batch = BatchFS('_configs/config_res3.txt')
         batch.run_procedures(save_freq = 1)
