@@ -45,7 +45,9 @@ fi
 N=$(ls "${config_store_folder}" | wc -l)
 End=$((Beg+N-1))
 
+cp -r "$HOME/Testing/QuantumSimulation/QuantumSimulation" "${output_path}/QuantumSimulation"
 cp ${NAME_BATCH_PY} "${output_path}/${NAME_BATCH_PY}"
+cp ${EXTRA_PY} "${output_path}/${EXTRA_PY}"
 cd "${output_path}"
 
 # Create Array job
@@ -54,7 +56,8 @@ cat >to_qsub <<ScriptEnd
 #PBS -J ${Beg}-${End} 
 #PBS -l walltime=${walltime}:00:00,select=1:ncpus=${nb_cpus}:mem=${mem}gb
 
-cp -r "$HOME/Testing/QuantumSimulation/QuantumSimulation" .
+cp -r "${output_path}/QuantumSimulation" .
+#cp -r "$HOME/Testing/QuantumSimulation/QuantumSimulation" .
 cp -r "$HOME/Testing/GPyOpt/GPyOpt" .
 cp "${output_path}/${NAME_BATCH_PY}" .
 cp "${output_path}/${EXTRA_PY}" .
