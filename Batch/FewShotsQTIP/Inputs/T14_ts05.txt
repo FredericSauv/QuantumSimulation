@@ -1,0 +1,12 @@
+model {'model':1,'n_ts':10,'T':0.5,'noise_type':'SHOT2TGT','noise_n_meas':5,'_FLAG':'5shots'} {'noise_n_meas':1,'_FLAG':'1shot'} {'noise_n_meas':10,'_FLAG':'10s'} {'noise_n_meas':50,'_FLAG':'50s'} {'noise_n_meas':100,'_FLAG':'100s'}
+
+optim {'type_acq':'EI','nb_init':50,'nb_iter':50,'type_lik':None,'_FLAG':'ei_gauss_50'} {'type_lik':'binomial','_FLAG':'ei_bin_50'} {'type_acq':'LCB','_FLAG':'lcb_gauss_50'} {'type_acq':'LCB','type_lik':'binomial','_FLAG':'lcb_bin_50'} {'nb_iter':250,'_FLAG':'ei_gauss_250'} {'nb_iter':250,'type_lik':'binomial','_FLAG':'ei_bin_250'} {'nb_iter':250,'type_acq':'LCB','_FLAG':'lcb_gauss_250'} {'nb_iter':250,'type_acq':'LCB','type_lik':'binomial','_FLAG':'lcb_bin_250'} {'nb_iter':500,'_FLAG':'ei_gauss_500'} {'nb_iter':500,'type_lik':'binomial','_FLAG':'ei_bin_500'} {'nb_iter':500,'type_acq':'LCB','_FLAG':'lcb_gauss_500'} {'nb_iter':500,'type_acq':'LCB','type_lik':'binomial','_FLAG':'lcb_bin_500'} {'type_acq':'EI','nb_init':50,'nb_iter':1,'_FLAG':'nooptim_ei_gauss'} {'type_acq':'EI','nb_init':50,'nb_iter':1,'type_lik':'binomial','_FLAG':'nooptim_ei_bin'} {'type_acq':'LCB','nb_init':50,'nb_iter':1,'_FLAG':'nooptim_lcb_gauss'} {'type_acq':'LCB','nb_init':50,'nb_iter':1,'type_lik':'binomial','_FLAG':'nooptim_lcb_bin'}
+
+_RDM_RUNS 100
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
