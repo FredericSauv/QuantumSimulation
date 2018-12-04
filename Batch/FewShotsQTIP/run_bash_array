@@ -4,9 +4,11 @@
 # 2 inputs: Where the metaconfig file is stored (relative to run_bash_array)
 # and the name of the folder we are going to create to store the results
 
+# TO BE CHECKED EACH TIME THEY ARE COPIED
 NAME_SETUP="FewShotsQTIP"
 NAME_BATCH_PY="batch_fewshots.py"
 CONDA_ENVT="py36q"
+EXTRA_PY="fidcompnoisy.py"
 
 input_file=$1
 output_folder=$2
@@ -55,6 +57,7 @@ cat >to_qsub <<ScriptEnd
 cp -r "$HOME/Testing/QuantumSimulation/QuantumSimulation" .
 cp -r "$HOME/Testing/GPyOpt/GPyOpt" .
 cp "${output_path}/${NAME_BATCH_PY}" .
+cp "${output_path}/${EXTRA_PY}" .
 
 module load anaconda3/personal
 source activate "${CONDA_ENVT}"
