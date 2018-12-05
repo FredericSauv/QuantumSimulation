@@ -54,7 +54,7 @@ cd "${output_path}"
 cat >to_qsub <<ScriptEnd
 #!/bin/bash
 #PBS -J ${Beg}-${End} 
-#PBS -l walltime=${walltime}:00:00,select=1:ncpus=${nb_cpus}:mem=${mem}gb
+#PBS -l walltime=${walltime}:00:00,select=1:ncpus=${nb_cpus}:mem=${mem}gb:avx=true
 
 cp -r "${output_path}/QuantumSimulation" .
 #cp -r "$HOME/Testing/QuantumSimulation/QuantumSimulation" .
