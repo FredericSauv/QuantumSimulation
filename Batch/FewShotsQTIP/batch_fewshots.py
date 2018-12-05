@@ -228,7 +228,10 @@ class BatchFS(BatchBase):
             test_exp = _stats_one_field('test_exp', v)
             test = _stats_one_field('test', v)
             abs_diff = _stats_one_field('abs_diff', v)
-            processed.update({k:{'test_exp': test_exp, 'test':test, 'abs_diff':abs_diff}})
+            call_f = _stats_one_field('call_f', v)
+            time_elapsed = _stats_one_field('time_elapsed', v)
+            processed.update({k:{'test_exp': test_exp, 'test':test, 
+                        'abs_diff':abs_diff, 'time_elapsed':time_elapsed, 'call_f':call_f}})
         return processed
             
 
