@@ -51,7 +51,7 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
             noisy_fid = self.perfect_fid
             logger.info("No noise, fid (gaussian noise): {}".format(noisy_fid))
             
-        if(self.noise_type == 'GAUSS'):
+        elif(self.noise_type == 'GAUSS'):
             noisy_fid = self.apply_noise_gauss_abs(self.perfect_fid)
             logger.info("fid (gaussian noise): {}, fid (actual): {}".format(noisy_fid,
                                                           self.perfect_fid))
@@ -66,7 +66,7 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
                                                           self.perfect_fid))
             
         else:
-            raise NotImplementedError("type of noise {} not recognized".format(self.noise))
+            raise NotImplementedError("type of noise {} not recognized".format(self.noise_type))
             
         self.noisy_fid = np.clip(noisy_fid, 0,1)
         return self.noisy_fid
