@@ -35,7 +35,7 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
     def __init__(self, dyn, params=None):
         super(FidCompUnitNoisy, self).__init__(dyn, params)
         #new parameters relating to noise in the FoM
-        self.noise_type = 'GAUSS'
+        self.noise_type = None
         self.noise_mean = 0.0
         self.noise_std = 1e-10
         self.noise_n_meas = 1
@@ -60,7 +60,7 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
             noisy_fid = self.get_fidelity_shot2tgt()
             logger.info("fid (shot2tgt): {}, fid (actual): {}".format(noisy_fid,
                                                           self.perfect_fid))
-        elif(self.noise == 'SHOT2BASIS'):
+        elif(self.noise_type == 'SHOT2BASIS'):
             noisy_fid = self.get_fidelity_shot2basis()
             logger.info("fid (shot2tgt): {}, fid (actual): {}".format(noisy_fid,
                                                           self.perfect_fid))
