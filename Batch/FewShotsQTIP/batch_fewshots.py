@@ -176,23 +176,25 @@ class BatchFS(BatchBase):
             type_acq = optim_config['type_acq']
             nb_iter = optim_config['nb_iter']
             type_lik = optim_config['type_lik']
+            nb_anchors = optim_config.get('nb_anchors', 15)
+            acq_weight = optim_config.get('acq_weight', 4)
             bounds_bo = [{'name': str(i), 'type': 'continuous', 'domain': domain} for i in range(self.n_ts)]
             logger.info('type_acq: {}'.format(type_acq))
             if type_acq == 'EI':
                 bo_args = {'acquisition_type':'EI', 'domain': bounds_bo, 
-                           'optim_num_anchor':15, 'optim_num_samples':10000} 
+                           'optim_num_anchor':nb_anchors, 'optim_num_samples':10000} 
             elif type_acq == 'LCB':
                 bo_args = {'acquisition_type':'LCB', 'domain': bounds_bo, 
-                           'optim_num_anchor':15, 'optim_num_samples':10000, 
-                            'acquisition_weight':4, 'acquisition_weight_lindec':True} 
+                           'optim_num_anchor':nb_anchors, 'optim_num_samples':10000, 
+                            'acquisition_weight':acq_weight, 'acquisition_weight_lindec':True} 
             elif type_acq == 'EI_target':
                 bo_args = {'acquisition_type':'EI_target', 'domain': bounds_bo, 
-                           'optim_num_anchor':15, 'optim_num_samples':10000,
+                           'optim_num_anchor':nb_anchors, 'optim_num_samples':10000,
                            'acquisition_ftarget': f_target} 
             elif type_acq == 'LCB_target':
                 bo_args = {'acquisition_type':'LCB_target', 'domain': bounds_bo, 
-                           'optim_num_anchor':15, 'optim_num_samples':10000, 
-                            'acquisition_weight':4, 'acquisition_weight_lindec':True,
+                           'optim_num_anchor':nb_anchors, 'optim_num_samples':10000, 
+                            'acquisition_weight':acq_weight, 'acquisition_weight_lindec':True,
                             'acquisition_ftarget': f_target} 
             else:
                 logger.error('type_acq {} not recognized'.format(type_acq))
@@ -322,5 +324,5 @@ if __name__ == '__main__':
     testing = False 
     if(testing):
         BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test.txt', output_folder = '_configs', update_rules = True)
-        batch = BatchFS('_configs/config_res3.txt')
+        batch = BatchFS('_configs/config_res0.txt')
         batch.run_procedures(save_freq = 1)
