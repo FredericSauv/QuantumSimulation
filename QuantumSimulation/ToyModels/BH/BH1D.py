@@ -161,17 +161,17 @@ class BH1D(mod.pcModel_qspin):
                 meas_avg_var = np.mean(meas_var)
                 return meas_avg_var
             
-                self._avg_var_occup = avg_var_occup
-                self._fom_func['varN'] = self._avg_var_occup
-                
-                # measured variance
-                self._avg_varN_measured = avg_var_occup_measured
-                self._fom_func['varN5'] = (lambda x: self._avg_varN_measured(x, 5))
-                self._fom_func['varN10'] = (lambda x: self._avg_varN_measured(x, 10))
-                self._fom_func['varN100'] = (lambda x: self._avg_varN_measured(x, 100))
-                self._fom_func['varN1000'] = (lambda x: self._avg_varN_measured(x, 1000))
-                self._fom_func['varN10000'] = (lambda x: self._avg_varN_measured(x, 10000))
-                self._fom_func['varN100000'] = (lambda x: self._avg_varN_measured(x, 100000))
+            self._avg_var_occup = avg_var_occup
+            self._fom_func['varN'] = self._avg_var_occup
+            
+            # measured variance
+            self._avg_varN_measured = avg_var_occup_measured
+            self._fom_func['varN5'] = (lambda x: self._avg_varN_measured(x, 5))
+            self._fom_func['varN10'] = (lambda x: self._avg_varN_measured(x, 10))
+            self._fom_func['varN100'] = (lambda x: self._avg_varN_measured(x, 100))
+            self._fom_func['varN1000'] = (lambda x: self._avg_varN_measured(x, 1000))
+            self._fom_func['varN10000'] = (lambda x: self._avg_varN_measured(x, 10000))
+            self._fom_func['varN100000'] = (lambda x: self._avg_varN_measured(x, 100000))
 
     def _state_to_occup_nb(self, st):
         exp_occup = np.array([op.expt_value(st) for op in self._op_n_sites])
