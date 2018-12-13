@@ -1310,6 +1310,7 @@ def apply_dico_plot(fig, axis, dico_plot):
     ylim = dico_plot.get('ylim')
     xlim = dico_plot.get('xlim')
     suptitle = dico_plot.get('suptitle')
+    size_label = dico_plot.get('size_label', 10)
     ylabel = dico_plot.get('ylabel')
     xlabel = dico_plot.get('xlabel')
     legend = dico_plot.get('legend')
@@ -1317,6 +1318,7 @@ def apply_dico_plot(fig, axis, dico_plot):
     legend_loc = dico_plot.get('legend_loc')
     xticks = dico_plot.get('xticks')
     xtick_label = dico_plot.get('xtick_label')
+    size_ticks = dico_plot.get('xtick_size')
 
     if(legend is not None):
         if(legend_prop is None):
@@ -1332,13 +1334,15 @@ def apply_dico_plot(fig, axis, dico_plot):
     if(suptitle is not None):
         fig.suptitle(suptitle)
     if(ylabel is not None):
-        axis.set_ylabel(ylabel)
+        axis.set_ylabel(ylabel, fontsize=size_label)
     if(xlabel is not None):
-        axis.set_xlabel(xlabel)
+        axis.set_xlabel(xlabel, fontsize=size_label)
     if(xticks is not None):
         axis.set_xticks(xticks)
     if(xtick_label is not None):
-        axis.set_xticklabels(xtick_label)
+        axis.set_xticklabels(xtick_label, fontsize=size_label)
+    if(size_ticks is not None):
+        axis.tick_params(labelsize = size_ticks)
         
 def save_plot(fig, save = None):
     if(is_dico(save)):

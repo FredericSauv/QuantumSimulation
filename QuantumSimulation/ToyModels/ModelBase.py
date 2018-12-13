@@ -941,6 +941,7 @@ class pcModel_qspin(pcModel_base):
             limit_legend = args_pop_adiab.get('lim_legend', 15)
             limit_enlevels = args_pop_adiab.get('lim_enlevels', np.inf)
             plot_gap = args_pop_adiab.get('plot_gap', False)
+            ax_size = args_pop_adiab.get('axis_size', 10)
             pop_adiab = self.adiab_pop #txn
             t = self.adiab_t 
             en = self.adiab_en #txn
@@ -959,20 +960,21 @@ class pcModel_qspin(pcModel_base):
                 else:
                     lbl_tmp = None
                 if(max_tmp > 0.1):
-                    axarr[0,1].plot(t, pop_tmp, label = lbl_tmp, color = col)
+                    axarr[0,1].plot(t, 100 * pop_tmp, label = lbl_tmp, color = col)
                 elif(max_tmp > 0.01):
                     second_pop_populated = True
-                    axarr[1,1].plot(t, pop_tmp, label = lbl_tmp, color = col)
+                    axarr[1,1].plot(t, 100 * pop_tmp, label = lbl_tmp, color = col)
                 if(i<10):
                     axarr[1,0].plot(t, en[:, i] - en[:, 0], label = lbl_tmp, color = col)
             
+            
             ax_tmp = axarr[0,1]
             ax_tmp.legend(fontsize = 'small')
-            ax_tmp.set_title('Population', fontsize = 8)
+            ax_tmp.set_title(r'Population(\%)', fontsize = ax_size)
            
             
             ax_tmp = axarr[1,1]
-            ax_tmp.set(xlabel='t')
+            ax_tmp.set_xlabel(r't', fontsize=ax_size)
             if(second_pop_populated):
                 ax_tmp.legend(fontsize = 'small')
             
@@ -980,7 +982,8 @@ class pcModel_qspin(pcModel_base):
             ax_tmp.legend()
             
             ax_tmp = axarr[1,0]
-            ax_tmp.set(xlabel='t', ylabel=r"$E_i - E_0$")
+            ax_tmp.set_xlabel(r't', fontsize=ax_size)
+            ax_tmp.set_ylabel(r"$E_i - E_0$", fontsize=ax_size)
             if(plot_gap):
                 try:                    
                     diff_01 = en[:, 1] - en[:, 0]
@@ -996,6 +999,7 @@ class pcModel_qspin(pcModel_base):
             save_fig = args_pop_adiab.get('save_fig')
             if(ut.is_str(save_fig)):
                 f.savefig(save_fig, bbox_inches='tight', transparent=True, pad_inches=0)
+                #f.savefig(save_fig, transparent=True, pad_inches=0)
 
         else:
             logger.warning("pcModel_qspin.plot_pop_adiab: no pop_adiab found.. Generate it first")
