@@ -204,6 +204,7 @@ class BatchFS(BatchBase):
                     'likelihood':'Binomial_' + str(self.n_meas), 'normalize_Y':False})
             bo_args['X'] = X_init
             bo_args['Y'] = Y_init
+            bo_args['num_cores'] = optim_config.get('num_cores', 1)
 
             BO = GPyOpt.methods.BayesianOptimization(f_BO, **bo_args)
             BO.run_optimization(max_iter = nb_iter, eps = 0)
