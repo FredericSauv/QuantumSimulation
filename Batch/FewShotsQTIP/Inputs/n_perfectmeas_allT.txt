@@ -1,0 +1,12 @@
+model {'model':1,'n_ts':10,'T':0.25,'noise_type':None,'_FLAG':'ideal_025'} {'T':0.5,'_FLAG':'ideal_05'} {'T':1.2,'_FLAG':'ideal_12'} {'T':1.4,'_FLAG':'ideal_14'}
+
+optim {'nb_anchors':5,'type_acq':'EI','nb_init':50,'nb_iter':50,'type_lik':None,'_FLAG':'ei_gauss_50'} {'type_acq':'LCB','_FLAG':'lcb_gauss_50'} {'nb_iter':250,'_FLAG':'ei_gauss_250'} {'nb_iter':250,'type_acq':'LCB','_FLAG':'lcb_gauss_250'} {'nb_iter':500,'_FLAG':'ei_gauss_500'} {'nb_iter':500,'type_acq':'LCB','_FLAG':'lcb_gauss_500'} {'nb_iter':700,'_FLAG':'ei_gauss_700'} {'nb_iter':700,'type_acq':'LCB','_FLAG':'lcb_gauss_700'}
+
+_RDM_RUNS 50
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
