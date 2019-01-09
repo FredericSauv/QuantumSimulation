@@ -4,15 +4,16 @@ Created on Jan 8 19:58:08 2019
 """
 from scipy.integrate import ode
 import numpy as np
-#import functools
 import matplotlib.pylab as plt
+import functools
 from matplotlib import rc
 rc('text', usetex=True)
+from scipy import optimize as optim
+#import pdb
 
 class param_ho:
     """ Parametric harmonic oscillator
     d^2/dt^2 x(t) + w0^2 * (1 + f(t)) x(t) = 0
-    
     
     Parameters
     ---------
@@ -40,22 +41,21 @@ class param_ho:
     def __init__(self, drive_f, drive_a, drive_p, m=1, w0 = 1): 
         """ Initialize properties of the model
         """
-        self.drive_f = drive_f
-        self.drive_a = drive_a
-        self.drive_p = drive_p
+        self.drive_f = np.atleast_1d(drive_f)
+        self.drive_a = np.atleast_1d(drive_a)
+        self.drive_p = np.atleast_1d(drive_p)
         self.w0 = w0
         self.m = m
 
     def get_kin_en(self, X):
         """ Get the kinetic energy of the system at time t
         """        
-        return 1/2 * self.m * X[1]**2
+        return 0.5 * self.m * np.square(X[1])
         
     def get_pot_en(self, X, t):
         """ Get the potential energy of the system at time t
         """        
-        drive = self.get_drive(self, t)
-        return 0.5 * drive * (X[0] ** 2)
+        return 0.5 * self.w0 * (1 + self.get_drive(t)) * (np.square(X[0]))
            
         
     def get_en(self, X, t):
@@ -66,18 +66,20 @@ class param_ho:
     def get_drive(self, t):
         """ Drive at time t
         """
-        return np.sum(self.drive_a * np.cos(self.drive_f*t + self.drive_p))
+        return np.squeeze(np.sum(self.drive_a * np.cos(np.outer(np.atleast_1d(t),self.drive_f) + self.drive_p), 1))
         
         
-    def evol_to_t(self, t, x0 = 0, dx0 = 0.1):
-        """ return [X(t_0), ... X(t_n)] where X(t) = [x(t), p(t)]
+    def evol_to_t(self, t, x0 = 0.05, dx0 = 0, energy = False):
+        """ return [x(t), dx(t), en(t)] x(t) = [x0, ..., xT]
         shape = (2 x len(t))
         """
-        times = [t] if np.ndim(t) == 0 else t
-        evol = param_ho.evolve_ode(self.derivative, [x0, dx0], t0=0, times=times)
+        evol = param_ho.evolve_ode(self.derivative, [x0, dx0], t0=0, times=np.atleast_1d(t))
+        if energy:
+            en = self.get_en(evol, np.atleast_1d(t))
+            evol = np.vstack((evol, en))
         return evol
     
-    def derivative(self, t, X, omega):
+    def derivative(self, t, X):
         """ X = [x, dx], X'(t) = [dx, ddx] = [dx, -w0^2*(1+f(t)) x(t) ]"""
         ddx = - self.w0 ** 2 * (1 + self.get_drive(t)) * X[0]
         return np.array([X[1], ddx])  
@@ -128,19 +130,74 @@ class param_ho:
                 raise RuntimeError("failed to evolve to time {0}, nsteps might be too small".format(t))			
         return v
 
+def rough_exp(data, time, strobo_ind):
+    exp_rough = np.log(data[strobo_ind][-1] / data[strobo_ind][0]) / time[strobo_ind][-1]
+    print(exp_rough)
+    return exp_rough
+
 
 if __name__ == '__main__':
-    w_int = 1
-    drive_f = [2]
+    w_int = 10
+    t_fin = 20.2
+    t_strobo = 2 * np.pi / w_int 
+    nt_period = 50
+    time = np.arange(0, t_fin, t_strobo / nt_period)
+    strobo_ind = np.arange(int(nt_period/6), len(time), nt_period)
+
+    ####### Look at the dynamics with a monochromatic driving
+    drive_f = [2*w_int]
     drive_a = [0.2]
     drive_p = [0]
     pho = param_ho(drive_f, drive_a, drive_p, m=1, w0 = w_int)
-    pho.evol_to_t(t=10.0)
+    evol = pho.evol_to_t(t=time, x0=0.05, dx0 = 0, energy = True)
+    toplot = evol[2, :]
+    
+    #Quickly fit an exponent
+    exp_rough = rough_exp(toplot, time, strobo_ind)    
+    # look at the dynamic
+    plt.plot(time, toplot)
+    plt.scatter(time[strobo_ind], toplot[strobo_ind])
+    plt.plot(time, np.exp(exp_rough * time) * toplot[strobo_ind][0])
+            
+    
+    ####### 3 harmonics 
+    drive_f = [20, 19.5, 20.5]
+    drive_a = [0.2, 0.25, 0.25]
+    drive_p = [0, -0.65, 0.65]
+    pho_bi = param_ho(drive_f, drive_a, drive_p, m=1, w0 = w_int)
+    evol = pho_bi.evol_to_t(t=time, x0=0.05, dx0 = 0, energy = True)
+    toplot = evol[2]
+    print(np.max(toplot)/1000000)
+    plt.plot(time, toplot)
+    plt.scatter(time[strobo_ind], toplot[strobo_ind])
 
 
 
+    ####### Optimization 3 harmonics (1 fixed on resonance )
+    #Model initial
+    drive_f = [20, 19.5, 20.5]
+    drive_a = [0.2, 0., 0.]
+    drive_p = [0., 0., 0.]
+    pho_ref = param_ho(drive_f, drive_a, drive_p, m=1, w0 = w_int)
+    evol_ref = pho_ref.evol_to_t(t=time, x0=0.05, dx0 = 0, energy = True)
+    cf_ref = np.max(evol_ref[2])
+    
+    
+    #Cost function to minimize
+    def costfunction_3h(params, model, time, x0=0.05, dx0=0):
+        model.drive_a[1:3] = params[0:2]
+        model.drive_p[1:3] = params[2:4]
+        ev = model.evol_to_t(t=time, x0=x0, dx0=dx0, energy = True)
+        cost = np.max(ev[2])
+        print(cost/1000000)
+        return cost
 
+    bounds = [(-0.5, 0.5), (-0.5, 0.5), (0, 2 * np.pi),(0, 2*np.pi)]
+    f = functools.partial(costfunction_3h, model=pho_ref,time=time)
+    de_optim = optim.differential_evolution(f, bounds)
 
+    #Optimization
+    
 
 
 #    def optim_drive(self, omega, h_ref = 10.0, noise_h0 = 0.1, nb_repeat = 10, 
