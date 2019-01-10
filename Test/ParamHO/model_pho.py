@@ -196,10 +196,40 @@ if __name__ == '__main__':
     f = functools.partial(costfunction_3h, model=pho_ref,time=time)
     de_optim = optim.differential_evolution(f, bounds)
 
-    #Optimization
+    #Optimized
+    drive_f = [20, 19.5, 20.5]
+    drive_a = [0.2, 3.38324186e-03, -2.98121466e-01]
+    drive_p = [0., 3.93031947e+00, 4.64560877]
+    pho_optim = param_ho(drive_f, drive_a, drive_p, m=1, w0 = w_int)
+    evol_optim = pho_optim.evol_to_t(t=time, x0=0.05, dx0 = 0, energy = True)
+    cf_optim = np.max(evol_optim[2])
+    print(cf_optim)
     
-
-
+    toplot_optim = evol_optim[2]
+    plt.plot(time, toplot_optim)
+    plt.scatter(time[strobo_ind], toplot_optim[strobo_ind])
+    
+    toplot_ref = evol_ref[2]
+    plt.plot(time, toplot_ref)
+    plt.scatter(time[strobo_ind], toplot_ref[strobo_ind])
+    plt.xlim([0,10.])
+    plt.ylim([0,1000])
+    
+    
+    # New questiojns
+    # Plot dynamically the drive
+    drive_optim = pho_optim.get_drive(time)
+    drive_ref = pho_ref.get_drive(time)
+    plt.plot(time, drive_ref)
+    plt.plot(time, drive_optim)
+    
+    
+    
+    
+    # Try with another init
+    
+    
+    
 #    def optim_drive(self, omega, h_ref = 10.0, noise_h0 = 0.1, nb_repeat = 10, 
 #                          s = 40, nb_period = 1, verbose = False, return_to_init = False):
 #        """ For a given h_0 and omega how close do we get to href after one cycle
