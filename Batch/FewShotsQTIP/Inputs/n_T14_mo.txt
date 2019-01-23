@@ -1,0 +1,12 @@
+model {'model':1,'n_ts':10,'T':1.4,'noise_type':'SHOT2BASIS','noise_n_meas':5,'_FLAG':'5s'} {'noise_n_meas':1,'_FLAG':'1s'} {'noise_n_meas':10,'_FLAG':'10s'} {'noise_n_meas':50,'_FLAG':'50s'} {'noise_n_meas':100,'_FLAG':'100s'}
+
+optim {'nb_anchors':5,'type_acq':'EI_TGT','type_lik':'binomial','nb_init':50,'nb_iter':50,'_FLAG':'ei_bin_50','num_cores':4,'mo':{'output_dim':3,'rank':0,'missing':False}} {'type_acq':'LCB_TGT','_FLAG':'lcb_bin_50'} {'nb_iter':250,'_FLAG':'ei_bin_250'} {'nb_iter':250,'type_acq':'LCB_TGT','_FLAG':'lcb_bin_250'} {'nb_iter':500,'_FLAG':'ei_bin_500'} {'nb_iter':500,'type_acq':'LCB_TGT','_FLAG':'lcb_bin_500'} {'nb_iter':700,'_FLAG':'ei_bin_700'} {'nb_iter':700,'type_acq':'LCB_TGT','_FLAG':'lcb_bin_700'}
+
+_RDM_RUNS 50
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
