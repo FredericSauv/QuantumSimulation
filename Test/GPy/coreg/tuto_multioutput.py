@@ -9,6 +9,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import GPy
 import scipy.io
+import copy
+import time
+from IPython.display import display
+
 data = scipy.io.loadmat('olympics.mat')
 
 
@@ -19,25 +23,26 @@ years = np.array([ 1896. ,  1900. ,  1904. ,  1906. ,  1908. ,  1912. ,  1920. ,
 
 list_X = list()
 list_Y = list()
-for task in map_task:
+for n, task in enumerate(map_task):
     index_task = map_task[task]
     data_tmp = data[task]
-    mask = np.array([y in data_tmp[:, 0] for y in years])
-    list_Y.append(data_tmp[:,1])
-    list_X.append(np.vstack((years[mask], np.repeat(index_task, np.sum(mask)))))
-
-
-
-
-X = data['X']
-y = data['Y']
+    mask = np.array([y in years for y in data_tmp[:, 0]])
+    Y_tmp = data_tmp[:,1][:, np.newaxis]
+    X_tmp = np.hstack((data_tmp[mask, 0][:, np.newaxis], np.repeat(index_task, np.sum(mask))[:, np.newaxis]))
+    if(n == 0):
+        X = X_tmp
+        y = Y_tmp
+    else:
+        X = np.vstack((X, X_tmp))
+        y = np.vstack((y, Y_tmp))
+        
 
 
 
 print('First column of X contains the olympic years.')
-print(np.unique(data['X'][:, 0]))
+print(np.unique(X[:, 0]))
 print('Second column of X contains the event index.')
-print(np.unique(data['X'][:, 1]))
+print(np.unique(X[:, 1]))
 
 
 
@@ -53,20 +58,31 @@ plt.ylabel('time/s')
 
 
 
-GPy.kern.Coregionalize?
+##RANK 0
+kernX = GPy.kern.Matern52(1, variance=1., ARD=False)
+kernX += GPy.kern.White(1, 0.01)
+kern = kernX ** GPy.kern.Coregionalize(1, output_dim=6, rank=0)
 
-
-
-kern = GPy.kern.RBF(1, lengthscale=80)**GPy.kern.Coregionalize(1,output_dim=6, rank=5)
-display(kern)
-
-
-
+print(kern)
+#print(kern.coregion.W[:])
 model = GPy.models.GPRegression(X, y, kern)
+ts = time.time()
 model.optimize()
+t_rank0 = time.time() - ts
+fig, ax = plt.subplots()
+for i in range(6):
+    model.plot(fignum=1,fixed_inputs=[(1, i)],ax=ax,legend=i==0)
+plt.xlabel('years')
+plt.ylabel('time/s')
 
-
-
+##RANK 1
+kern = GPy.kern.RBF(1, lengthscale=80) ** GPy.kern.Coregionalize(1, output_dim=6, rank=1)
+print(kern)
+#print(kern.coregion.W[:])
+model = GPy.models.GPRegression(X, y, kern)
+ts = time.time()
+model.optimize()
+t_rank0 = time.time() - ts
 fig, ax = plt.subplots()
 for i in range(6):
     model.plot(fignum=1,fixed_inputs=[(1, i)],ax=ax,legend=i==0)
@@ -74,7 +90,7 @@ plt.xlabel('years')
 plt.ylabel('time/s')
 
 
-
+##Engineered kernels
 kern1 = GPy.kern.RBF(1, lengthscale=80)**GPy.kern.Coregionalize(1,output_dim=6, rank=1)
 kern2 = GPy.kern.Bias(1)**GPy.kern.Coregionalize(1,output_dim=6, rank=1)
 kern = kern1 + kern2
@@ -89,15 +105,4 @@ plt.xlabel('years')
 plt.ylabel('time/s')
 
 
-
-model = GPy.models.GPRegression(X, y, kern)
-model.optimize()
-
-
-
-fig, ax = plt.subplots()
-for i in range(6):
-    model.plot(fignum=1,fixed_inputs=[(1, i)],ax=ax,legend=(i==0))
-plt.xlabel('years (after first ')
-plt.ylabel('time/s')
 
