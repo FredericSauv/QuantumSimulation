@@ -43,6 +43,10 @@ class BatchFS(BatchBase):
         verbose = model_config.get('verbose', False)
         n_ts = model_config['n_ts']
         T = model_config['T']
+        
+        # May need to make the choice of init and tgt states more flexible
+        # init = model_config.get('init','eigen0')
+        # tgt = model_config.get('tgt','eigen0')
         if(model == 1):
             #define an Hamiltonian H(t) = - Sz - hx(t) Sx
             H_d = -sigmaz()
@@ -75,10 +79,9 @@ class BatchFS(BatchBase):
         #noise output
         noise_type = model_config.get('noise_type')        
         noise_n_meas = model_config.get('noise_n_meas', 1)
-        
         noise_mean = model_config.get('noise_mean', 1)
         noise_std = model_config.get('noise_std', 0)
-        #noise_input = model_config.get('noise_input', 0)
+        noise_input = model_config.get('noise_input', 0)
         noise_b_meas = model_config.get('noise_b_meas')
 
         # CUSTOM FIDELITY COMPUTER
@@ -98,6 +101,11 @@ class BatchFS(BatchBase):
         self.n_meas = noise_n_meas
         self.n_ctrls = n_ctrls
         self.n_ts = n_ts
+        self.p_tgt = self.dyn.fid_computer.get_ptarget()
+        if self.dyn.fid_computer.noise_b_meas is None :
+            self.meas_basis = None 
+        else:
+            self.meas_basis = [b.full() for b in self.dyn.fid_computer.noise_b_meas]
         logger.info("Optim model {0} with {1} params between {2}-{3} and T= {4}".format(model, 
                                         n_ts, dyn.params_lbnd, dyn.params_ubnd, T))
         logger.info("dynamics has been created with QuTip and saved self.dyn")
@@ -105,12 +113,17 @@ class BatchFS(BatchBase):
         #figure of merit
         self.call_f = 0
         self.call_f_test = 0
-        def f(x, verbose = verbose):
-            if(x.shape[0] != n_ts):
-                res = np.array([f(x_one, verbose) for x_one in x])
+        #use during optimization
+        def f(x, verbose = verbose, noise=noise_input):
+            if noise>0:
+                x_n = np.clip(x + np.random.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) 
+            else:
+                x_n = x
+            if(x_n.shape[0] != n_ts):
+                res = np.array([f(x_one, verbose,noise=0) for x_one in x_n])
             else:
                 self.call_f += 1
-                amps = np.reshape(x, (n_ts, n_ctrls))
+                amps = np.reshape(x_n, (n_ts, n_ctrls))
                 self.dyn.update_ctrl_amps(amps)
                 res = self.dyn.fid_computer.get_noisy_fidelity()
                 if(verbose):
@@ -119,6 +132,7 @@ class BatchFS(BatchBase):
                     print(np.squeeze(self.dyn.ctrl_amps))
             return np.atleast_1d(res)
 
+        #Use for testing the optimal pulse
         def f_test(x, verbose = verbose):
             if(x.shape[0] != n_ts):
                 res = np.array([f_test(x_one) for x_one in x])
@@ -143,22 +157,18 @@ class BatchFS(BatchBase):
         if(model_config.get('debug', False) or optim_config.get('debug', False)):
             pdb.set_trace()
         f, f_test = self.setup_QTIP_model(model_config)
-
         #setting up the optimizer
 
         type_optim = optim_config.get('type_optim', 'BO')
         domain = (self.dyn.params_lbnd, self.dyn.params_ubnd)
-        p_target = optim_config.get('p_target')
-        if p_target is not None:
-            logging.info('USE OF A TARGET FOR THE PROBABILITY')
-            f_tmp = optim_config.get('f_target')
-            f_target = probit(p_target) if f_tmp is None else f_tmp
-            logging.info('f_target: {0}'.format(f_target))
+        p_tgt = optim_config.get('p_tgt')
+        if p_tgt is None:
+            p_tgt = self.p_tgt
         else:
-            p_target = 1
-            f_target = None
-
-
+            logger.info('PTARGET has been retrieved from the config')
+        f_tgt = probit(p_tgt)
+        logger.info('p_tgt: {0}'.format(p_tgt))
+        logger.info('f_tgt: {0}'.format(f_tgt))
         np.random.seed(config['_RDM_SEED'])
         #MLE
         if(type_optim == 'CRAB'):
@@ -170,16 +180,25 @@ class BatchFS(BatchBase):
         #Bayesian Optimization
         elif(type_optim == 'BO'):
             nb_init = optim_config['nb_init']
-            X_init = np.random.uniform(*domain, (nb_init, self.n_ts))
-            f_BO = lambda x: max(self.n_meas, 1) * (1 - f(x))
-            Y_init = f_BO(X_init)
             type_acq = optim_config['type_acq']
+            logger.info('type_acq: {}'.format(type_acq))
             nb_iter = optim_config['nb_iter']
             type_lik = optim_config['type_lik']
+            mo = optim_config.get('mo')
             nb_anchors = optim_config.get('nb_anchors', 15)
             acq_weight = optim_config.get('acq_weight', 4)
+            
+            f_fact = self.n_meas if type_lik == 'binomial' else 1
+            if type_acq.find('target') > 0:
+                f_wrap = lambda x: f(x) 
+            else: 
+                f_wrap = lambda x: 1-f(x)
+            f_BO = lambda x: f_fact * f_wrap(x)
+            
+            X_init = np.random.uniform(*domain, (nb_init, self.n_ts))    
+            Y_init = f_BO(X_init)
             bounds_bo = [{'name': str(i), 'type': 'continuous', 'domain': domain} for i in range(self.n_ts)]
-            logger.info('type_acq: {}'.format(type_acq))
+            
             if type_acq == 'EI':
                 bo_args = {'acquisition_type':'EI', 'domain': bounds_bo, 
                            'optim_num_anchor':nb_anchors, 'optim_num_samples':10000} 
@@ -190,35 +209,51 @@ class BatchFS(BatchBase):
             elif type_acq == 'EI_target':
                 bo_args = {'acquisition_type':'EI_target', 'domain': bounds_bo, 
                            'optim_num_anchor':nb_anchors, 'optim_num_samples':10000,
-                           'acquisition_ftarget': f_target} 
+                           'acquisition_ftarget': p_tgt} 
             elif type_acq == 'LCB_target':
                 bo_args = {'acquisition_type':'LCB_target', 'domain': bounds_bo, 
                            'optim_num_anchor':nb_anchors, 'optim_num_samples':10000, 
                             'acquisition_weight':acq_weight, 'acquisition_weight_lindec':True,
-                            'acquisition_ftarget': f_target} 
+                            'acquisition_ftarget': p_tgt} 
             else:
                 logger.error('type_acq {} not recognized'.format(type_acq))
+            
             if type_lik == 'binomial':
+                logger.info('FTARGET is used by BO')
                 bo_args.update({
                     'model_type':'GP_CUSTOM_LIK', 'inf_method':'Laplace', 
-                    'likelihood':'Binomial_' + str(self.n_meas), 'normalize_Y':False})
+                    'likelihood':'Binomial_' + str(self.n_meas), 'normalize_Y':False,
+                    'acquisition_ftarget':f_tgt})
+
+            # multioutput
+            if mo is not None:
+                bo_args.update({'mo':mo})
+                nb_output = mo['output_dim']
+            else:
+                nb_output = 1
+
             bo_args['X'] = X_init
             bo_args['Y'] = Y_init
             bo_args['num_cores'] = optim_config.get('num_cores', 1)
 
             BO = GPyOpt.methods.BayesianOptimization(f_BO, **bo_args)
             BO.run_optimization(max_iter = nb_iter, eps = 0)
-            xy, xy_exp = get_bests_from_BO(BO, f_target)
-            test = f_test(xy_exp[0])
+            (x_seen, y_seen), (x_exp,y_exp) = BO.get_best()
+            test = f_test(x_exp)
             #test_exp = f_test(xy_exp[0])
-            abs_diff = np.abs(p_target - test)
-            
+            if(np.ndim(np.squeeze(p_tgt)) == 0):
+                abs_diff = np.abs(np.squeeze(p_tgt) - test)
+            else:
+                abs_diff = 1 - test
             dico_res = {'test':test, 'params_BO': BO.model.model.param_array, 
-                'params_BO_names': BO.model.model.parameter_names(), 'ptarget':p_target, 
-                'x':xy[0], 'xy_exp':xy_exp[0], 'abs_diff':abs_diff,
+                'params_BO_names': BO.model.model.parameter_names(), 
+                'p_tgt':p_tgt, 'f_tgt':f_tgt, 'nb_output':nb_output, 
+                'x':x_seen[0], 'x_exp':x_exp[0], 'abs_diff':abs_diff,
                 'opt_pulse': np.squeeze(self.dyn.ctrl_amps),'call_f':self.call_f,
-                'call_f_test': self.call_f_test,'fid_zero_field':self.fid_zero} 
-
+                'call_f_test': self.call_f_test,'fid_zero_field':self.fid_zero,
+                'phi_0': self.dyn.initial, 'phi_tgt':self.dyn.target, 
+                'time_all':BO.cum_time, 'time_fit':BO.cum_time_fit, 
+                'time_suggest':BO.cum_time_suggest} 
         return dico_res 
 
     @classmethod
@@ -233,35 +268,23 @@ class BatchFS(BatchBase):
             abs_diff = _stats_one_field('abs_diff', v)
             call_f = _stats_one_field('call_f', v)
             time_elapsed = _stats_one_field('time_elapsed', v)
+            best_res = _get_some_res('test', v, np.max)
+            median_res = _get_some_res('test', v, np.median)
             processed.update({k:{'test_exp': test_exp, 'test':test, 
-                        'abs_diff':abs_diff, 'time_elapsed':time_elapsed, 'call_f':call_f}})
+                        'abs_diff':abs_diff, 'time_elapsed':time_elapsed, 
+                        'call_f':call_f, 'best_res': best_res, 
+                        'median_res':median_res}})
         return processed
             
 
 #=======================================#
 # HELPER FUNCTIONS
 #=======================================#
-def get_bests_from_BO(bo, target = None):
-    """ From BO optimization extract X giving the best seen Y and best expected 
-    for Xs already visited"""
-    
-    Y_pred = bo.model.predict(bo.X)
-
-    if(target is None):
-        y_seen = np.min(bo.Y)
-        x_seen = bo.X[np.argmin(bo.Y)]    
-        y_exp = np.min(Y_pred[0])
-        x_exp = bo.X[np.argmin(Y_pred[0])]
-    else:
-        if(bo.normalize_Y):
-            target = (target - bo.Y.mean())/bo.Y.std() 
-        y_seen = np.min(np.abs(bo.Y - target))
-        x_seen = bo.X[np.argmin(np.abs(bo.Y - target))]
-        y_exp = np.min(np.abs(Y_pred[0] - target))
-        x_exp = bo.X[np.argmin(np.abs(Y_pred[0] - target))]
-
-    return (x_seen, y_seen), (x_exp, y_exp)
-            
+def _get_some_res(field, list_res, criterion = np.max):
+    """ Pick some res amongst a list of res according to some criterion"""
+    field_values = np.array([res.get(field) for res in list_res])
+    field_best = criterion(field_values)
+    return [list_res[n] for n, f in enumerate(field_values) if f == field_best]
 
 def _stats_one_field(field, list_res, dico_output = False):
     field_values = np.array([res.get(field) for res in list_res])
@@ -291,7 +314,6 @@ def probit(p):
 
 
 if __name__ == '__main__':
-
     # 3 BEHAVIORS DEPENDING ON THE FIRST PARAMETER:
     #   + "gen_configs" generate config files from a metaconfig file
     #   + "gen_configs_custom" generate config files from a metaconfig file (with extra_processing)
@@ -324,6 +346,6 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test.txt', output_folder = '_configs', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_mo.txt', output_folder = '_configs_mo', update_rules = True)
         batch = BatchFS('_configs/config_res0.txt')
         batch.run_procedures(save_freq = 1)
