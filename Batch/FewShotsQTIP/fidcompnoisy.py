@@ -5,10 +5,10 @@ Created on Tue Oct 23 10:12:05 2018
 
 @author: agp1
 """
-import pdb
+# import pdb
 import numpy as np
 import qutip.control.fidcomp as qtrlfidcomp
-from qutip import Qobj
+from qutip import Qobj, sigmax, sigmay, sigmaz
 import qutip.logging_utils as logging
 logger = logging.get_logger()
 
@@ -30,6 +30,14 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
         What is the diff when dealing with operator trace then abs: does it make sense
         Remove the XXX_curent test
         No caching implemented so far
+        
+        
+    TODO:
+        a. implement shot2basis
+        b.
+        c.
+        d.
+        
     """
 
     def __init__(self, dyn, params=None):
@@ -40,8 +48,10 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
         self.noise_std = 1e-10
         self.noise_n_meas = 1
         self.noise_b_meas = None
+        if (self.noise_type == 'SHOT2BASIS') and (self.noise_b_meas is None):
+            self._build_meas_basis()
 
-    def get_noisy_fidelity(self):
+    def get_noisy_fidelity(self, log = True):
         """ (potentially) noisy fidelity.
         Remarks that it is based on the square version of the fidelity ~ proba
         """
@@ -49,21 +59,26 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
 
         if(self.noise_type is None):
             noisy_fid = self.perfect_fid
-            logger.info("No noise, fid (gaussian noise): {}".format(noisy_fid))
+            if(log):
+                logger.info("No noise, fid (gaussian noise): {}".format(noisy_fid))
             
         elif(self.noise_type == 'GAUSS'):
             noisy_fid = self.apply_noise_gauss_abs(self.perfect_fid)
-            logger.info("fid (gaussian noise): {}, fid (actual): {}".format(noisy_fid,
-                                                          self.perfect_fid))
+            if(log):
+                logger.info("fid (gaussian noise): {}, fid (actual): {}".format(noisy_fid,
+                                                             self.perfect_fid))
         elif(self.noise_type == 'SHOT2TGT'):
             #pdb.set_trace()
             noisy_fid = self.get_fidelity_shot2tgt()
-            logger.info("fid (shot2tgt): {}, fid (actual): {}".format(noisy_fid,
-                                                          self.perfect_fid))
+            if(log):
+                logger.info("fid (shot2tgt): {}, fid (actual): {}".format(noisy_fid,
+                                                             self.perfect_fid))
         elif(self.noise_type == 'SHOT2BASIS'):
+            
             noisy_fid = self.get_fidelity_shot2basis()
-            logger.info("fid (shot2tgt): {}, fid (actual): {}".format(noisy_fid,
-                                                          self.perfect_fid))
+            if(log):
+                logger.info("fid (shot2tgt): {}, fid (actual): {}".format(noisy_fid,
+                                                                   self.perfect_fid))
             
         else:
             raise NotImplementedError("type of noise {} not recognized".format(self.noise_type))
@@ -77,18 +92,12 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
 
     def get_fidelity_shot2tgt(self):
         """ Gets the current fidelity value based on SHOT MEASUREMENTS ON THE 
-        TARGET STATE prior to normalisation.        
-        + NOT CACHED SHOULD BE LOOKED AT
+        TARGET STATE prior to normalisation.     
         """
         dyn = self.parent
-        k = dyn.tslot_computer._get_timeslot_for_fidelity_calc()
-        dyn.compute_evolution()
-        if dyn.oper_dtype == Qobj:
-            proj = self.fid_norm_func((dyn._onto_evo[k]*dyn._fwd_evo[k]).diag())
-            proba = np.square(np.abs(proj))
-        else:
-            proj = self.fid_norm_func(np.diag(dyn._onto_evo[k].dot(dyn._fwd_evo[k])))
-            proba = np.abs(np.square(proj))
+        if not dyn.evo_current:
+            dyn.compute_evolution()
+        proba = self.get_proba_onto()
         f = np.average(np.random.binomial(self.noise_n_meas, proba)/self.noise_n_meas)
         self.fidelity_shot2tgt_prenorm = f
         if dyn.stats is not None:
@@ -99,32 +108,67 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
         """ Gets the current fidelity value based on SHOT MEASUREMENTS ON A 
         SPECIFIED BASIS prior to normalisation.        
         + NOT CACHED SHOULD BE LOOKED AT
-        + 
+        + NOT general enough only work with binary measurement outcome
+        + default meas_basis is only provided for one qubit
         """
-        if self.noise_b_meas is None:
-            raise NotImplementedError('noise_b_meas should be provided')
+        dyn = self.parent
+        if not dyn.evo_current:
+            dyn.compute_evolution()
+        proba = self.get_proba2basis()
+        f = [np.average(np.random.binomial(self.noise_n_meas, p)/self.noise_n_meas) for p in proba]
+        self.fidelity_shot2basis_prenorm = np.array(f)
+        if self.parent.stats is not None:
+            self.parent.stats.num_fidelity_computes += 1
+        return self.fidelity_shot2basis_prenorm
+    
+    def get_ptarget(self):
+        """ get the probabilities associated to the target state, depends on both the 
+        target state and the noise_type"""
+        if(self.noise_type == 'SHOT2BASIS'):
+            ptarget = self.get_proba2basis(self.parent.target)
+        else:
+            ptarget = 1
+        return ptarget
+
+    def get_proba2basis(self, state=None):
+        """ for a state returns the probability on being projected on some basis
+        if state is None it will take the final state of the dynamics
+        """
+        if(self.noise_b_meas is None):
+            self._build_meas_basis()
+            logger.info("built the XYZ measurement basis for qubits")
+        proba = np.squeeze([self.get_proba_onto(b, state) for b in self.noise_b_meas])
+        return proba
+
+    def get_proba_onto(self, onto = None, state = None):
+        """ Probability associated to the projection of a state onto some 
+        other state
+        by default final state onto the target"""
+        return np.square(np.abs(self.get_proj_onto(onto, state)))
+
+    def get_proj_onto(self, onto = None, state = None):
+        """ inner product of two states/density matrices
+        by default final state onto the target
+        """
         dyn = self.parent
         k = dyn.tslot_computer._get_timeslot_for_fidelity_calc()
-        dyn.compute_evolution()
-        
-        #not really nice implementation
-        proba = np.zeros((len(self.noise_b_meas)))
-        for i, b in enumerate(self.noise_b_meas):
-            if isinstance(b, Qobj):
-                proj = self.fid_norm_func((b.trans() * dyn._fwd_evo[k]).diag())
-                proba[b] = np.square(np.abs(proj))
-            else:
-                proj = self.fid_norm_func(np.dot(np.conjugate(b), dyn._fwd_evo[k]))
-                proba[b] = np.square(np.abs(proj))
-        f = np.average(np.random.binomial(self.noise_n_meas, proba)/self.noise_n_meas)
-        self.fidelity_shot2basis_prenorm = f
-        if dyn.stats is not None:
-                dyn.stats.num_fidelity_computes += 1
-        return self.fidelity_shot2basis_prenorm
+        if onto is None:
+            onto = dyn._onto_evo[k]
+        if state is None:
+            state = dyn._fwd_evo[k]
+            
+        if (type(onto) == Qobj):
+            onto = onto.full()
+        if(type(state) == Qobj):
+            state = state.full()
+        proj = self.fid_norm_func(np.diag(onto.dot(state)))
+        return proj
+
+
 
     def apply_noise_gauss_abs(self, ferr_act):
-        """ Apply Gaussian noise (corrected for the cases it fells outside [0,1]) 
-        """
+        """ Apply Gaussian noise (corrected for the cases when it fells 
+        outside [0,1]) """
         err = np.random.normal(self.noise_mean, self.noise_std)
         ferry = ferr_act + err
         if ferry > 1:
@@ -202,3 +246,20 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
 #            dyn.stats.wall_time_gradient_compute += \
 #                timeit.default_timer() - time_st
 #        return grad
+
+
+    def _build_meas_basis(self):
+        """ Build a basis for 
+        So far only implment the X, Y, Z basis for a single qubit could (should)
+        be extended
+        """
+        dyn = self.parent
+        dim = dyn.initial.shape[0]
+        if dim !=2:
+            raise NotImplementedError('when noise_b_meas not provided we cant deal with more than one qubit (yet)')
+        else:
+            b_X = sigmax().eigenstates()[1][-1].dag()
+            b_Y = sigmay().eigenstates()[1][-1].dag()
+            b_Z = sigmaz().eigenstates()[1][-1].dag()
+            b = [b_X, b_Y, b_Z]
+        self.noise_b_meas = b
