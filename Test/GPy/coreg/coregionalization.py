@@ -299,7 +299,7 @@ f_tgt2_1s = probit(tgt2_1s) ####################### USE IF NON GAUSSIAN LIKELIHO
 nb_init = 50
 X_init2_1s = np.c_[(np.random.uniform(*domain_alpha, (nb_init, 1)), np.random.uniform(*domain_beta, (nb_init, 1)))]
 Y_init2_1s = f2_1s(X_init2_1s, verbose = False)
-mo_dict2_1s = {'output_dim':3, 'rank':0, 'missing':False}
+mo_dict2_1s = {'output_dim':3, 'rank':0, 'missing':False, 'kappa_fix':True}
 bounds2_1s = [{'name': 'alpha', 'type': 'continuous', 'domain': domain_alpha}, {'name': 'beta', 'type': 'continuous', 'domain': domain_beta}]
 bo_args2_1s = {'domain': bounds2_1s, 'optim_num_anchor':5, 'optim_num_samples':10000, 
            'acquisition_type':'LCB_target', 'acquisition_weight':2, 
