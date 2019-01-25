@@ -8,15 +8,16 @@ import logging
 logger = logging.getLogger(__name__)
 
 import sys
-import numpy as np
 import pdb
+import numpy as np
+import numpy.random as rdm
+import time
+from qutip import sigmax, sigmaz, sigmay, mesolve, Qobj, Options
+import qutip.logging_utils as logging
+logger = logging.get_logger()
 from scipy.special import erfinv
 sys.path.insert(0, '/home/fred/Desktop/GPyOpt/')
 import GPyOpt
-from qutip import sigmax, sigmaz
-import qutip.logging_utils as logging
-logger = logging.get_logger()
-#QuTiP control modules
 import qutip.control.optimconfig as optimconfig
 import qutip.control.dynamics as dynamics
 #import qutip.control.optimizer as optimizer
@@ -41,22 +42,22 @@ class BatchFS(BatchBase):
         """        
         model = model_config['model']
         verbose = model_config.get('verbose', False)
-        n_ts = model_config['n_ts']
-        T = model_config['T']
         
-        # May need to make the choice of init and tgt states more flexible
-        # init = model_config.get('init','eigen0')
-        # tgt = model_config.get('tgt','eigen0')
+        #define an Hamiltonian H(t) = - Sz - hx(t) Sx
         if(model == 1):
-            #define an Hamiltonian H(t) = - Sz - hx(t) Sx
+            T = model_config['T']
+            lbnd = -4
+            ubnd = 4
             H_d = -sigmaz()
             H_c = [-sigmax()]
             H_i = - sigmaz() + 2 * sigmax()
             H_f = - sigmaz() - 2 * sigmax()
             n_ctrls = 1
-            phi_0 = H_i.eigenstates(eigvals = 1)[1][0]
-            phi_tgt = H_f.eigenstates(eigvals = 1)[1][0]
-
+            self.phi_0 = H_i.eigenstates(eigvals = 1)[1][0]
+            self.phi_tgt = H_f.eigenstates(eigvals = 1)[1][0]
+            self.n_params = model_config['n_ts']
+            self.domain = [(lbnd, ubnd) for _ in range(self.n_params)]
+            
             logger.info("Creating and configuring control optimisation objects")
             # Create the OptimConfig object
             cfg = optimconfig.OptimConfig()
@@ -64,88 +65,135 @@ class BatchFS(BatchBase):
 
             # Create the dynamics object
             dyn = dynamics.DynamicsUnitary(cfg)
-            dyn.num_tslots = n_ts
+            dyn.num_tslots = self.n_params
             dyn.evo_time = T
-            dyn.target = phi_tgt
-            dyn.initial = phi_0
+            dyn.target = self.phi_tgt
+            dyn.initial = self.phi_0
             dyn.drift_dyn_gen = H_d
             dyn.ctrl_dyn_gen = H_c
             dyn.params_lbnd = -4
             dyn.params_ubnd = 4
+        
+            # Define the figure of merit
+            #noise output      
+            noise_n_meas = model_config.get('noise_n_meas', 1)
+            noise_mean = model_config.get('noise_mean', 1)
+            noise_std = model_config.get('noise_std', 0)
+            noise_input = model_config.get('noise_input', 0)
+            noise_b_meas = model_config.get('noise_b_meas')
+            noise_type = model_config.get('noise_type')         
+    
+            # CUSTOM FIDELITY COMPUTER
+            fidcomp = FidCompUnitNoisy(dyn)
+            fidcomp.noise_mean = noise_mean
+            fidcomp.noise_std = noise_std
+            fidcomp.noise_n_meas = noise_n_meas
+            fidcomp.noise_b_meas = noise_b_meas
+            fidcomp.noise_type = noise_type#should be after others
+            dyn.fid_computer = fidcomp
+            zero_amps = np.zeros([self.n_params, n_ctrls])
+            dyn.initialize_controls(zero_amps)
+            self.fid_zero = dyn.fid_computer.get_fidelity_perfect()
+            logger.info("With zero field fid (square): {}".format(model, self.fid_zero))        
+    
+            self.dyn = dyn
+            self.n_meas = noise_n_meas
+            self.p_tgt = self.dyn.fid_computer.get_ptarget()
+            self.nb_output = 1 if fidcomp.noise_b_meas is None else len(fidcomp.noise_b_meas)
+            logger.info("Optim model {0} with {1} params between {2}-{3} and T= {4}".format(model, 
+                                            self.n_params, dyn.params_lbnd, dyn.params_ubnd, T))
+            logger.info("dynamics has been created with QuTip and saved self.dyn")
+            
+            #use during optimization
+            def f(x, verbose = verbose, noise=noise_input):
+                x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
+                if(np.ndim(x_n)>1):
+                    res = np.array([f(x_one, verbose,noise=0) for x_one in x_n])
+                else:
+                    self.call_f += 1
+                    amps = np.reshape(x_n, (self.n_params, n_ctrls))
+                    self.dyn.update_ctrl_amps(amps)
+                    res = self.dyn.fid_computer.get_noisy_fidelity()
+                    if(verbose):
+                        res_perfect = self.dyn.fid_computer.get_fidelity_perfect()
+                        print([res, res_perfect])
+                        print(np.squeeze(self.dyn.ctrl_amps))
+                return np.atleast_1d(res)
+    
+            #Use for testing the optimal pulse
+            def f_test(x, verbose = verbose):
+                if(x.shape[0] != self.n_params):
+                    res = np.array([f_test(x_one) for x_one in x])
+                else:
+                    amps = np.reshape(x, (self.n_params, n_ctrls))
+                    self.dyn.update_ctrl_amps(amps)
+                    res = self.dyn.fid_computer.get_fidelity_perfect()
+                    if(verbose):
+                        print(res)
+                        print(np.squeeze(self.dyn.ctrl_amps))
+                return res
+            
+        elif(model==2):
+            """ Simple H(a, b) = a (Z(1-b))"""
+            self.n_params = 2
+            self.domain = [(0, 2 * np.pi), (0,1)]
+            options_evolve = Options(store_states=True)
+            self.phi_0 = Qobj(np.array([1., 0.]))
+            all_e = [sigmax(), sigmay(), sigmaz()]
+            self.n_meas = model_config.get('noise_n_meas', 1)
+            self.n_meas_index = model_config.get('n_meas_index')         
+            noise_input = model_config.get('noise_input', 0)
+            self.nb_output = 3 if self.n_meas_index is None else 1
+
+            #gen random phi_target and p_tgt associated
+            x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
+            H_tgt = get_HZY(x_tgt)
+            evol_tgt = mesolve(H_tgt, self.phi_0, tlist = [0., 1.], e_ops=all_e, options = options_evolve)
+            final_expect_tgt = [e[-1] for e in evol_tgt.expect]
+            self.phi_tgt = evol_tgt.states[-1]
+            self.p_tgt = np.array([(1 + e)/2 for e in final_expect_tgt])
+            logger.info
+            
+                
+            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas):
+                x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
+                if(x_n.shape[0] != self.n_params):
+                    res = np.array([f(x_one, verbose,noise=0) for x_one in x_n])
+                else:
+                    self.call_f += 1
+                    H = get_HZY(x)
+                    e = all_e if self.n_meas_index is None else [all_e[self.n_meas_index]]
+                    evol = mesolve(H, self.phi_0, tlist = [0., 1.], e_ops=e, options = options_evolve)
+                    #final_state = evol.states[-1]
+                    final_expect = [e[-1] for e in evol.expect]
+                    proba = [(1 + e)/2 for e in final_expect]
+                    if (N == np.inf): 
+                        res = proba 
+                    else:
+                        res = rdm.binomial(N, proba) / N
+                    if(verbose): print(x, res, proba)
+                return np.atleast_1d(res)
+    
+            #Use for testing the optimal pulse
+            def f_test(x, verbose = verbose):
+                if(x.shape[0] != self.n_params):
+                    fid = np.array([f_test(x_one) for x_one in x])
+                else:
+                    H = get_HZY(x)
+                    evol = mesolve(H, self.phi_0, tlist = [0., 1.], options = options_evolve)
+                    final_state = evol.states[-1]
+                    fid_prenorm = np.square(np.abs((self.phi_tgt.dag() * final_state).tr()))
+                    fid = fid_prenorm / self.phi_tgt.norm()
+                    if(verbose): print(x, fid)
+                return fid
         else:
             raise NotImplementedError()
-
-        # Define the figure of merit
-        #noise output
-        noise_type = model_config.get('noise_type')        
-        noise_n_meas = model_config.get('noise_n_meas', 1)
-        noise_mean = model_config.get('noise_mean', 1)
-        noise_std = model_config.get('noise_std', 0)
-        noise_input = model_config.get('noise_input', 0)
-        noise_b_meas = model_config.get('noise_b_meas')
-
-        # CUSTOM FIDELITY COMPUTER
-        fidcomp = FidCompUnitNoisy(dyn)
-        fidcomp.noise_type = noise_type
-        fidcomp.noise_mean = noise_mean
-        fidcomp.noise_std = noise_std
-        fidcomp.noise_n_meas = noise_n_meas
-        fidcomp.noise_b_meas = noise_b_meas
-        dyn.fid_computer = fidcomp
-        zero_amps = np.zeros([n_ts, n_ctrls])
-        dyn.initialize_controls(zero_amps)
-        self.fid_zero = dyn.fid_computer.get_fidelity_perfect()
-        logger.info("With zero field fid (square): {}".format(model, self.fid_zero))        
-
-        self.dyn = dyn
-        self.n_meas = noise_n_meas
-        self.n_ctrls = n_ctrls
-        self.n_ts = n_ts
-        self.p_tgt = self.dyn.fid_computer.get_ptarget()
-        if self.dyn.fid_computer.noise_b_meas is None :
-            self.meas_basis = None 
-        else:
-            self.meas_basis = [b.full() for b in self.dyn.fid_computer.noise_b_meas]
-        logger.info("Optim model {0} with {1} params between {2}-{3} and T= {4}".format(model, 
-                                        n_ts, dyn.params_lbnd, dyn.params_ubnd, T))
-        logger.info("dynamics has been created with QuTip and saved self.dyn")
-        
         #figure of merit
         self.call_f = 0
         self.call_f_test = 0
-        #use during optimization
-        def f(x, verbose = verbose, noise=noise_input):
-            if noise>0:
-                x_n = np.clip(x + np.random.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) 
-            else:
-                x_n = x
-            if(x_n.shape[0] != n_ts):
-                res = np.array([f(x_one, verbose,noise=0) for x_one in x_n])
-            else:
-                self.call_f += 1
-                amps = np.reshape(x_n, (n_ts, n_ctrls))
-                self.dyn.update_ctrl_amps(amps)
-                res = self.dyn.fid_computer.get_noisy_fidelity()
-                if(verbose):
-                    res_perfect = self.dyn.fid_computer.get_fidelity_perfect()
-                    print([res, res_perfect])
-                    print(np.squeeze(self.dyn.ctrl_amps))
-            return np.atleast_1d(res)
+        self.fid_zero = None #we are not interested by this figure for this model
+        self.f_tgt = None if (self.p_tgt is None) else probit(self.p_tgt)
 
-        #Use for testing the optimal pulse
-        def f_test(x, verbose = verbose):
-            if(x.shape[0] != n_ts):
-                res = np.array([f_test(x_one) for x_one in x])
-            else:
-                self.call_f_test += 1
-                amps = np.reshape(x, (n_ts, n_ctrls))
-                self.dyn.update_ctrl_amps(amps)
-                res = self.dyn.fid_computer.get_fidelity_perfect()
-                if(verbose):
-                    print(res)
-                    print(np.squeeze(self.dyn.ctrl_amps))
-            return res
-        
         return f, f_test
 
 
@@ -156,38 +204,71 @@ class BatchFS(BatchBase):
         optim_config = config['optim']
         if(model_config.get('debug', False) or optim_config.get('debug', False)):
             pdb.set_trace()
-        f, f_test = self.setup_QTIP_model(model_config)
-        #setting up the optimizer
-
-        type_optim = optim_config.get('type_optim', 'BO')
-        domain = (self.dyn.params_lbnd, self.dyn.params_ubnd)
-        p_tgt = optim_config.get('p_tgt')
-        if p_tgt is None:
-            p_tgt = self.p_tgt
-        else:
-            logger.info('PTARGET has been retrieved from the config')
-        f_tgt = probit(p_tgt)
-        logger.info('p_tgt: {0}'.format(p_tgt))
-        logger.info('f_tgt: {0}'.format(f_tgt))
         np.random.seed(config['_RDM_SEED'])
-        #MLE
+        f, f_test = self.setup_QTIP_model(model_config)
+        
+        #setting up the optimizer
+        type_optim = optim_config.get('type_optim', 'BO')
+        logger.info('p_tgt: {0}'.format(self.p_tgt))
+        logger.info('f_tgt: {0}'.format(self.f_tgt))
+        nb_init = optim_config['nb_init']
+        nb_iter = optim_config['nb_iter']
+        nb_total = nb_init + nb_iter
+        
+        if(type_optim == 'RANDOM'):
+            time_start = time.time()
+            X_init = np.transpose([np.atleast_1d(np.random.uniform(*d, nb_total)) for d in self.domain])    
+            Y_init = f(X_init)
+            if(self.p_tgt is not None):
+                assert len(self.p_tgt) == Y_init.shape[1]
+                temp = np.abs(Y_init - np.repeat(np.squeeze(self.p_tgt)[np.newaxis, :], len(Y_init), 0))
+            else:
+                temp = Y_init
+            index_best = np.argmin(np.average(temp, 1))
+            x_seen = X_init[index_best]
+            y_seen = Y_init[index_best]
+            x_exp = x_seen
+            y_exp = y_seen
+            test = f_test(x_exp)
+            if(np.ndim(np.squeeze(self.p_tgt)) == 0):
+                abs_diff = np.abs(np.squeeze(self.p_tgt) - test)
+            else:
+                abs_diff = 1 - test
+            cum_time = time.time() - time_start
+            
+            dico_res = {'test':test, 'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt, 
+                'nb_output':self.nb_output, 'x':x_seen[0], 'x_exp':x_exp[0], 
+                'abs_diff':abs_diff,'call_f':self.call_f, 'call_f_test': self.call_f_test,
+                'fid_zero_field':self.fid_zero, 'phi_0': self.phi_0, 
+                'phi_tgt':self.phi_tgt, 'time_all':cum_time, 'time_fit':0, 
+                'time_suggest':0} 
+
         if(type_optim == 'CRAB'):
             raise NotImplementedError()
         
         elif(type_optim == 'GRAPE'):
             not NotImplementedError()
         
-        #Bayesian Optimization
-        elif(type_optim == 'BO'):
-            nb_init = optim_config['nb_init']
+
+        #Bayesian Optimization 2 flavors 'BO' and 'BO_NOOPTIM'
+        # 'BO' classical bayesian optimization
+        # 'BO_NOOPTIM' all the x are randomly generated and GP is fitted 
+        #              x_best is decided based on this model
+        elif 'BO' in type_optim: 
             type_acq = optim_config['type_acq']
             logger.info('type_acq: {}'.format(type_acq))
-            nb_iter = optim_config['nb_iter']
             type_lik = optim_config['type_lik']
             mo = optim_config.get('mo')
             nb_anchors = optim_config.get('nb_anchors', 15)
             acq_weight = optim_config.get('acq_weight', 4)
-            
+            if(type_optim == 'BO_NOOPTIM'):
+                nb_init_bo = nb_init + nb_iter
+                nb_iter_bo = 0
+                max_time_bo = 0
+            else:
+                nb_init_bo = nb_init
+                nb_iter_bo = nb_iter
+                max_time_bo = optim_config.get('max_time', 23.5*3600)
             f_fact = self.n_meas if type_lik == 'binomial' else 1
             if type_acq.find('target') > 0:
                 f_wrap = lambda x: f(x) 
@@ -195,9 +276,11 @@ class BatchFS(BatchBase):
                 f_wrap = lambda x: 1-f(x)
             f_BO = lambda x: f_fact * f_wrap(x)
             
-            X_init = np.random.uniform(*domain, (nb_init, self.n_ts))    
+            
+            
+            X_init = np.transpose([rdm.uniform(*d, nb_init_bo) for d in self.domain]) 
             Y_init = f_BO(X_init)
-            bounds_bo = [{'name': str(i), 'type': 'continuous', 'domain': domain} for i in range(self.n_ts)]
+            bounds_bo = [{'name': str(i), 'type': 'continuous', 'domain': d} for i, d in enumerate(self.domain)]
             
             if type_acq == 'EI':
                 bo_args = {'acquisition_type':'EI', 'domain': bounds_bo, 
@@ -209,12 +292,12 @@ class BatchFS(BatchBase):
             elif type_acq == 'EI_target':
                 bo_args = {'acquisition_type':'EI_target', 'domain': bounds_bo, 
                            'optim_num_anchor':nb_anchors, 'optim_num_samples':10000,
-                           'acquisition_ftarget': p_tgt} 
+                           'acquisition_ftarget': self.p_tgt} 
             elif type_acq == 'LCB_target':
                 bo_args = {'acquisition_type':'LCB_target', 'domain': bounds_bo, 
                            'optim_num_anchor':nb_anchors, 'optim_num_samples':10000, 
                             'acquisition_weight':acq_weight, 'acquisition_weight_lindec':True,
-                            'acquisition_ftarget': p_tgt} 
+                            'acquisition_ftarget': self.p_tgt} 
             else:
                 logger.error('type_acq {} not recognized'.format(type_acq))
             
@@ -223,7 +306,7 @@ class BatchFS(BatchBase):
                 bo_args.update({
                     'model_type':'GP_CUSTOM_LIK', 'inf_method':'Laplace', 
                     'likelihood':'Binomial_' + str(self.n_meas), 'normalize_Y':False,
-                    'acquisition_ftarget':f_tgt})
+                    'acquisition_ftarget':self.f_tgt})
 
             # multioutput
             if mo is not None:
@@ -237,21 +320,21 @@ class BatchFS(BatchBase):
             bo_args['num_cores'] = optim_config.get('num_cores', 1)
 
             BO = GPyOpt.methods.BayesianOptimization(f_BO, **bo_args)
-            BO.run_optimization(max_iter = nb_iter, eps = 0)
+            BO.run_optimization(max_iter = nb_iter_bo, eps = 0, max_time = max_time_bo)
             (x_seen, y_seen), (x_exp,y_exp) = BO.get_best()
             test = f_test(x_exp)
             #test_exp = f_test(xy_exp[0])
-            if(np.ndim(np.squeeze(p_tgt)) == 0):
-                abs_diff = np.abs(np.squeeze(p_tgt) - test)
+            if(np.ndim(np.squeeze(self.p_tgt)) == 0):
+                abs_diff = np.abs(np.squeeze(self.p_tgt) - test)
             else:
                 abs_diff = 1 - test
             dico_res = {'test':test, 'params_BO': BO.model.model.param_array, 
                 'params_BO_names': BO.model.model.parameter_names(), 
-                'p_tgt':p_tgt, 'f_tgt':f_tgt, 'nb_output':nb_output, 
-                'x':x_seen[0], 'x_exp':x_exp[0], 'abs_diff':abs_diff,
-                'opt_pulse': np.squeeze(self.dyn.ctrl_amps),'call_f':self.call_f,
-                'call_f_test': self.call_f_test,'fid_zero_field':self.fid_zero,
-                'phi_0': self.dyn.initial, 'phi_tgt':self.dyn.target, 
+                'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt, 'nb_output':nb_output, 
+                'x':x_seen, 'x_exp':x_exp, 'abs_diff':abs_diff,
+                'call_f':self.call_f, 'call_f_test': self.call_f_test,
+                'fid_zero_field':self.fid_zero,
+                'phi_0': self.phi_0, 'phi_tgt':self.phi_tgt, 
                 'time_all':BO.cum_time, 'time_fit':BO.cum_time_fit, 
                 'time_suggest':BO.cum_time_suggest} 
         return dico_res 
@@ -280,6 +363,14 @@ class BatchFS(BatchBase):
 #=======================================#
 # HELPER FUNCTIONS
 #=======================================#
+def get_HZY(args):
+    """ setup the parametrized Hamiltonian """
+    args = args        
+    alpha = args[0]
+    beta = args[1]
+    H = alpha * beta* sigmaz() + sigmay() * alpha * np.sqrt(1. - np.square(beta))
+    return H
+
 def _get_some_res(field, list_res, criterion = np.max):
     """ Pick some res amongst a list of res according to some criterion"""
     field_values = np.array([res.get(field) for res in list_res])
@@ -347,5 +438,5 @@ if __name__ == '__main__':
     testing = False 
     if(testing):
         BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_mo.txt', output_folder = '_configs_mo', update_rules = True)
-        batch = BatchFS('_configs/config_res0.txt')
+        batch = BatchFS('_configs_mo/config_res1.txt')
         batch.run_procedures(save_freq = 1)
