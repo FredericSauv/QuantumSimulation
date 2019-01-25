@@ -51,6 +51,23 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
         if (self.noise_type == 'SHOT2BASIS') and (self.noise_b_meas is None):
             self._build_meas_basis()
 
+
+    @property
+    def noise_type(self):
+        return self.__noise_type
+
+    @noise_type.setter
+    def noise_type(self, x):
+        self.__noise_type = x
+        if (x == 'SHOT2BASIS') :
+            if self.noise_b_meas is None:
+                self._build_meas_basis()
+                logger.info("built the XYZ measurement basis for qubits")
+            self.nb_output = len(self.noise_b_meas)
+        else:
+            self.nb_output = 1
+        
+
     def get_noisy_fidelity(self, log = True):
         """ (potentially) noisy fidelity.
         Remarks that it is based on the square version of the fidelity ~ proba
@@ -127,16 +144,13 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
         if(self.noise_type == 'SHOT2BASIS'):
             ptarget = self.get_proba2basis(self.parent.target)
         else:
-            ptarget = 1
+            ptarget = None
         return ptarget
 
     def get_proba2basis(self, state=None):
         """ for a state returns the probability on being projected on some basis
         if state is None it will take the final state of the dynamics
         """
-        if(self.noise_b_meas is None):
-            self._build_meas_basis()
-            logger.info("built the XYZ measurement basis for qubits")
         proba = np.squeeze([self.get_proba_onto(b, state) for b in self.noise_b_meas])
         return proba
 
