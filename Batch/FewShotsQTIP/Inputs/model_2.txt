@@ -1,0 +1,12 @@
+model {'model':2,'noise_type':'SHOT2BASIS','noise_n_meas':5,'_FLAG':'5s'} {'noise_n_meas':1,'_FLAG':'1s'} {'noise_n_meas':10,'_FLAG':'10s'} {'noise_n_meas':50,'_FLAG':'50s'} {'noise_n_meas':100,'_FLAG':'100s'}
+
+optim {'nb_anchors':5,'type_acq':'EI_target','type_lik':'binomial','nb_init':50,'nb_iter':50,'_FLAG':'ei_bin_50','num_cores':4,'mo':{'output_dim':3,'rank':0,'missing':False,'kappa_fix':True}} {'type_acq':'LCB_target','_FLAG':'lcb_bin_50'} {'type_optim':'BO_NOOPTIM','_FLAG':'bonoopt_50'} {'type_optim':'RANDOM','_FLAG':'random_50'} {'nb_iter':100,'_FLAG':'ei_bin_100'} {'nb_iter':100,'type_acq':'LCB_target','_FLAG':'lcb_bin_100'} {'nb_iter':100,'type_optim':'RANDOM','_FLAG':'random_100'} {'nb_iter':100,'type_optim':'BO_NOOPTIM','_FLAG':'bonoopt_100'} {'nb_iter':250,'_FLAG':'ei_bin_250'} {'nb_iter':250,'type_acq':'LCB_target','_FLAG':'lcb_bin_250'} {'nb_iter':250,'type_optim':'RANDOM','_FLAG':'random_250'} {'nb_iter':250,'type_optim':'BO_NOOPTIM','_FLAG':'bonoopt_250'}
+
+_RDM_RUNS 33
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
