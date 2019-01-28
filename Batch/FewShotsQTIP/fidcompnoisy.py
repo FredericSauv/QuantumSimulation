@@ -159,8 +159,8 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
         other state
         by default final state onto the target"""
         proba = np.square(np.abs(self.get_proj_onto(onto, state)))
-        assert np.any(proba > 1 + 1e-5), "proba > 1: {}".format(proba)
-        assert np.any(proba < -1e-5), "proba > 1: {}".format(proba)
+        assert np.any(proba < 1 + 1e-5), "proba > 1: {}".format(proba)
+        assert np.any(proba > -1e-5), "proba > 1: {}".format(proba)
         proba = np.clip(proba, 0, 1)
         return proba
 
