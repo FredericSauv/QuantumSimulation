@@ -166,7 +166,10 @@ class BatchFS(BatchBase):
                     evol = mesolve(H, self.phi_0, tlist = [0., 1.], e_ops=e, options = options_evolve)
                     #final_state = evol.states[-1]
                     final_expect = [e[-1] for e in evol.expect]
-                    proba = [(1 + e)/2 for e in final_expect]
+                    proba = np.array([(1 + e)/2 for e in final_expect])
+                    assert np.any(proba > 1 + 1e-5), "proba > 1: {}".format(proba)
+                    assert np.any(proba < -1e-5), "proba > 1: {}".format(proba)
+                    proba = np.clip(proba, 0, 1)
                     if (N == np.inf): 
                         res = proba 
                     else:

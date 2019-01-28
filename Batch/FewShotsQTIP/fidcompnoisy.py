@@ -158,7 +158,11 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
         """ Probability associated to the projection of a state onto some 
         other state
         by default final state onto the target"""
-        return np.square(np.abs(self.get_proj_onto(onto, state)))
+        proba = np.square(np.abs(self.get_proj_onto(onto, state)))
+        assert np.any(proba > 1 + 1e-5), "proba > 1: {}".format(proba)
+        assert np.any(proba < -1e-5), "proba > 1: {}".format(proba)
+        proba = np.clip(proba, 0, 1)
+        return proba
 
     def get_proj_onto(self, onto = None, state = None):
         """ inner product of two states/density matrices
