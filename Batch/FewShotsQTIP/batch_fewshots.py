@@ -4,12 +4,15 @@ Created on Thu Jul 27 13:51:45 2017
 
 @author: fs
 """
+
 import logging 
 logger = logging.getLogger(__name__)
 
 import sys
 import pdb
 import numpy as np
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 import numpy.random as rdm
 import time
 from qutip import sigmax, sigmaz, sigmay, mesolve, Qobj, Options
@@ -167,8 +170,8 @@ class BatchFS(BatchBase):
                     #final_state = evol.states[-1]
                     final_expect = [e[-1] for e in evol.expect]
                     proba = np.array([(1 + e)/2 for e in final_expect])
-                    assert np.any(proba > 1 + 1e-5), "proba > 1: {}".format(proba)
-                    assert np.any(proba < -1e-5), "proba > 1: {}".format(proba)
+                    assert np.any(proba < 1 + 1e-5), "proba > 1: {}".format(proba)
+                    assert np.any(proba > -1e-5), "proba > 1: {}".format(proba)
                     proba = np.clip(proba, 0, 1)
                     if (N == np.inf): 
                         res = proba 
@@ -265,7 +268,14 @@ class BatchFS(BatchBase):
             type_lik = optim_config['type_lik']
             mo = optim_config.get('mo')
             nb_anchors = optim_config.get('nb_anchors', 15)
+            optim_num_samples= optim_config.get('optim_num_samples', 10000)
             acq_weight = optim_config.get('acq_weight', 4)
+            acquisition_weight_lindec = optim_config.get('acquisition_weight_lindec', True)
+            model_update_interval= optim_config.get('model_update_interval', 1)
+            num_cores = optim_config.get('num_cores', 1)
+            max_iters = optim_config.get('max_iters', 1000) # used when updating the hyper-parameters
+            optimize_restarts = optim_config.get('optimize_restarts',5)
+            
             if(type_optim == 'BO_NOOPTIM'):
                 nb_init_bo = nb_init + nb_iter
                 nb_iter_bo = 0
@@ -286,30 +296,28 @@ class BatchFS(BatchBase):
             X_init = np.transpose([rdm.uniform(*d, nb_init_bo) for d in self.domain]) 
             Y_init = f_BO(X_init)
             bounds_bo = [{'name': str(i), 'type': 'continuous', 'domain': d} for i, d in enumerate(self.domain)]
+
+            bo_args = {'model_update_interval':model_update_interval, 'X':X_init,
+                    'Y':Y_init, 'domain': bounds_bo, 'optim_num_anchor':nb_anchors, 
+                    'optim_num_samples':optim_num_samples, 'num_cores':num_cores, 
+                    'max_iters':max_iters, 'optimize_restarts':optimize_restarts}    
             
             if type_acq == 'EI':
-                bo_args = {'acquisition_type':'EI', 'domain': bounds_bo, 
-                           'optim_num_anchor':nb_anchors, 'optim_num_samples':10000} 
+                bo_args.update({'acquisition_type':'EI'})
             elif type_acq == 'LCB':
-                bo_args = {'acquisition_type':'LCB', 'domain': bounds_bo, 
-                           'optim_num_anchor':nb_anchors, 'optim_num_samples':10000, 
-                            'acquisition_weight':acq_weight, 'acquisition_weight_lindec':True} 
+                bo_args.update({'acquisition_type':'LCB', 'acquisition_weight':acq_weight, 
+                                'acquisition_weight_lindec':True})
             elif type_acq == 'EI_target':
-                bo_args = {'acquisition_type':'EI_target', 'domain': bounds_bo, 
-                           'optim_num_anchor':nb_anchors, 'optim_num_samples':10000,
-                           'acquisition_ftarget': self.p_tgt} 
+                bo_args.update({'acquisition_type':'EI_target', 'acquisition_ftarget': self.p_tgt})
             elif type_acq == 'LCB_target':
-                bo_args = {'acquisition_type':'LCB_target', 'domain': bounds_bo, 
-                           'optim_num_anchor':nb_anchors, 'optim_num_samples':10000, 
-                            'acquisition_weight':acq_weight, 'acquisition_weight_lindec':True,
-                            'acquisition_ftarget': self.p_tgt} 
+                bo_args.update({'acquisition_type':'LCB_target','acquisition_weight':acq_weight, 
+                                'acquisition_weight_lindec':True, 'acquisition_ftarget': self.p_tgt})
             else:
                 logger.error('type_acq {} not recognized'.format(type_acq))
-            
+  
             if type_lik == 'binomial':
                 logger.info('FTARGET is used by BO')
-                bo_args.update({
-                    'model_type':'GP_CUSTOM_LIK', 'inf_method':'Laplace', 
+                bo_args.update({ 'model_type':'GP_CUSTOM_LIK', 'inf_method':'Laplace', 
                     'likelihood':'Binomial_' + str(self.n_meas), 'normalize_Y':False,
                     'acquisition_ftarget':self.f_tgt})
 
@@ -319,10 +327,6 @@ class BatchFS(BatchBase):
                 nb_output = mo['output_dim']
             else:
                 nb_output = 1
-
-            bo_args['X'] = X_init
-            bo_args['Y'] = Y_init
-            bo_args['num_cores'] = optim_config.get('num_cores', 1)
 
             BO = GPyOpt.methods.BayesianOptimization(f_BO, **bo_args)
             BO.run_optimization(max_iter = nb_iter_bo, eps = 0, max_time = max_time_bo)
@@ -355,12 +359,14 @@ class BatchFS(BatchBase):
             abs_diff = _stats_one_field('abs_diff', v)
             call_f = _stats_one_field('call_f', v)
             time_elapsed = _stats_one_field('time_elapsed', v)
+            time_fit = _stats_one_field('time_fit', v)
+            time_suggest = _stats_one_field('time_suggest', v)
             best_res = _get_some_res('test', v, np.max)
             median_res = _get_some_res('test', v, np.median)
             processed.update({k:{'test_exp': test_exp, 'test':test, 
-                        'abs_diff':abs_diff, 'time_elapsed':time_elapsed, 
-                        'call_f':call_f, 'best_res': best_res, 
-                        'median_res':median_res}})
+                'abs_diff':abs_diff, 'time_elapsed':time_elapsed,'call_f':call_f, 
+                'best_res': best_res, 'median_res':median_res, 'time_fit':time_fit,
+                'time_suggest':time_suggest}})
         return processed
             
 
