@@ -90,13 +90,16 @@ def write_to_file_for_eval(obj, fileName, typeWrite = 'w'):
     with open(fileName, typeWrite, newline=None) as file:
         file.write(custom_repr(obj))
 
-def eval_from_file(file, evfunc = eval):
-    """ open a txt file grasp the first element and eval it"""
+def eval_from_file(file, evfunc = eval, replace_func = None):
+    """ open a txt file grasp the first element transform it and eval it"""
+    if replace_func is None:
+        replace_func = lambda x:x
     with open(file, 'r', newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter = ' ')
         line = reader.__next__()
         assert (len(line)==1), 'not the right format/size' 
-        evaluated = evfunc(line[0])
+        transformed = replace_func(line[0])
+        evaluated = evfunc(transformed)
     return evaluated
 
 def eval_from_file_supercustom(file, evfunc = eval):

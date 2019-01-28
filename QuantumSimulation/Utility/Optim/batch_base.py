@@ -443,9 +443,10 @@ class BatchBase:
     # ---------------------------
     @classmethod
     def collect_and_process_res(cls, key_path = [], nameFile = None, allPrefix = 'res_', 
-                                folderName = None, **args):
+                                folderName = None, replace_func=None, **args):
         """ Collect and process a list of results """
-        collection = cls.collect_res(key_path, nameFile, allPrefix, folderName)
+        collection = cls.collect_res(key_path, nameFile, allPrefix, folderName, 
+                                     replace_func=replace_func)
         collection_stats = cls._process_collection_res(collection, **args)
         
         return collection_stats
@@ -458,14 +459,15 @@ class BatchBase:
 
 
     @classmethod
-    def eval_from_onefile(cls, name):
+    def eval_from_onefile(cls, name, replace_func = None):
         """ Get results from a file. Open a file and evaluate (with eval) its first element"""
-        res = ut.eval_from_file(name, evfunc = eval)
+        res = ut.eval_from_file(name, evfunc = eval,replace_func = replace_func)
         return res
     
 
     @classmethod
-    def read_res(cls, nameFile = None, allPrefix = 'res_', folderName = None, returnName = False):
+    def read_res(cls, nameFile = None, allPrefix = 'res_', folderName = None, 
+                 returnName = False, replace_func = None):
         """ Extract result(s) stored in a (several) txt file (s) and return them  
         as a (list) of evaluated objects
 
@@ -480,6 +482,7 @@ class BatchBase:
             If not None enforce collecting only the results starting with this prefix
         returnName: bool
             if True returns also the name of the file(s)
+        replace_func: <func> take the string extracted from the file and transform it
 
         Output
         ------
@@ -489,14 +492,15 @@ class BatchBase:
 
         """
         listFileName = ut.findFile(nameFile, allPrefix, folderName)
-        results = [BatchBase.eval_from_onefile(f) for f in listFileName]
+        results = [BatchBase.eval_from_onefile(f, replace_func = replace_func) for f in listFileName]
         if returnName:
             return results, listFileName
         else:
             return results
 
     @classmethod
-    def collect_res(cls, key_path = [], nameFile = None, allPrefix = 'res_', folderName = None):
+    def collect_res(cls, key_path = [], nameFile = None, allPrefix = 'res_', 
+                    folderName = None, replace_func = None):
         """ collect results and group them according to some key values 
 
         Arguments
@@ -511,7 +515,8 @@ class BatchBase:
             a dictionary where key is the concatenation of the unique set of 
             keys found and value is the res is a list of all res matching this key
         """
-        listRes, listNames = cls.read_res(nameFile, allPrefix, folderName, returnName= True)
+        listRes, listNames = cls.read_res(nameFile, allPrefix, folderName, 
+                                    returnName=True, replace_func=replace_func)
         if(len(key_path) == 0):
             res = {k:v for k,v in zip(listNames, listRes)}
 
