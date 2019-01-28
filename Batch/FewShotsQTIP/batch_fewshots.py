@@ -239,12 +239,14 @@ class BatchFS(BatchBase):
                 abs_diff = 1 - test
             cum_time = time.time() - time_start
             
+            
+            
             dico_res = {'test':test, 'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt, 
                 'nb_output':self.nb_output, 'x':x_seen[0], 'x_exp':x_exp[0], 
                 'abs_diff':abs_diff,'call_f':self.call_f, 'call_f_test': self.call_f_test,
-                'fid_zero_field':self.fid_zero, 'phi_0': self.phi_0, 
-                'phi_tgt':self.phi_tgt, 'time_all':cum_time, 'time_fit':0, 
-                'time_suggest':0} 
+                'fid_zero_field':self.fid_zero, 'phi_0': Qobj2array(self.phi_0), 
+                'phi_tgt':Qobj2array(self.phi_tgt), 'time_all':cum_time, 
+                'time_fit':0, 'time_suggest':0} 
 
         if(type_optim == 'CRAB'):
             raise NotImplementedError()
@@ -336,10 +338,9 @@ class BatchFS(BatchBase):
                 'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt, 'nb_output':nb_output, 
                 'x':x_seen, 'x_exp':x_exp, 'abs_diff':abs_diff,
                 'call_f':self.call_f, 'call_f_test': self.call_f_test,
-                'fid_zero_field':self.fid_zero,
-                'phi_0': self.phi_0, 'phi_tgt':self.phi_tgt, 
-                'time_all':BO.cum_time, 'time_fit':BO.cum_time_fit, 
-                'time_suggest':BO.cum_time_suggest} 
+                'fid_zero_field':self.fid_zero,'phi_0': Qobj2array(self.phi_0), 
+                'phi_tgt':Qobj2array(self.phi_tgt), 'time_all':BO.cum_time, 
+                'time_fit':BO.cum_time_fit, 'time_suggest':BO.cum_time_suggest} 
         return dico_res 
 
     @classmethod
@@ -366,6 +367,12 @@ class BatchFS(BatchBase):
 #=======================================#
 # HELPER FUNCTIONS
 #=======================================#
+def Qobj2array(qobj):
+    if hasattr(qobj,'full'):
+        return qobj.full() 
+    else:
+        return qobj
+    
 def get_HZY(args):
     """ setup the parametrized Hamiltonian """
     args = args        
