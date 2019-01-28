@@ -306,12 +306,12 @@ class BatchFS(BatchBase):
                 bo_args.update({'acquisition_type':'EI'})
             elif type_acq == 'LCB':
                 bo_args.update({'acquisition_type':'LCB', 'acquisition_weight':acq_weight, 
-                                'acquisition_weight_lindec':True})
+                                'acquisition_weight_lindec':acquisition_weight_lindec})
             elif type_acq == 'EI_target':
                 bo_args.update({'acquisition_type':'EI_target', 'acquisition_ftarget': self.p_tgt})
             elif type_acq == 'LCB_target':
                 bo_args.update({'acquisition_type':'LCB_target','acquisition_weight':acq_weight, 
-                                'acquisition_weight_lindec':True, 'acquisition_ftarget': self.p_tgt})
+                                'acquisition_weight_lindec':acquisition_weight_lindec, 'acquisition_ftarget': self.p_tgt})
             else:
                 logger.error('type_acq {} not recognized'.format(type_acq))
   
