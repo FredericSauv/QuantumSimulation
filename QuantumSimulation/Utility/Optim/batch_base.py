@@ -56,7 +56,7 @@ class BatchBase:
 
     # Syntax of the meta config file
     EMPTY_LINE = [[], None]
-    LEX_NA = list(['(*', ''])
+    LEX_NA = list(['(*', '', '#'])
     
     # meta parameters of the batch object
     _DEF_RES_NAME = "res_default"
