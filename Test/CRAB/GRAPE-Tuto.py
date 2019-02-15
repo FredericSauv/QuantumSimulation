@@ -41,7 +41,7 @@ dt = 0.05
 evo_times = [1.9, 1.95, 2.]
 n_evo_times = len(evo_times)
 evo_time = evo_times[0]
-n_ts = int(float(evo_time) / dt)
+n_ts = 2#int(float(evo_time) / dt)
 results = list()
 
 
@@ -126,7 +126,7 @@ for i in range(n_evo_times):
     if i+1 < len(evo_times):
         # reconfigure the dynamics for the next evo time
         evo_time = evo_times[i+1]
-        n_ts = int(float(evo_time) / dt)
+        #n_ts = 1 #int(float(evo_time) / dt)
         dyn.tau = None
         dyn.evo_time = evo_time
         dyn.num_tslots = n_ts
