@@ -11,11 +11,12 @@ logger = logging.getLogger(__name__)
 import sys
 import pdb
 import numpy as np
+from numpy import inf
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import numpy.random as rdm
 import time
-from qutip import sigmax, sigmaz, sigmay, mesolve, Qobj, Options
+from qutip import sigmax, sigmaz, sigmay, mesolve, Qobj, Options, identity, tensor, basis, cnot
 import qutip.logging_utils as logging
 logger = logging.get_logger()
 from scipy.special import erfinv
@@ -55,10 +56,11 @@ class BatchFS(BatchBase):
             H_c = [-sigmax()]
             H_i = - sigmaz() + 2 * sigmax()
             H_f = - sigmaz() - 2 * sigmax()
-            n_ctrls = 1
+            self.n_ctrls = 1
             self.phi_0 = H_i.eigenstates(eigvals = 1)[1][0]
             self.phi_tgt = H_f.eigenstates(eigvals = 1)[1][0]
-            self.n_params = model_config['n_ts']
+            self.n_ts = model_config['n_ts']
+            self.n_params = self.n_ts * self.n_ctrls
             self.domain = [(lbnd, ubnd) for _ in range(self.n_params)]
             
             logger.info("Creating and configuring control optimisation objects")
@@ -80,6 +82,7 @@ class BatchFS(BatchBase):
             # Define the figure of merit
             #noise output      
             noise_n_meas = model_config.get('noise_n_meas', 1)
+            #if noise_n_meas > 10000 : noise_n_meas = inf
             noise_mean = model_config.get('noise_mean', 1)
             noise_std = model_config.get('noise_std', 0)
             noise_input = model_config.get('noise_input', 0)
@@ -94,7 +97,7 @@ class BatchFS(BatchBase):
             fidcomp.noise_b_meas = noise_b_meas
             fidcomp.noise_type = noise_type#should be after others
             dyn.fid_computer = fidcomp
-            zero_amps = np.zeros([self.n_params, n_ctrls])
+            zero_amps = np.zeros([self.n_ts, self.n_ctrls])
             dyn.initialize_controls(zero_amps)
             self.fid_zero = dyn.fid_computer.get_fidelity_perfect()
             logger.info("With zero field fid (square): {}".format(model, self.fid_zero))        
@@ -114,7 +117,7 @@ class BatchFS(BatchBase):
                     res = np.array([f(x_one, verbose,noise=0) for x_one in x_n])
                 else:
                     self.call_f += 1
-                    amps = np.reshape(x_n, (self.n_params, n_ctrls))
+                    amps = np.reshape(x_n, (self.n_ts, self.n_ctrls))
                     self.dyn.update_ctrl_amps(amps)
                     res = self.dyn.fid_computer.get_noisy_fidelity()
                     if(verbose):
@@ -128,16 +131,17 @@ class BatchFS(BatchBase):
                 if(x.shape[0] != self.n_params):
                     res = np.array([f_test(x_one) for x_one in x])
                 else:
-                    amps = np.reshape(x, (self.n_params, n_ctrls))
+                    amps = np.reshape(x, (self.n_ts, self.n_ctrls))
                     self.dyn.update_ctrl_amps(amps)
                     res = self.dyn.fid_computer.get_fidelity_perfect()
                     if(verbose):
                         print(res)
                         print(np.squeeze(self.dyn.ctrl_amps))
                 return res
-            
+
+        #Simple H(a, b) = a (Z(1-b))#            
         elif(model==2):
-            """ Simple H(a, b) = a (Z(1-b))"""
+
             self.n_params = 2
             self.domain = [(0, 2 * np.pi), (0,1)]
             options_evolve = Options(store_states=True)
@@ -155,7 +159,7 @@ class BatchFS(BatchBase):
             final_expect_tgt = [e[-1] for e in evol_tgt.expect]
             self.phi_tgt = evol_tgt.states[-1]
             self.p_tgt = np.array([(1 + e)/2 for e in final_expect_tgt])
-            logger.info
+            #logger.info
             
                 
             def f(x, verbose = verbose, noise=noise_input, N = self.n_meas):
@@ -192,6 +196,110 @@ class BatchFS(BatchBase):
                     fid = fid_prenorm / self.phi_tgt.norm()
                     if(verbose): print(x, fid)
                 return fid
+        
+        elif(model==3):
+            """ 2 qubits gate"""
+            self.n_ts = model_config['n_ts']
+            T = model_config['T']
+            self.n_ctrls = 4
+            l_bnd = -5.
+            u_bnd = 5.
+            self.n_params = self.n_ctrls * self.n_ts
+            self.domain = [(l_bnd , u_bnd) for _ in range(self.n_params)]
+            self.phi_0 = identity(4) #start
+            self.phi_tgt = cnot() # tget
+            
+            ## MODEL
+            Sx = sigmax()
+            Sy = sigmay()
+            Sz = sigmaz()
+            Si = 0.5*identity(2)
+            H_d = 0.5*(tensor(Sx, Sx) + tensor(Sy, Sy) + tensor(Sz, Sz)) # Drift Hamiltonian
+            H_c = [tensor(Sx, Si), tensor(Sy, Si), tensor(Si, Sx), tensor(Si, Sy)] # The (four) control Hamiltonians
+            
+            logger.info("Creating and configuring control optimisation objects")
+            # Create the OptimConfig object
+            cfg = optimconfig.OptimConfig()
+            cfg.log_level = logging.INFO
+
+            # Create the dynamics object
+            dyn = dynamics.DynamicsUnitary(cfg)
+            dyn.num_tslots = self.n_ts
+            dyn.evo_time = T
+            dyn.target = self.phi_tgt
+            dyn.initial = self.phi_0
+            dyn.drift_dyn_gen = H_d
+            dyn.ctrl_dyn_gen = H_c
+            dyn.params_lbnd = l_bnd
+            dyn.params_ubnd = u_bnd
+        
+            # Define the figure of merit
+            #noise output
+            zero = basis(2, 0) 
+            one = basis(2, 1)
+            basis_init_default = [tensor(zero, zero), tensor(zero, one), tensor(one, zero), tensor(one, one)]
+            basis_meas_default = [tensor(zero, zero), tensor(zero, one), tensor(one, one), tensor(one, zero)]
+            noise_n_meas = model_config.get('noise_n_meas', 1)
+            noise_mean = model_config.get('noise_mean', 1)
+            noise_std = model_config.get('noise_std', 0)
+            noise_input = model_config.get('noise_input', 0)
+            noise_init_states = model_config.get('noise_b_init', basis_init_default)
+            noise_b_meas = model_config.get('noise_b_meas', basis_meas_default)
+            noise_type = model_config.get('noise_type')         
+    
+            # CUSTOM FIDELITY COMPUTER
+            fidcomp = FidCompUnitNoisy(dyn)
+            fidcomp.noise_mean = noise_mean
+            fidcomp.noise_std = noise_std
+            fidcomp.noise_n_meas = noise_n_meas
+            fidcomp.noise_b_meas = noise_b_meas
+            fidcomp.noise_type = noise_type#should be after others
+            fidcomp.noise_b_init = noise_init_states
+            
+            dyn.fid_computer = fidcomp
+            zero_amps = np.zeros([self.n_ts, self.n_ctrls])
+            dyn.initialize_controls(zero_amps)
+            self.fid_zero = dyn.fid_computer.get_fidelity_perfect()
+            logger.info("With zero field fid (square): {}".format(model, self.fid_zero))        
+    
+            self.dyn = dyn
+            self.n_meas = noise_n_meas
+            self.p_tgt = self.dyn.fid_computer.get_ptarget()#self.dyn.fid_computer.get_ptarget()
+            self.nb_output = 1 if fidcomp.noise_b_meas is None else len(fidcomp.noise_b_meas)
+            logger.info("Optim model {0} with {1} params between {2}-{3} and T= {4}".format(model, 
+                                            self.n_params, dyn.params_lbnd, dyn.params_ubnd, T))
+            logger.info("dynamics has been created with QuTip and saved self.dyn")
+            
+            #use during optimization
+            def f(x, verbose = verbose, noise=noise_input):
+                x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
+                if(np.ndim(x_n)>1):
+                    res = np.array([f(x_one, verbose,noise=0) for x_one in x_n])
+                else:
+                    self.call_f += 1
+                    amps = np.reshape(x_n, (self.n_ts, self.n_ctrls))
+                    self.dyn.update_ctrl_amps(amps)
+                    
+                    res = self.dyn.fid_computer.get_noisy_fidelity()
+                    if(verbose):
+                        res_perfect = self.dyn.fid_computer.get_fidelity_perfect()
+                        print([res, np.average(res), res_perfect])
+                        print(np.squeeze(self.dyn.ctrl_amps))
+                return np.atleast_1d(res)
+    
+            #Use for testing the optimal pulse
+            def f_test(x, verbose = verbose):
+                if(x.shape[0] != self.n_params):
+                    res = np.array([f_test(x_one) for x_one in x])
+                else:
+                    amps = np.reshape(x, (self.n_ts, self.n_ctrls))
+                    self.dyn.update_ctrl_amps(amps)
+                    res = self.dyn.fid_computer.get_fidelity_perfect()
+                    if(verbose):
+                        print(res)
+                        print(np.squeeze(self.dyn.ctrl_amps))
+                return res
+            ### OPTIMIZATION            
         else:
             raise NotImplementedError()
         #figure of merit
@@ -417,7 +525,7 @@ def _stats_one_field(field, list_res, dico_output = False):
     return res
 
 def probit(p):
-    return np.sqrt(2) * erfinv(2 * p -1)
+    return np.clip(np.sqrt(2) * erfinv(2 * p -1), -2.3263478740408408, 2.3263478740408408)
 
 
 if __name__ == '__main__':
@@ -453,6 +561,9 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_mo.txt', output_folder = '_configs_mo', update_rules = True)
-        batch = BatchFS('_configs_mo/config_res1.txt')
+        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_mo_model_3_gaussian.txt', output_folder = '_configs_mo3', update_rules = True)
+        batch = BatchFS('_configs_mo3/config_res2.txt')
         batch.run_procedures(save_freq = 1)
+        pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ],
+                                [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])
+        
