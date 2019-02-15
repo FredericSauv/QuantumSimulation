@@ -61,7 +61,9 @@ plt.ylabel('time/s')
 ##RANK 0
 kernX = GPy.kern.Matern52(1, variance=1., ARD=False)
 kernX += GPy.kern.White(1, 0.01)
-kern = kernX ** GPy.kern.Coregionalize(1, output_dim=6, rank=0)
+coreg = GPy.kern.Coregionalize(1, output_dim=6, rank=0)
+coreg.kappa.fix()
+kern = kernX ** coreg
 
 print(kern)
 #print(kern.coregion.W[:])
