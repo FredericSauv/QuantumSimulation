@@ -139,7 +139,8 @@ class BatchFS(BatchBase):
                         print(np.squeeze(self.dyn.ctrl_amps))
                 return res
 
-        #Simple H(a, b) = a (Z(1-b))#            
+        #Simple H(a, b) = a (Z(1-b))#
+        #A phi_target is randomly generated            
         elif(model==2):
 
             self.n_params = 2
@@ -154,6 +155,7 @@ class BatchFS(BatchBase):
 
             #gen random phi_target and p_tgt associated
             x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
+            self.x_tgt = x_tgt
             H_tgt = get_HZY(x_tgt)
             evol_tgt = mesolve(H_tgt, self.phi_0, tlist = [0., 1.], e_ops=all_e, options = options_evolve)
             final_expect_tgt = [e[-1] for e in evol_tgt.expect]
@@ -417,6 +419,11 @@ class BatchFS(BatchBase):
                                 'acquisition_weight_lindec':acquisition_weight_lindec})
             elif type_acq == 'EI_target':
                 bo_args.update({'acquisition_type':'EI_target', 'acquisition_ftarget': self.p_tgt})
+            
+            elif type_acq == 'LCB_target_oneq':
+                bo_args.update({'acquisition_type':'LCB_oneq', 'acquisition_ftarget': self.p_tgt,
+                                'acquisition_weight':acq_weight, 'acquisition_weight_lindec':acquisition_weight_lindec})
+            
             elif type_acq == 'LCB_target':
                 bo_args.update({'acquisition_type':'LCB_target','acquisition_weight':acq_weight, 
                                 'acquisition_weight_lindec':acquisition_weight_lindec, 'acquisition_ftarget': self.p_tgt})
@@ -426,9 +433,9 @@ class BatchFS(BatchBase):
             if type_lik == 'binomial':
                 logger.info('FTARGET is used by BO')
                 bo_args.update({ 'model_type':'GP_CUSTOM_LIK', 'inf_method':'Laplace', 
-                    'likelihood':'Binomial_' + str(self.n_meas), 'normalize_Y':False,
-                    'acquisition_ftarget':self.f_tgt})
-
+                    'likelihood':'Binomial_' + str(self.n_meas), 'normalize_Y':False})
+                if type_acq != 'LCB_target_oneq':
+                    bo_args.update({'acquisition_ftarget':self.f_tgt})
             # multioutput
             if mo is not None:
                 bo_args.update({'mo':mo})
@@ -561,8 +568,8 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_mo_model_3_gaussian.txt', output_folder = '_configs_mo3', update_rules = True)
-        batch = BatchFS('_configs_mo3/config_res2.txt')
+        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/model_2_newacq_comp1.txt', output_folder = '_torem', update_rules = True)
+        batch = BatchFS('_configs_mo2/config_res1.txt')
         batch.run_procedures(save_freq = 1)
         pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ],
                                 [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])
