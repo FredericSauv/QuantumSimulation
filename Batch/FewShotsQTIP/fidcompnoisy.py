@@ -32,11 +32,11 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
         No caching implemented so far
         
         
-    TODO:
-        a. implement shot2basis
-        b.
-        c.
-        d.
+    #TODO:
+        a. REFACTORING
+        b. directly store noise_b_init in dyn.target and make sure it is well managed
+        c. better management of QObj vs np.array
+        d. normalization
         
     """
 
@@ -48,6 +48,7 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
         self.noise_std = 1e-10
         self.noise_n_meas = 1
         self.noise_b_meas = None
+        self.noise_b_init = None
         if (self.noise_type == 'SHOT2BASIS') and (self.noise_b_meas is None):
             self._build_meas_basis()
 
@@ -74,7 +75,13 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
         """
         self.perfect_fid = self.get_fidelity_perfect()
 
-        if(self.noise_type is None):
+        if(self.noise_b_init is not None):
+            noisy_fid = self.get_fidelity_multi_init()
+            if(log):
+                logger.info("fid (multiinit_shot2basis): {}, fid (actual): {}".format(noisy_fid,
+                                                                   self.perfect_fid))
+
+        elif(self.noise_type is None):
             noisy_fid = self.perfect_fid
             if(log):
                 logger.info("No noise, fid (gaussian noise): {}".format(noisy_fid))
@@ -94,7 +101,7 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
             
             noisy_fid = self.get_fidelity_shot2basis()
             if(log):
-                logger.info("fid (shot2tgt): {}, fid (actual): {}".format(noisy_fid,
+                logger.info("fid (shot2basis): {}, fid (actual): {}".format(noisy_fid,
                                                                    self.perfect_fid))
             
         else:
@@ -103,61 +110,90 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
         self.noisy_fid = np.clip(noisy_fid, 0,1)
         return self.noisy_fid
 
+
+
+    
     def get_fidelity_perfect(self):
         """ Square version of the fidelity"""
         return np.square(self.get_fidelity())
+
+
+    def get_fidelity_multi_init(self, log = True):
+        """ Gets the current fidelity value based on SHOT MEASUREMENTS on a 
+        measurement basis for a list of initial states     
+        """
+        dyn = self.parent
+        if not dyn.evo_current: dyn.compute_evolution()
+        k = dyn.tslot_computer._get_timeslot_for_fidelity_calc()
+        U = dyn._fwd_evo[k]
+        evolved_states = [U*st for st in self.noise_b_init]
+        if(self.noise_type == 'SHOT2BASIS'):
+            noisy_fid = [self.get_freq2basis(st, b, self.noise_n_meas) for st, b in zip(evolved_states, self.noise_b_meas)]
+            noisy_fid = np.reshape(noisy_fid, np.size(noisy_fid))
+
+        else:
+            raise NotImplementedError("{} and multiple initial states are not (yet)"
+                                         "compatible".format(self.noise_type))
+        return noisy_fid
 
     def get_fidelity_shot2tgt(self):
         """ Gets the current fidelity value based on SHOT MEASUREMENTS ON THE 
         TARGET STATE prior to normalisation.     
         """
         dyn = self.parent
-        if not dyn.evo_current:
-            dyn.compute_evolution()
+        if not dyn.evo_current: dyn.compute_evolution()
         proba = self.get_proba_onto()
-        f = np.average(np.random.binomial(self.noise_n_meas, proba)/self.noise_n_meas)
-        self.fidelity_shot2tgt_prenorm = f
-        if dyn.stats is not None:
-                dyn.stats.num_fidelity_computes += 1
-        return self.fidelity_shot2tgt_prenorm
+        self.fidelity_shot2tgt = np.average(np.random.binomial(self.noise_n_meas, proba)/self.noise_n_meas)
+        if dyn.stats is not None: dyn.stats.num_fidelity_computes += 1
+        return self.fidelity_shot2tgt
 
     def get_fidelity_shot2basis(self):
         """ Gets the current fidelity value based on SHOT MEASUREMENTS ON A 
-        SPECIFIED BASIS prior to normalisation.        
-        + NOT CACHED SHOULD BE LOOKED AT
-        + NOT general enough only work with binary measurement outcome
+        SPECIFIED BASIS prior to normalisation.     
+        
+        + NOT general enough: only works with binary measurement outcome
         + default meas_basis is only provided for one qubit
         """
         dyn = self.parent
-        if not dyn.evo_current:
-            dyn.compute_evolution()
-        proba = self.get_proba2basis()
-        f = [np.average(np.random.binomial(self.noise_n_meas, p)/self.noise_n_meas) for p in proba]
-        self.fidelity_shot2basis_prenorm = np.array(f)
-        if self.parent.stats is not None:
-            self.parent.stats.num_fidelity_computes += 1
-        return self.fidelity_shot2basis_prenorm
+        if not dyn.evo_current: dyn.compute_evolution()
+        self.fidelity_shot2basis= self.get_freq2basis()
+        if self.parent.stats is not None: self.parent.stats.num_fidelity_computes += 1
+        return self.fidelity_shot2basis
     
-    def get_ptarget(self):
-        """ get the probabilities associated to the target state, depends on both the 
-        target state and the noise_type"""
-        if(self.noise_type == 'SHOT2BASIS'):
-            ptarget = self.get_proba2basis(self.parent.target)
-        else:
-            ptarget = None
-        return ptarget
 
-    def get_proba2basis(self, state=None):
-        """ for a state returns the probability on being projected on some basis
-        if state is None it will take the final state of the dynamics
+    def get_freq2basis(self, state=None, basis=None, n_meas=None):
+        """ for a state returns frequenccies of being projected on some basis
+        
+        + state: KET-like, default: the final state by default the final state
+        + basis: KET-like (or list<ket> or list<list<ket>>), default: self.noise_b_meas
+        + n_meas:int, default: self.n_meas
         """
-        proba = np.squeeze([self.get_proba_onto(b, state) for b in self.noise_b_meas])
+        proba = self.get_proba2basis(state, basis)
+        n = self.noise_n_meas if n_meas is None else n_meas
+        if np.ndim(proba)>0:
+            return np.array([np.random.binomial(n, p) / n for p in proba])
+        else:
+            return np.random.binomial(n, proba) / n 
+
+    def get_proba2basis(self, state=None, basis = None):
+        """ for a state returns the probability on being projected on some basis
+        
+        + state: KET-like, default: the final state by default the final state
+        + basis: KET-like (or list<ket> or list<list<ket>>), default: self.noise_b_meas
+        """
+        basis = self.noise_b_meas if basis is None else basis
+        basis = [basis] if type(basis) != list else basis
+        proba = np.squeeze([self.get_proba_onto(b, state) for b in _smartdag(basis)])
         return proba
+
 
     def get_proba_onto(self, onto = None, state = None):
         """ Probability associated to the projection of a state onto some 
-        other state
-        by default final state onto the target"""
+        other state 
+        
+        + onto: BRA-like (or list<bra>), default: the target state
+        + state: KET-like, default: the final state
+        """
         proba = np.square(np.abs(self.get_proj_onto(onto, state)))
         assert np.any(proba < 1 + 1e-5), "proba > 1: {}".format(proba)
         assert np.any(proba > -1e-5), "proba > 1: {}".format(proba)
@@ -167,22 +203,35 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
     def get_proj_onto(self, onto = None, state = None):
         """ inner product of two states/density matrices
         by default final state onto the target
+        
+        + onto: BRA-like (or list<bra>), default: the target state
+        + state: KET-like, default: the final state
         """
         dyn = self.parent
         k = dyn.tslot_computer._get_timeslot_for_fidelity_calc()
-        if onto is None:
-            onto = dyn._onto_evo[k]
-        if state is None:
-            state = dyn._fwd_evo[k]
-            
-        if (type(onto) == Qobj):
-            onto = onto.full()
-        if(type(state) == Qobj):
-            state = state.full()
-        proj = self.fid_norm_func(np.diag(onto.dot(state)))
-        return proj
+        bra = dyn._onto_evo[k] if  onto is None else onto
+        ket = dyn._fwd_evo[k] if state is None else state  
+        if (type(bra) == Qobj): bra = bra.full()
+        if(type(ket) == Qobj): ket = ket.full()
+        if(type(bra) == list):
+            proj = np.array([self.get_proj_onto(b, ket) for b in bra])
+        else:
+            proj = np.diag(bra.dot(ket))
+        return np.squeeze(proj)
 
-
+    def get_ptarget(self):
+        """ get the probabilities associated to the target state, depends on both the 
+        target state and the noise_type"""
+        if(self.noise_type == 'SHOT2BASIS'):
+            if(self.noise_b_init is not None):
+                targets = [self.parent.target * st for st in self.noise_b_init]
+                ptarget = [self.get_proba2basis(st, b) for st, b in zip(targets, self.noise_b_meas)]
+                ptarget = np.reshape(ptarget, np.size(ptarget))
+            else:
+                ptarget = self.get_proba2basis(self.parent.target)
+        else:
+            ptarget = None
+        return ptarget
 
     def apply_noise_gauss_abs(self, ferr_act):
         """ Apply Gaussian noise (corrected for the cases when it fells 
@@ -230,6 +279,8 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
 #                             "{} ".format(self.grad_norm))
 #
 #        return self.fid_err_grad
+
+
 
     def compute_fid_grad(self):
         """
@@ -281,3 +332,20 @@ class FidCompUnitNoisy(qtrlfidcomp.FidCompUnitary):
             b_Z = sigmaz().eigenstates()[1][-1].dag()
             b = [b_X, b_Y, b_Z]
         self.noise_b_meas = b
+
+
+def _smartdag(A):
+    if(type(A)==list):
+        dag = [_smartdag(a) for a in A]
+    elif(type(A)==Qobj):
+        dag = A.dag()
+    elif(type(A)==np.ndarray):
+        if(np.ndim(A) == 1):
+            dag = np.conj(A[np.newaxis, :])
+        else:
+            dag = np.conj(np.transpose(A))
+    else:
+        raise NotImplementedError("type {} not recognized".format(type(A)))
+    return dag
+    
+    
