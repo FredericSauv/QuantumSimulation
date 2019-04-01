@@ -16,7 +16,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import numpy.random as rdm
 import time
-from qutip import sigmax, sigmaz, sigmay, mesolve, Qobj, Options, identity, tensor, basis, cnot
+from qutip import sigmax, sigmaz, sigmay, mesolve, Qobj, Options, identity, tensor, basis, cnot, ry, controlled_gate
 import qutip.logging_utils as logging
 logger = logging.get_logger()
 from scipy.special import erfinv
@@ -24,8 +24,6 @@ sys.path.insert(0, '/home/fred/Desktop/GPyOpt/')
 import GPyOpt
 import qutip.control.optimconfig as optimconfig
 import qutip.control.dynamics as dynamics
-#import qutip.control.optimizer as optimizer
-#import qutip.control.stats as stats
 from fidcompnoisy import FidCompUnitNoisy
 
 if __name__ == '__main__':
@@ -35,15 +33,17 @@ else:
     sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
     from QuantumSimulation.Utility.Optim.batch_base import BatchBase
     
+X, Y, Z, I, zero, one = sigmax(), sigmay(), sigmaz(), identity(2), basis(2,0), basis(2,1)
 class BatchFS(BatchBase):
     """Implement few shots simulations for batching.
     Provides different methods for optimization / estimation
             
     """
-
+    
     def setup_QTIP_model(self, model_config):
         """ Setup the model in QuTip allowing to compute the dynamics and FoM
         """        
+        #print(zero)
         model = model_config['model']
         verbose = model_config.get('verbose', False)
         
@@ -52,10 +52,7 @@ class BatchFS(BatchBase):
             T = model_config['T']
             lbnd = -4
             ubnd = 4
-            H_d = -sigmaz()
-            H_c = [-sigmax()]
-            H_i = - sigmaz() + 2 * sigmax()
-            H_f = - sigmaz() - 2 * sigmax()
+            H_d, H_c, H_i, H_f = - Z, [-X], -Z + 2*X, -Z -2*X
             self.n_ctrls = 1
             self.phi_0 = H_i.eigenstates(eigvals = 1)[1][0]
             self.phi_tgt = H_f.eigenstates(eigvals = 1)[1][0]
@@ -147,7 +144,7 @@ class BatchFS(BatchBase):
             self.domain = [(0, 2 * np.pi), (0,1)]
             options_evolve = Options(store_states=True)
             self.phi_0 = Qobj(np.array([1., 0.]))
-            all_e = [sigmax(), sigmay(), sigmaz()]
+            all_e = [X, Y, Z]
             self.n_meas = model_config.get('noise_n_meas', 1)
             self.n_meas_index = model_config.get('n_meas_index')         
             noise_input = model_config.get('noise_input', 0)
@@ -212,12 +209,8 @@ class BatchFS(BatchBase):
             self.phi_tgt = cnot() # tget
             
             ## MODEL
-            Sx = sigmax()
-            Sy = sigmay()
-            Sz = sigmaz()
-            Si = 0.5*identity(2)
-            H_d = 0.5*(tensor(Sx, Sx) + tensor(Sy, Sy) + tensor(Sz, Sz)) # Drift Hamiltonian
-            H_c = [tensor(Sx, Si), tensor(Sy, Si), tensor(Si, Sx), tensor(Si, Sy)] # The (four) control Hamiltonians
+            H_d = 0.5*(tensor(X, X) + tensor(Y, Y) + tensor(Z, Z)) # Drift Hamiltonian
+            H_c = [tensor(X, I), tensor(Y, I), tensor(I, X), tensor(I, Y)] # The (four) control Hamiltonians
             
             logger.info("Creating and configuring control optimisation objects")
             # Create the OptimConfig object
@@ -237,8 +230,6 @@ class BatchFS(BatchBase):
         
             # Define the figure of merit
             #noise output
-            zero = basis(2, 0) 
-            one = basis(2, 1)
             basis_init_default = [tensor(zero, zero), tensor(zero, one), tensor(one, zero), tensor(one, one)]
             basis_meas_default = [tensor(zero, zero), tensor(zero, one), tensor(one, one), tensor(one, zero)]
             noise_n_meas = model_config.get('noise_n_meas', 1)
@@ -301,7 +292,60 @@ class BatchFS(BatchBase):
                         print(res)
                         print(np.squeeze(self.dyn.ctrl_amps))
                 return res
-            ### OPTIMIZATION            
+        
+        elif(model==4):
+            ## 2 qubits dynamics with only two params
+            self.n_params = 2
+            self.domain = [(0, 2 * np.pi), (0, 2 * np.pi)]
+            self.phi_0 = tensor(zero, zero)
+            #all_e = [tensor(X, I), tensor(Y, I), tensor(Z, I), tensor(I, X), tensor(I, Y), tensor(I, Z)]
+            all_e = [tensor(X, X), tensor(Y, Y), tensor(Z, Z)]
+            self.n_meas = model_config.get('noise_n_meas', 1)
+            self.n_meas_index = model_config.get('n_meas_index')         
+            noise_input = model_config.get('noise_input', 0)
+            self.nb_output = 3 if self.n_meas_index is None else 1
+        
+            #Fixed phi_tgt (Bell state) - may be random later on
+            x_tgt = (np.pi/2, np.pi) #x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
+            self.x_tgt = x_tgt
+            U_tgt = get_UCPRY(self.x_tgt)
+            self.phi_tgt = U_tgt * self.phi_0
+            self.e_tgt = [real_with_test(e.matrix_element(self.phi_tgt, self.phi_tgt)) for e in all_e]
+            self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
+            
+                
+            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas):
+                x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
+                if(x_n.shape[0] != self.n_params):
+                    res = np.array([f(x_one, verbose,noise=0) for x_one in x_n])
+                else:
+                    self.call_f += 1
+                    U = get_UCPRY(x)
+                    list_e = all_e if self.n_meas_index is None else [all_e[self.n_meas_index]]
+                    phi_f = U * self.phi_0
+                    final_expect = [real_with_test(e.matrix_element(phi_f, phi_f)) for e in list_e]
+                    proba = np.array([(1 + e)/2 for e in final_expect])
+                    assert np.any(proba < 1 + 1e-5), "proba > 1: {}".format(proba)
+                    assert np.any(proba > -1e-5), "proba > 1: {}".format(proba)
+                    proba = np.clip(proba, 0, 1)
+                    if (N == np.inf): 
+                        res = proba 
+                    else:
+                        res = rdm.binomial(N, proba) / N
+                    if(verbose): print(x, res, proba)
+                return np.atleast_1d(res)
+        
+            #Use for testing the optimal pulse
+            def f_test(x, verbose = verbose):
+                if(x.shape[0] != self.n_params):
+                    fid = np.array([f_test(x_one) for x_one in x])
+                else:
+                    U = get_UCPRY(x)
+                    phi_f = U * self.phi_0
+                    fid_prenorm = np.square(np.abs((self.phi_tgt.dag() * phi_f).tr()))
+                    fid = fid_prenorm / self.phi_tgt.norm()
+                    if(verbose): print(x, fid)
+                return fid
         else:
             raise NotImplementedError()
         #figure of merit
@@ -495,12 +539,23 @@ def Qobj2array(qobj):
         return qobj
     
 def get_HZY(args):
-    """ setup the parametrized Hamiltonian """
+    """ setup a parametrized Hamiltonian """
     args = args        
     alpha = args[0]
     beta = args[1]
-    H = alpha * beta* sigmaz() + sigmay() * alpha * np.sqrt(1. - np.square(beta))
+    H = alpha * beta * Z + Y * alpha * np.sqrt(1. - np.square(beta))
     return H
+
+def get_UCPRY(x):
+    """ setup a parametrized Unitary in the form of two parametrized gates """
+    g1 = tensor(ry(x[0]), I)
+    g2 = controlled_gate(ry(x[1]))
+    return g2 * g1
+
+    
+def real_with_test(x):
+    assert np.allclose(np.imag(x), 0.), ""
+    return np.real(x)
 
 def _get_some_res(field, list_res, criterion = np.max):
     """ Pick some res amongst a list of res according to some criterion"""
@@ -568,8 +623,8 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/model_2_newacq_comp1.txt', output_folder = '_configs_mo2', update_rules = True)
-        batch = BatchFS('_configs_mo2/config_res1.txt')
+        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_mo_model_4_twoq.txt', output_folder = '_tmp/_configs/_mo4', update_rules = True)
+        batch = BatchFS('_tmp/_configs/_mo4/config_res0.txt')
         batch.run_procedures(save_freq = 1)
         pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ],
                                 [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])
