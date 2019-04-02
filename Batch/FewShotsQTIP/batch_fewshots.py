@@ -430,6 +430,7 @@ class BatchFS(BatchBase):
             max_iters = optim_config.get('max_iters', 1000) # used when updating the hyper-parameters
             optimize_restarts = optim_config.get('optimize_restarts',5)
             
+            
             if(type_optim == 'BO_NOOPTIM'):
                 nb_init_bo = nb_init + nb_iter
                 nb_iter_bo = 0
@@ -465,8 +466,10 @@ class BatchFS(BatchBase):
                 bo_args.update({'acquisition_type':'EI_target', 'acquisition_ftarget': self.p_tgt})
             
             elif type_acq == 'LCB_target_oneq':
+                acq_nbq = optim_config['acq_nbq']
                 bo_args.update({'acquisition_type':'LCB_oneq', 'acquisition_ftarget': self.p_tgt,
-                                'acquisition_weight':acq_weight, 'acquisition_weight_lindec':acquisition_weight_lindec})
+                                'acquisition_weight':acq_weight, 'acquisition_weight_lindec':acquisition_weight_lindec,
+                                'acq_nbq':acq_nbq})
             
             elif type_acq == 'LCB_target':
                 bo_args.update({'acquisition_type':'LCB_target','acquisition_weight':acq_weight, 
@@ -624,7 +627,7 @@ if __name__ == '__main__':
     testing = False 
     if(testing):
         BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_mo_model_4_twoq.txt', output_folder = '_tmp/_configs/_mo4', update_rules = True)
-        batch = BatchFS('_tmp/_configs/_mo4/config_res0.txt')
+        batch = BatchFS('_tmp/_configs/_mo4/config_res1.txt')
         batch.run_procedures(save_freq = 1)
         pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ],
                                 [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])
