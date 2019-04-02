@@ -46,7 +46,10 @@ class BatchFS(BatchBase):
         #print(zero)
         model = model_config['model']
         verbose = model_config.get('verbose', False)
+        aggregate = model_config.get('aggregate', False)
         
+        self.call_f = 0
+        self.call_f_test = 0
         #define an Hamiltonian H(t) = - Sz - hx(t) Sx
         if(model == 1):
             T = model_config['T']
@@ -160,8 +163,7 @@ class BatchFS(BatchBase):
             self.p_tgt = np.array([(1 + e)/2 for e in final_expect_tgt])
             #logger.info
             
-                
-            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas):
+            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = aggregate):
                 x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
                 if(x_n.shape[0] != self.n_params):
                     res = np.array([f(x_one, verbose,noise=0) for x_one in x_n])
@@ -180,6 +182,9 @@ class BatchFS(BatchBase):
                         res = proba 
                     else:
                         res = rdm.binomial(N, proba) / N
+                    if aggregate:
+                        res = 1/2 * (1 + np.dot(2*self.p_tgt-1,2*res-1))
+
                     if(verbose): print(x, res, proba)
                 return np.atleast_1d(res)
     
@@ -197,7 +202,7 @@ class BatchFS(BatchBase):
                 return fid
         
         elif(model==3):
-            """ 2 qubits gate"""
+            """ 2 qubits gate -- not finished yet"""
             self.n_ts = model_config['n_ts']
             T = model_config['T']
             self.n_ctrls = 4
@@ -307,14 +312,14 @@ class BatchFS(BatchBase):
         
             #Fixed phi_tgt (Bell state) - may be random later on
             x_tgt = (np.pi/2, np.pi) #x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
-            self.x_tgt = x_tgt
+            self.x_tgt = np.array(x_tgt)
             U_tgt = get_UCPRY(self.x_tgt)
             self.phi_tgt = U_tgt * self.phi_0
             self.e_tgt = [real_with_test(e.matrix_element(self.phi_tgt, self.phi_tgt)) for e in all_e]
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
             
-                
-            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas):
+
+            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = aggregate):
                 x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
                 if(x_n.shape[0] != self.n_params):
                     res = np.array([f(x_one, verbose,noise=0) for x_one in x_n])
@@ -332,6 +337,9 @@ class BatchFS(BatchBase):
                         res = proba 
                     else:
                         res = rdm.binomial(N, proba) / N
+                    if aggregate:
+                        res = 1/4 * (1 + np.dot(2*self.p_tgt-1,2*res-1))
+
                     if(verbose): print(x, res, proba)
                 return np.atleast_1d(res)
         
@@ -349,8 +357,6 @@ class BatchFS(BatchBase):
         else:
             raise NotImplementedError()
         #figure of merit
-        self.call_f = 0
-        self.call_f_test = 0
         self.fid_zero = None #we are not interested by this figure for this model
         self.f_tgt = None if (self.p_tgt is None) else probit(self.p_tgt)
 
@@ -364,6 +370,7 @@ class BatchFS(BatchBase):
         optim_config = config['optim']
         if(model_config.get('debug', False) or optim_config.get('debug', False)):
             pdb.set_trace()
+        model_config['aggregate'] = optim_config.get('aggregate', False) # ARgh
         np.random.seed(config['_RDM_SEED'])
         f, f_test = self.setup_QTIP_model(model_config)
         
@@ -627,7 +634,7 @@ if __name__ == '__main__':
     testing = False 
     if(testing):
         BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_mo_model_4_twoq.txt', output_folder = '_tmp/_configs/_mo4', update_rules = True)
-        batch = BatchFS('_tmp/_configs/_mo4/config_res1.txt')
+        batch = BatchFS('_tmp/_configs/_mo4/config_res7.txt')
         batch.run_procedures(save_freq = 1)
         pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ],
                                 [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])
