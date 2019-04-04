@@ -706,7 +706,7 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_mo_model_5_threeq.txt', output_folder = '_tmp/_configs/_mo5', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/test_mo_model_5_threeq.txt', output_folder = '_tmp/_configs/_mo5', update_rules = True)
         batch = BatchFS('_tmp/_configs/_mo5/config_res0.txt')
         batch.run_procedures(save_freq = 1)
         pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ],

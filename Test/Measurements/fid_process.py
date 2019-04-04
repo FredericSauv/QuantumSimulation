@@ -125,6 +125,8 @@ def is_local(obj):
     _, EV = obj.eigenstates()
     return np.all([is_product(E) for E in EV])
     
+def get_projector(ket):
+    return  ket * ket.dag()
 
 def is_product(obj):
     """ can it nbe written as bipartite product works with state/ operator"""
