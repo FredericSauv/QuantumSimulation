@@ -25,6 +25,7 @@ import GPyOpt
 import qutip.control.optimconfig as optimconfig
 import qutip.control.dynamics as dynamics
 from fidcompnoisy import FidCompUnitNoisy
+import scipy.optimize 
 
 if __name__ == '__main__':
     sys.path.append('../../../QuantumSimulation')
@@ -46,8 +47,10 @@ class BatchFS(BatchBase):
         #print(zero)
         model = model_config['model']
         verbose = model_config.get('verbose', False)
-        aggregate = model_config.get('aggregate', False)
-        
+        aggregate = model_config.get('aggregate', 'no') #implemented 'no', 'fid', 'close', 'perfect'
+        aggregate = 'fid' if(aggregate == True) else aggregate
+        aggregate = 'no' if(aggregate == False) else aggregate
+
         self.call_f = 0
         self.call_f_test = 0
         #define an Hamiltonian H(t) = - Sz - hx(t) Sx
@@ -82,6 +85,7 @@ class BatchFS(BatchBase):
             # Define the figure of merit
             #noise output      
             noise_n_meas = model_config.get('noise_n_meas', 1)
+            if noise_n_meas == 'inf': noise_n_meas = inf 
             #if noise_n_meas > 10000 : noise_n_meas = inf
             noise_mean = model_config.get('noise_mean', 1)
             noise_std = model_config.get('noise_std', 0)
@@ -149,6 +153,7 @@ class BatchFS(BatchBase):
             self.phi_0 = Qobj(np.array([1., 0.]))
             all_e = [X, Y, Z]
             self.n_meas = model_config.get('noise_n_meas', 1)
+            if self.n_meas == 'inf': self.n_meas = inf
             self.n_meas_index = model_config.get('n_meas_index')         
             noise_input = model_config.get('noise_input', 0)
             self.nb_output = 3 if self.n_meas_index is None else 1
@@ -182,9 +187,10 @@ class BatchFS(BatchBase):
                         res = proba 
                     else:
                         res = rdm.binomial(N, proba) / N
-                    if aggregate:
+                    if aggregate == 'fid':
                         res = 1/2 * (1 + np.dot(2*self.p_tgt-1,2*res-1))
-
+                    if aggregate == 'close':
+                        res = 1 - np.average(np.abs(self.p_tgt-res))
                     if(verbose): print(x, res, proba)
                 return np.atleast_1d(res)
     
@@ -238,6 +244,7 @@ class BatchFS(BatchBase):
             basis_init_default = [tensor(zero, zero), tensor(zero, one), tensor(one, zero), tensor(one, one)]
             basis_meas_default = [tensor(zero, zero), tensor(zero, one), tensor(one, one), tensor(one, zero)]
             noise_n_meas = model_config.get('noise_n_meas', 1)
+            if noise_n_meas == 'inf': noise_n_meas = inf
             noise_mean = model_config.get('noise_mean', 1)
             noise_std = model_config.get('noise_std', 0)
             noise_input = model_config.get('noise_input', 0)
@@ -306,6 +313,7 @@ class BatchFS(BatchBase):
             #all_e = [tensor(X, I), tensor(Y, I), tensor(Z, I), tensor(I, X), tensor(I, Y), tensor(I, Z)]
             all_e = [tensor(X, X), tensor(Y, Y), tensor(Z, Z)]
             self.n_meas = model_config.get('noise_n_meas', 1)
+            if self.n_meas == 'inf': self.n_meas = inf
             self.n_meas_index = model_config.get('n_meas_index')         
             noise_input = model_config.get('noise_input', 0)
             self.nb_output = 3 if self.n_meas_index is None else 1
@@ -337,9 +345,10 @@ class BatchFS(BatchBase):
                         res = proba 
                     else:
                         res = rdm.binomial(N, proba) / N
-                    if aggregate:
+                    if aggregate == 'fid':
                         res = 1/4 * (1 + np.dot(2*self.p_tgt-1,2*res-1))
-
+                    if aggregate == 'close':
+                        res = 1 - np.average(np.abs(self.p_tgt-res))
                     if(verbose): print(x, res, proba)
                 return np.atleast_1d(res)
         
@@ -354,12 +363,14 @@ class BatchFS(BatchBase):
                     fid = fid_prenorm / self.phi_tgt.norm()
                     if(verbose): print(x, fid)
                 return fid
+
         elif(model==5):
             self.n_params = 6
             self.domain = [(0, 2 * np.pi)]*6
             self.phi_0 = tensor(zero, zero, zero)
             all_e = [tensor(I, Z, Z), tensor(X, X, X), tensor(X, Y, Y), tensor(Y, X, Y), tensor(Y, Y, X), tensor(Z, I, Z), tensor(Z,Z,I)]
             self.n_meas = model_config.get('noise_n_meas', 1)
+            if self.n_meas == 'inf': self.n_meas = inf
             self.n_meas_index = model_config.get('n_meas_index')         
             noise_input = model_config.get('noise_input', 0)
             self.nb_output = 3 if self.n_meas_index is None else 1
@@ -391,8 +402,10 @@ class BatchFS(BatchBase):
                         res = proba 
                     else:
                         res = rdm.binomial(N, proba) / N
-                    if aggregate:
-                        res = 1/4 * (1 + np.dot(2*self.p_tgt-1,2*res-1))
+                    if aggregate == 'fid':
+                        res = 1/8 * (1 + np.dot(2*self.p_tgt-1,2*res-1))
+                    if aggregate == 'close':
+                        res = np.average(np.abs(self.p_tgt-res))
         
                     if(verbose): print(x, res, proba)
                 return np.atleast_1d(res)
@@ -425,7 +438,7 @@ class BatchFS(BatchBase):
         optim_config = config['optim']
         if(model_config.get('debug', False) or optim_config.get('debug', False)):
             pdb.set_trace()
-        model_config['aggregate'] = optim_config.get('aggregate', False) # ARgh
+        model_config['aggregate'] = optim_config.get('aggregate', 'no') # ARgh
         np.random.seed(config['_RDM_SEED'])
         f, f_test = self.setup_QTIP_model(model_config)
         
@@ -436,9 +449,9 @@ class BatchFS(BatchBase):
         nb_init = optim_config['nb_init']
         nb_iter = optim_config['nb_iter']
         nb_total = nb_init + nb_iter
+        time_start = time.time()
         
         if(type_optim == 'RANDOM'):
-            time_start = time.time()
             X_init = np.transpose([np.atleast_1d(np.random.uniform(*d, nb_total)) for d in self.domain])    
             Y_init = f(X_init)
             if(self.p_tgt is not None):
@@ -452,20 +465,13 @@ class BatchFS(BatchBase):
             x_exp = x_seen
             y_exp = y_seen
             test = f_test(x_exp)
-            if(np.ndim(np.squeeze(self.p_tgt)) == 0):
-                abs_diff = np.abs(np.squeeze(self.p_tgt) - test)
-            else:
-                abs_diff = 1 - test
-            cum_time = time.time() - time_start
-            
-            
-            
+            abs_diff = 1 - test
+
             dico_res = {'test':test, 'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt, 
                 'nb_output':self.nb_output, 'x':x_seen[0], 'x_exp':x_exp[0], 
                 'abs_diff':abs_diff,'call_f':self.call_f, 'call_f_test': self.call_f_test,
                 'fid_zero_field':self.fid_zero, 'phi_0': Qobj2array(self.phi_0), 
-                'phi_tgt':Qobj2array(self.phi_tgt), 'time_all':cum_time, 
-                'time_fit':0, 'time_suggest':0} 
+                'phi_tgt':Qobj2array(self.phi_tgt), 'time_fit':0, 'time_suggest':0} 
 
         if(type_optim == 'CRAB'):
             raise NotImplementedError()
@@ -473,7 +479,23 @@ class BatchFS(BatchBase):
         elif(type_optim == 'GRAPE'):
             not NotImplementedError()
         
-
+        elif(type_optim == 'BFGS'):
+            X_init = np.array([rdm.uniform(*d) for d in self.domain]) 
+            f_BFGS = lambda x: 1-f(x)
+            optim = scipy.optimize.minimize(f_BFGS, x0=X_init, method='BFGS', options={'maxiter': nb_init+nb_iter-1, 'disp': False, 'return_all': False})
+            cum_time = time.time() - time_start
+            x_exp = optim['x']
+            x_seen = x_exp
+            test = f_test(x_exp)
+            #test_exp = f_test(xy_exp[0])
+            abs_diff = 1 - test
+            dico_res = {'test':test, 'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt,
+                        'x':x_seen, 'x_exp':x_exp, 'abs_diff':abs_diff,
+                        'call_f':self.call_f, 'call_f_test': self.call_f_test,
+                        'fid_zero_field':self.fid_zero,'phi_0': Qobj2array(self.phi_0), 
+                        'phi_tgt':Qobj2array(self.phi_tgt), 'time_suggest':cum_time, 
+                        'time_fit':0, 'message_BFGS':optim['message']}        
+             
         #Bayesian Optimization 2 flavors 'BO' and 'BO_NOOPTIM'
         # 'BO' classical bayesian optimization
         # 'BO_NOOPTIM' all the x are randomly generated and GP is fitted 
@@ -488,9 +510,11 @@ class BatchFS(BatchBase):
             acq_weight = optim_config.get('acq_weight', 4)
             acquisition_weight_lindec = optim_config.get('acquisition_weight_lindec', True)
             model_update_interval= optim_config.get('model_update_interval', 1)
+            hp_update_interval= optim_config.get('hp_update_interval', 1)
             num_cores = optim_config.get('num_cores', 1)
             max_iters = optim_config.get('max_iters', 1000) # used when updating the hyper-parameters
             optimize_restarts = optim_config.get('optimize_restarts',5)
+            force_grad_acq = optim_config.get('force_grad_acq',False)
             
             
             if(type_optim == 'BO_NOOPTIM'):
@@ -517,7 +541,8 @@ class BatchFS(BatchBase):
             bo_args = {'model_update_interval':model_update_interval, 'X':X_init,
                     'Y':Y_init, 'domain': bounds_bo, 'optim_num_anchor':nb_anchors, 
                     'optim_num_samples':optim_num_samples, 'num_cores':num_cores, 
-                    'max_iters':max_iters, 'optimize_restarts':optimize_restarts}    
+                    'max_iters':max_iters, 'optimize_restarts':optimize_restarts,
+                    'hp_update_interval':hp_update_interval}    
             
             if type_acq == 'EI':
                 bo_args.update({'acquisition_type':'EI'})
@@ -553,22 +578,23 @@ class BatchFS(BatchBase):
                 nb_output = 1
 
             BO = GPyOpt.methods.BayesianOptimization(f_BO, **bo_args)
+            if force_grad_acq: BO.acquisition.analytical_gradient_acq = True
             BO.run_optimization(max_iter = nb_iter_bo, eps = 0, max_time = max_time_bo)
             (x_seen, y_seen), (x_exp,y_exp) = BO.get_best()
             test = f_test(x_exp)
             #test_exp = f_test(xy_exp[0])
-            if(np.ndim(np.squeeze(self.p_tgt)) == 0):
-                abs_diff = np.abs(np.squeeze(self.p_tgt) - test)
-            else:
-                abs_diff = 1 - test
+            abs_diff = 1 - test
             dico_res = {'test':test, 'params_BO': BO.model.model.param_array, 
                 'params_BO_names': BO.model.model.parameter_names(), 
                 'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt, 'nb_output':nb_output, 
                 'x':x_seen, 'x_exp':x_exp, 'abs_diff':abs_diff,
                 'call_f':self.call_f, 'call_f_test': self.call_f_test,
                 'fid_zero_field':self.fid_zero,'phi_0': Qobj2array(self.phi_0), 
-                'phi_tgt':Qobj2array(self.phi_tgt), 'time_all':BO.cum_time, 
+                'phi_tgt':Qobj2array(self.phi_tgt), 'time_allbo':BO.cum_time, 
                 'time_fit':BO.cum_time_fit, 'time_suggest':BO.cum_time_suggest} 
+            
+        cum_time = time.time() - time_start
+        dico_res['time_all'] = cum_time
         return dico_res 
 
     @classmethod
@@ -706,8 +732,8 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_mo_model_5_threeq.txt', output_folder = '_tmp/_configs/_mo5', update_rules = True)
-        batch = BatchFS('_tmp/_configs/_mo5/config_res0.txt')
+        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_momodel_5_compspeedup.txt', output_folder = '_tmp/_configs/_mo5speedup', update_rules = True)
+        batch = BatchFS('_tmp/_configs/_mo5speedup/config_res0.txt')
         batch.run_procedures(save_freq = 1)
         pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ],
                                 [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])

@@ -1,0 +1,14 @@
+# Model three qubits with a GHZ target. Now try it with different number of iterations and shots
+model {'verbose':True,'model':5,'noise_type':'SHOT2BASIS','noise_n_meas':10,'_FLAG':'10s'}}
+
+optim {'nb_anchors':5,'type_acq':'LCB_target_oneq','acq_nbq':3,'type_lik':'binomial','nb_init':50,'nb_iter':100,'num_cores':4,'mo':{'output_dim':7,'rank':0,'missing':False,'kappa_fix':True},'optimize_restarts':1,'model_update_interval':3,'max_iters':500,'acquisition_weight_lindec':True,'acq_weight':4,'_FLAG':'baseline'} {'model_update_interval':1,'_FLAG':'updateint1'} {'model_update_interval':5,'_FLAG':'updateint5'} {'model_update_interval':1,'hp_update_interval':3,'_FLAG':'updateint1hp3'} {'model_update_interval':1,'hp_update_interval':5,'_FLAG':'updateint1hp5'} {'model_update_interval':1,'hp_update_interval':10,'_FLAG':'updateint1hp10'} {'nb_anchors':3,'_FLAG':'lcb1q_anch3'} {'nb_anchors':1,'_FLAG':'lcb1q_anch1'}
+
+
+_RDM_RUNS 50
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
