@@ -448,7 +448,7 @@ proba_1 = [(state * p).tr() for p in O_proj]
 
 # need probabilistic creation
 proba_crea = decomp(state, state_basis)
-proba_nested = 
+#proba_nested = 
 assert np.allclose(recomp(proba_crea, state_basis), state.full())
 
 
