@@ -12,7 +12,7 @@ EXTRA_PY="fidcompnoisy.py"
 
 input_file=$1
 output_folder=$2
-walltime=${3:-16}
+walltime=${3:-24}
 nb_cpus=${4:-1}
 mem=${5:-16}
 
