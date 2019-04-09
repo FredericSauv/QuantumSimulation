@@ -2,7 +2,7 @@ model {'model':5,'noise_type':'SHOT2BASIS','noise_n_meas':5,'_FLAG':'5s'} {'nois
 
 optim {'type_optim':'BO_NOOPTIM','nb_anchors':5,'type_acq':'LCB_target_oneq','acq_nbq':3,'type_lik':'binomial','nb_init':50,'nb_iter':100,'num_cores':4,'mo':{'output_dim':7,'rank':0,'missing':False,'kappa_fix':True},'optimize_restarts':1,'model_update_interval':3,'max_iters':500,'_FLAG':'noopt_lcb1q_100'} {'type_lik':None,'_FLAG':'noopt_lcb1q_gauss_100'} {'type_acq':'EI_target','_FLAG':'noopt_bin_target_100'} {'type_acq':'EI_target','type_lik':None,'_FLAG':'noopt_gauss_target_100'} {'type_acq':'EI','aggregate':True,'type_lik':None,'_FLAG':'noopt_gauss_agg_100','mo':None} {'type_optim':'RANDOM','_FLAG':'random_100'}
 
-_RDM_RUNS 20
+_RDM_RUNS 50
 _RDM_FIXSEED True
 _OUT_PREFIX 'res'
 _OUT_FOLDER 'Output/Test'
