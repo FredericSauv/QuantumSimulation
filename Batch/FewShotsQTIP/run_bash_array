@@ -12,9 +12,9 @@ EXTRA_PY="fidcompnoisy.py"
 
 input_file=$1
 output_folder=$2
-walltime=${3:-24}
+walltime=${3:-16}
 nb_cpus=${4:-1}
-mem=${5:-32}
+mem=${5:-16}
 
 # Where the final results are going to be stored TOADAPT TO NEW MODELS
 output_path="$WORK/$NAME_SETUP/${output_folder}"
