@@ -74,6 +74,19 @@ for k, v in tgt4.items():
     if np.abs(v)>1e-6:
         print(k, v)
         
+cluster4 = qt.controlled_gate(qt.sigmaz(), 4, 2, 3) * qt.controlled_gate(qt.sigmaz(), 4, 1, 2) * qt.controlled_gate(qt.sigmaz(), 4, 0, 3) *qt.controlled_gate(qt.sigmaz(), 4, 0, 1) * qt.tensor(plus, plus, plus, plus)
+tgt4_cluster = {n: op.matrix_element(cluster4, cluster4) for n, op in zip(tp_name4, tp_op4)}
+
+for k, v in tgt4_cluster.items():
+    if np.abs(v)>1e-6:
+        print(k, v)
+
+### ====================================================================== ###
+### STUDY 0: Replicate some of the models
+###          
+###          
+### ====================================================================== ###
+
 
 
 ### ====================================================================== ###
