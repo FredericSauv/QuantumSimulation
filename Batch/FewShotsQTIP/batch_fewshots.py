@@ -366,7 +366,10 @@ class BatchFS(BatchBase):
 
         elif(model==5):
             self.n_params = 6
-            self.domain = [(0, 2 * np.pi)]*6
+            if model_config.get('reduce_domain', False):
+                self.domain = [(-np.pi/4, 5 * np.pi/4)]*6
+            else:
+                self.domain = [(0, 2 * np.pi)]*6
             self.phi_0 = tensor(zero, zero, zero)
             all_e = [tensor(I, Z, Z), tensor(X, X, X), tensor(X, Y, Y), tensor(Y, X, Y), tensor(Y, Y, X), tensor(Z, I, Z), tensor(Z,Z,I)]
             self.n_meas = model_config.get('noise_n_meas', 1)
@@ -743,4 +746,14 @@ if __name__ == '__main__':
         batch.run_procedures(save_freq = 1)
         pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ],
                                 [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])
+        
+        #keys_collect = [['config', 'model', '_FLAG'], ['config', 'optim', '_FLAG']]
+        #list_output = ['avg', 'median', 'std', 'min', 'max']
+        #c_perfect = BatchFS.collect_res(key_path = keys_collect, folderName = '_tmp/_Output/_mo5_bfgs/', allPrefix = 'res',replace_func=ut.workaroundQObj)
+        #x_exp = np.array([c['x_exp'] for c in c_perfect['infs_grad_100']])
+        #x_exp_pi = np.round(x_exp/ (np.pi/2)) 
+        #x_exp_pi[np.array([np.all([ (xx>=-0.5) and (xx<=2.1) for xx in x]) for x in x_exp_pi])]
+        #diff_x = x_exp - x_exp_pi * np.pi/2
+        #test_exp = np.array([c['test'] for c in c_perfect['infs_grad_100']])
+        
         
