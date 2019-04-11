@@ -1,0 +1,15 @@
+# Model one qubits with a randomly generated target. 
+# new parameters used update hp every 5 iterations, static lcb 4
+model {'model':2,'noise_type':'SHOT2BASIS','noise_n_meas':5,'_FLAG':'5s'} {'noise_n_meas':1,'_FLAG':'1s'} {'noise_type':'SHOT2BASIS','noise_n_meas':10,'_FLAG':'10s'} {'noise_n_meas':100,'_FLAG':'100s'} {'noise_n_meas':1000,'_FLAG':'1000s'} {'noise_n_meas':25,'_FLAG':'25s'}
+
+optim {'save_extra':True,'nb_anchors':5,'type_acq':'LCB_target_oneq','acq_nbq':1,'type_lik':'binomial','nb_init':50,'nb_iter':100,'num_cores':4,'mo':{'output_dim':3,'rank':0,'missing':False,'kappa_fix':True},'optimize_restarts':1,'max_iters':500,'acquisition_weight_lindec':False,'acq_weight':4,'model_update_interval':1,'hp_update_interval':5,'_FLAG':'lcb1q_bin_100'} {'type_lik':None,'_FLAG':'lcb1q_gauss_100'} {'type_acq':'LCB_target','lcbtarget_bin_100'} {'type_acq':'LCB_target','lcbtarget_gauss_100'} {'type_optim':'RANDOM','_FLAG':'random_100'} {'nb_iter':50,'_FLAG':'lcb1q_bin_50'} {'nb_iter':50,'type_lik':None,'_FLAG':'lcb1q_gauss_50'} {'nb_iter':50,'type_acq':'LCB_target','lcbtarget_bin_50'} {'nb_iter':50,'type_acq':'LCB_target','lcbtarget_gauss_50'} {'nb_iter':50,'type_optim':'RANDOM','_FLAG':'random_50'} {'nb_iter':250,'_FLAG':'lcb1q_bin_250'} {'nb_iter':250,'type_lik':None,'_FLAG':'lcb1q_gauss_250'} {'nb_iter':250,'type_acq':'LCB_target','lcbtarget_bin_250'} {'nb_iter':250,'type_acq':'LCB_target','lcbtarget_gauss_250'} {'nb_iter':250,'type_optim':'RANDOM','_FLAG':'random_250'} {'nb_iter':500,'_FLAG':'lcb1q_bin_500'} {'nb_iter':500,'type_lik':None,'_FLAG':'lcb1q_gauss_500'} {'nb_iter':500,'type_acq':'LCB_target','lcbtarget_bin_500'} {'nb_iter':500,'type_acq':'LCB_target','lcbtarget_gauss_500'} {'nb_iter':500,'type_optim':'RANDOM','_FLAG':'random_500'}
+
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
