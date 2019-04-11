@@ -448,6 +448,7 @@ class BatchFS(BatchBase):
         logger.info('f_tgt: {0}'.format(self.f_tgt))
         nb_init = optim_config['nb_init']
         nb_iter = optim_config['nb_iter']
+        save_extra = optim_config.get('nb_iter', False)
         nb_total = nb_init + nb_iter
         time_start = time.time()
         
@@ -591,7 +592,11 @@ class BatchFS(BatchBase):
                 'call_f':self.call_f, 'call_f_test': self.call_f_test,
                 'fid_zero_field':self.fid_zero,'phi_0': Qobj2array(self.phi_0), 
                 'phi_tgt':Qobj2array(self.phi_tgt), 'time_allbo':BO.cum_time, 
-                'time_fit':BO.cum_time_fit, 'time_suggest':BO.cum_time_suggest} 
+                'time_fit':BO.cum_time_fit, 'time_suggest':BO.cum_time_suggest}
+            if(save_extra): 
+                bo_acq = BO.acquisition._compute_acq_novar(BO.X)
+                bo_tgt = f_test(BO.X)
+                dico_res.update({'bo_x': BO.X, 'bo_y': BO.Y, 'bo_acq':bo_acq, 'bo_tgt':bo_tgt})
             
         cum_time = time.time() - time_start
         dico_res['time_all'] = cum_time
@@ -732,7 +737,8 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_momodel_5_compspeedup.txt', output_folder = '_tmp/_configs/_mo5speedup', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_mo_model_5_gradient.txt', output_folder = '_tmp/_configs/_mo5gradient', update_rules = True)
+        #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
         batch = BatchFS('_tmp/_configs/_mo5speedup/config_res0.txt')
         batch.run_procedures(save_freq = 1)
         pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ],
