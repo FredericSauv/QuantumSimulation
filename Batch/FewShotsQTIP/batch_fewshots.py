@@ -460,7 +460,7 @@ class BatchFS(BatchBase):
         logger.info('f_tgt: {0}'.format(self.f_tgt))
         nb_init = optim_config['nb_init']
         nb_iter = optim_config['nb_iter']
-        save_extra = optim_config.get('nb_iter', False)
+        save_extra = optim_config.get('save_extra', False)
         nb_total = nb_init + nb_iter
         time_start = time.time()
         
@@ -526,9 +526,19 @@ class BatchFS(BatchBase):
             hp_update_interval= optim_config.get('hp_update_interval', 1)
             num_cores = optim_config.get('num_cores', 1)
             max_iters = optim_config.get('max_iters', 1000) # used when updating the hyper-parameters
-            optimize_restarts = optim_config.get('optimize_restarts',5)
+            optimize_restarts = optim_config.get('optimize_restarts',5) # for the hyperparameters fitting
             force_grad_acq = optim_config.get('force_grad_acq',False)
-            
+            nb_exploit = optim_config.get('exploitation_steps',0)
+            if optim_config.get('polish',None) is None:
+                nb_polish = 0
+                nb_tokeep = 0
+                nb_more = 0
+            else:
+                polish_dico = optim_config['polish']
+                nb_polish = optim_config.get('nb_polish',0)
+                nb_tokeep = polish_dico.get('nb_tokeep', nb_init)
+                nb_more = polish_dico.get('nb_tokeep', nb_iter)
+                
             
             if(type_optim == 'BO_NOOPTIM'):
                 nb_init_bo = nb_init + nb_iter
@@ -593,6 +603,28 @@ class BatchFS(BatchBase):
             BO = GPyOpt.methods.BayesianOptimization(f_BO, **bo_args)
             if force_grad_acq: BO.acquisition.analytical_gradient_acq = True
             BO.run_optimization(max_iter = nb_iter_bo, eps = 0, max_time = max_time_bo)
+
+            while nb_polish > 0:
+                logger.info('Polish, nb to keep {}, nb_iter {} '.format(nb_tokeep, nb_more))
+                nb_polish -= 1
+                (_, _), (x_exp, _) = BO.get_best()
+                index_tokeep = closest_to(BO.X)[:nb_tokeep]
+                BO.X = BO.X[index_tokeep]
+                BO.Y = BO.Y[index_tokeep]
+                
+                BO._update_model(BO.normalization_type)
+                BO.run_optimization(max_iter = nb_more, eps = 0, max_time = max_time_bo)
+
+            if nb_exploit>0:
+                (_, _), (x_bfexpl, _) = BO.get_best()
+                BO.acquisition_type = BO.acquisition_type.replace('EI', 'LCB')
+                BO.acquisition_weight = 0.000001
+                BO.kwargs['acquisition_weight'] = 0.000001
+                BO.acquisition = BO._acquisition_chooser()
+                BO.evaluator = BO._evaluator_chooser()    
+                logger.info('Exploitation (i.e. ucb with k=0) for {}'.format(nb_exploit))
+                BO.run_optimization(nb_exploit)
+
             (x_seen, y_seen), (x_exp,y_exp) = BO.get_best()
             test = f_test(x_exp)
             #test_exp = f_test(xy_exp[0])
@@ -605,10 +637,13 @@ class BatchFS(BatchBase):
                 'fid_zero_field':self.fid_zero,'phi_0': Qobj2array(self.phi_0), 
                 'phi_tgt':Qobj2array(self.phi_tgt), 'time_allbo':BO.cum_time, 
                 'time_fit':BO.cum_time_fit, 'time_suggest':BO.cum_time_suggest}
+            if(nb_exploit > 0):
+                f_bfexpl=f_test(x_bfexpl)
+                dico_res.update({'x_bfexpl':x_bfexpl, 'f_bfexpl':f_bfexpl, 'diff_expl':test - f_bfexpl})
             if(save_extra): 
-                bo_acq = BO.acquisition._compute_acq_novar(BO.X)
+                bo_acq, bo_acq_std = BO.acquisition._compute_acq_splitted(BO.X)
                 bo_tgt = f_test(BO.X)
-                dico_res.update({'bo_x': BO.X, 'bo_y': BO.Y, 'bo_acq':bo_acq, 'bo_tgt':bo_tgt})
+                dico_res.update({'bo_x': BO.X, 'bo_y': BO.Y, 'bo_acq':bo_acq, 'bo_tgt':bo_tgt,'bo_acq_std':bo_acq_std})
             
         cum_time = time.time() - time_start
         dico_res['time_all'] = cum_time
@@ -723,6 +758,11 @@ def _stats_one_field(field, list_res, dico_output = False):
 def probit(p):
     return np.clip(np.sqrt(2) * erfinv(2 * p -1), -2.3263478740408408, 2.3263478740408408)
 
+def closest_to(X, x_tgt):
+    return np.argsort(dist_to(X, x_tgt))
+
+def dist_to(X, x_tgt):
+    return np.linalg.norm(X-x_tgt, axis = 1) / np.shape(X)[1]
 
 if __name__ == '__main__':
     # 3 BEHAVIORS DEPENDING ON THE FIRST PARAMETER:
@@ -757,13 +797,12 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/_test_mo_model_5_gradient.txt', output_folder = '_tmp/_configs/_mo5gradient', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_model_5_polish.txt', output_folder = '_tmp/_configs/_mo5polish', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
-        batch = BatchFS('_tmp/_configs/_mo5speedup/config_res0.txt')
+        batch = BatchFS('_tmp/_configs/_mo5polish/config_res0.txt')
         batch.run_procedures(save_freq = 1)
-        pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ],
-                                [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])
-        
+
+        #pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ], [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])        
         #keys_collect = [['config', 'model', '_FLAG'], ['config', 'optim', '_FLAG']]
         #list_output = ['avg', 'median', 'std', 'min', 'max']
         #c_perfect = BatchFS.collect_res(key_path = keys_collect, folderName = '_tmp/_Output/_mo5_bfgs/', allPrefix = 'res',replace_func=ut.workaroundQObj)
