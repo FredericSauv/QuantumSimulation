@@ -53,6 +53,7 @@ class BatchFS(BatchBase):
 
         self.call_f = 0
         self.call_f_test = 0
+        x_tgt = None
         #define an Hamiltonian H(t) = - Sz - hx(t) Sx
         if(model == 1):
             T = model_config['T']
@@ -146,9 +147,8 @@ class BatchFS(BatchBase):
         #Simple H(a, b) = a (Z(1-b))#
         #A phi_target is randomly generated            
         elif(model==2):
-
             self.n_params = 2
-            self.domain = [(0, 2 * np.pi), (0,1)]
+            
             options_evolve = Options(store_states=True)
             self.phi_0 = Qobj(np.array([1., 0.]))
             all_e = [X, Y, Z]
@@ -159,9 +159,19 @@ class BatchFS(BatchBase):
             self.nb_output = 3 if self.n_meas_index is None else 1
 
             #gen random phi_target and p_tgt associated
-            x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
-            self.x_tgt = x_tgt
-            H_tgt = get_HZY(x_tgt)
+            if model_config.get('model_version', 1) == 1:
+                self.domain = [(0, 2 * np.pi), (0,1)]
+                x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
+                H_tgt = get_HZY(x_tgt)
+            elif model_config.get('model_version', 1) == 2:
+                self.domain = [(0, 2 * np.pi), (0,1)]
+                x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
+                H_tgt = get_HZY_2(x_tgt)
+            else:
+                raise NotImplementedError()
+            
+            
+            
             evol_tgt = mesolve(H_tgt, self.phi_0, tlist = [0., 1.], e_ops=all_e, options = options_evolve)
             final_expect_tgt = [e[-1] for e in evol_tgt.expect]
             self.phi_tgt = evol_tgt.states[-1]
@@ -319,9 +329,9 @@ class BatchFS(BatchBase):
             self.nb_output = 3 if self.n_meas_index is None else 1
         
             #Fixed phi_tgt (Bell state) - may be random later on
-            x_tgt = (np.pi/2, np.pi) #x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
-            self.x_tgt = np.array(x_tgt)
-            U_tgt = get_UCPRY(self.x_tgt)
+            #x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
+            x_tgt = np.array((np.pi/2, np.pi))
+            U_tgt = get_UCPRY(x_tgt)
             self.phi_tgt = U_tgt * self.phi_0
             self.e_tgt = [real_with_test(e.matrix_element(self.phi_tgt, self.phi_tgt)) for e in all_e]
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
@@ -379,9 +389,8 @@ class BatchFS(BatchBase):
             self.nb_output = 3 if self.n_meas_index is None else 1
         
             #Fixed phi_tgt (Bell state) - may be random later on
-            x_tgt = (np.pi/2, np.pi/2, np.pi, np.pi/2, np.pi/2, np.pi/2) #x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
-            self.x_tgt = np.array(x_tgt)
-            U_tgt = get_UGHZ(self.x_tgt)
+            x_tgt = np.array((np.pi/2, np.pi/2, np.pi, np.pi/2, np.pi/2, np.pi/2))     #x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
+            U_tgt = get_UGHZ(x_tgt)
             self.phi_tgt = U_tgt * self.phi_0
             self.e_tgt = [real_with_test(e.matrix_element(self.phi_tgt, self.phi_tgt)) for e in all_e]
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
@@ -431,7 +440,7 @@ class BatchFS(BatchBase):
         self.fid_zero = None #we are not interested by this figure for this model
         self.f_tgt = None if (self.p_tgt is None) else probit(self.p_tgt)
 
-        return f, f_test
+        return f, f_test, x_tgt
 
 
     def run_one_procedure(self, config):
@@ -443,7 +452,7 @@ class BatchFS(BatchBase):
             pdb.set_trace()
         model_config['aggregate'] = optim_config.get('aggregate', 'no') # ARgh
         np.random.seed(config['_RDM_SEED'])
-        f, f_test = self.setup_QTIP_model(model_config)
+        f, f_test, self.x_tgt = self.setup_QTIP_model(model_config)
         
         #setting up the optimizer
         type_optim = optim_config.get('type_optim', 'BO')
@@ -603,6 +612,7 @@ class BatchFS(BatchBase):
             
         cum_time = time.time() - time_start
         dico_res['time_all'] = cum_time
+        dico_res['x_tgt'] = self.x_tgt
         return dico_res 
 
     @classmethod
@@ -655,12 +665,19 @@ def get_UGHZ(x):
     g4 = tensor(ansatz_H(x[3]), ansatz_H(x[4]), ansatz_H(x[5]))
     return g4 * g3 * g2 * g1
 
-def get_HZY(args):
+def get_HZY(theta):
     """ setup a parametrized Hamiltonian """
-    args = args        
-    alpha = args[0]
-    beta = args[1]
+    alpha = theta[0]
+    beta = theta[1]
     H = alpha * beta * Z + Y * alpha * np.sqrt(1. - np.square(beta))
+    return H
+
+def get_HZY_2(theta):
+    """ setup a parametrized Hamiltonian - different parametrization as the one
+    above - but in essence same Hamiltonian"""        
+    alpha = theta[0]
+    beta = theta[1]
+    H = alpha * Z + Y * beta
     return H
 
 def get_UCPRY(x):
