@@ -76,12 +76,14 @@ def dico_to_text_rep(dico, fileName = None, typeWrite = 'w', beg = None, end = N
         assert hasattr(dico, 'name'), 'Utility.dico2text: need either a fileName of a name key in the dico'
         fileName = str(dico['name']) + '.txt'
     with open(fileName, typeWrite, newline=None) as file:
+        threshold = np.get_printoptions()['threshold']
+        np.set_printoptions(threshold = 1000000)
         if(beg is not None):
-            file.write(beg)
+            file.write(beg) 
         file.write(repr(dico).replace(" ","").replace("\n","").replace("array", "np.array"))
         if(end is not None):
             file.write(end)
-            
+        np.set_printoptions(threshold = threshold)
         
 # SHOULD BE USED 
 def write_to_file_for_eval(obj, fileName, typeWrite = 'w'):
