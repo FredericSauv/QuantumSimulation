@@ -148,7 +148,6 @@ class BatchFS(BatchBase):
         #A phi_target is randomly generated            
         elif(model==2):
             self.n_params = 2
-            
             options_evolve = Options(store_states=True)
             self.phi_0 = Qobj(np.array([1., 0.]))
             all_e = [X, Y, Z]
@@ -176,6 +175,7 @@ class BatchFS(BatchBase):
             final_expect_tgt = [e[-1] for e in evol_tgt.expect]
             self.phi_tgt = evol_tgt.states[-1]
             self.p_tgt = np.array([(1 + e)/2 for e in final_expect_tgt])
+            self.fid_zero = None #we are not interested by this figure for this model
             #logger.info
             
             def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = aggregate):
@@ -335,7 +335,7 @@ class BatchFS(BatchBase):
             self.phi_tgt = U_tgt * self.phi_0
             self.e_tgt = [real_with_test(e.matrix_element(self.phi_tgt, self.phi_tgt)) for e in all_e]
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
-            
+            self.fid_zero = None #we are not interested by this figure for this model
 
             def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = aggregate):
                 x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
@@ -373,6 +373,7 @@ class BatchFS(BatchBase):
                     fid = fid_prenorm / self.phi_tgt.norm()
                     if(verbose): print(x, fid)
                 return fid
+            
 
         elif(model==5):
             self.n_params = 6
@@ -394,7 +395,7 @@ class BatchFS(BatchBase):
             self.phi_tgt = U_tgt * self.phi_0
             self.e_tgt = [real_with_test(e.matrix_element(self.phi_tgt, self.phi_tgt)) for e in all_e]
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
-            
+            self.fid_zero = None #we are not interested by this figure for this model
                 
             def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = aggregate):
                 x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
@@ -433,11 +434,112 @@ class BatchFS(BatchBase):
                     fid = fid_prenorm / self.phi_tgt.norm()
                     if(verbose): print(x, fid)
                 return fid
+        
+        elif(model == 6):
+            T = model_config['T']
+            lbnd = -4
+            ubnd = 4
+            H_d, H_c, H_i, H_f = - Z, [-X], -Z + 2*X, -Z -2*X
+            self.n_ctrls = 1
+            self.phi_0 = H_i.eigenstates(eigvals = 1)[1][0]
+            self.phi_tgt = H_f.eigenstates(eigvals = 1)[1][0]
+            self.n_ts = model_config['n_ts']
+            self.n_params = self.n_ts * self.n_ctrls
+            self.domain = [(lbnd, ubnd) for _ in range(self.n_params)]
+            x_tgt = None
+            if model_config.get('model_version', 1) == 1: # shot 2 target
+                all_e = [self.phi_tgt * self.phi_tgt.dag()] # projector onto phi_tgt
+                def e_to_p(e):
+                    return e
+            elif model_config.get('model_version', 1) == 2:
+                all_e = [X, Y, Z]
+                def e_to_p(e):
+                    return (1 + e)/2
+            else:
+                raise NotImplementedError()
+
+            self.e_tgt = [real_with_test(e.matrix_element(self.phi_tgt, self.phi_tgt)) for e in all_e]
+            self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
+
+            logger.info("Creating and configuring control optimisation objects")
+            # Create the OptimConfig object
+            cfg = optimconfig.OptimConfig()
+            cfg.log_level = logging.INFO
+
+            # Create the dynamics object
+            dyn = dynamics.DynamicsUnitary(cfg)
+            dyn.num_tslots = self.n_params
+            dyn.evo_time = T
+            dyn.target = self.phi_tgt
+            dyn.initial = self.phi_0
+            dyn.drift_dyn_gen = H_d
+            dyn.ctrl_dyn_gen = H_c
+            dyn.params_lbnd = -4
+            dyn.params_ubnd = 4
+        
+            # Define the figure of merit
+            #noise output      
+            self.n_meas = model_config.get('noise_n_meas', 1)
+            if self.n_meas == 'inf': self.n_meas = inf       
+            noise_input = model_config.get('noise_input', 0)
+            self.nb_output = len(all_e)
+    
+            #  FIDELITY COMPUTER
+            fidcomp = FidCompUnitNoisy(dyn)
+            dyn.fid_computer = fidcomp
+            zero_amps = np.zeros([self.n_ts, self.n_ctrls])
+            dyn.initialize_controls(zero_amps)
+            self.fid_zero = dyn.fid_computer.get_fidelity_perfect()
+            logger.info("With zero field fid (square): {}".format(model, self.fid_zero))        
+    
+            self.dyn = dyn
+            logger.info("Optim model {0} with {1} params between {2}-{3} and T= {4}".format(model, 
+                                            self.n_params, dyn.params_lbnd, dyn.params_ubnd, T))
+            logger.info("dynamics has been created with QuTip and saved self.dyn")
             
+            #use during optimization
+            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = aggregate):
+                x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
+                if(np.ndim(x_n)>1):
+                    res = np.array([f(x_one, verbose,noise=0) for x_one in x_n])
+                else:
+                    self.call_f += 1
+                    amps = np.reshape(x_n, (self.n_ts, self.n_ctrls))
+                    self.dyn.update_ctrl_amps(amps)
+                    res_perfect = self.dyn.fid_computer.get_fidelity_perfect()
+                    k = self.dyn.tslot_computer._get_timeslot_for_fidelity_calc()
+                    phi_T = Qobj(self.dyn._fwd_evo[k])
+
+                    final_expect = np.array([real_with_test(e.matrix_element(phi_T, phi_T)) for e in all_e])
+                    proba = e_to_p(final_expect)
+                    assert np.any(proba < 1 + 1e-5), "proba > 1: {}".format(proba)
+                    assert np.any(proba > -1e-5), "proba > 1: {}".format(proba)
+                    proba = np.clip(proba, 0, 1)
+                    if (N == np.inf): 
+                        res = proba 
+                    else:
+                        res = rdm.binomial(N, proba) / N
+                    if aggregate == 'fid':
+                        res = 1/2 * (1 + np.dot(2*self.p_tgt-1,2*res-1))
+                    if aggregate == 'close':
+                        res = 1 - np.average(np.abs(self.p_tgt-res))
+                    if(verbose): print(x, res, proba, res_perfect)
+                return np.atleast_1d(res)
+    
+            #Use for testing the optimal pulse
+            def f_test(x, verbose = verbose):
+                if(x.shape[0] != self.n_params):
+                    fid = np.array([f_test(x_one) for x_one in x])
+                else:
+                    amps = np.reshape(x, (self.n_ts, self.n_ctrls))
+                    self.dyn.update_ctrl_amps(amps)
+                    fid = self.dyn.fid_computer.get_fidelity_perfect()
+                    if(verbose): print(x, fid)
+                return fid
+
         else:
             raise NotImplementedError()
         #figure of merit
-        self.fid_zero = None #we are not interested by this figure for this model
         self.f_tgt = None if (self.p_tgt is None) else probit(self.p_tgt)
 
         return f, f_test, x_tgt
@@ -508,6 +610,24 @@ class BatchFS(BatchBase):
                         'fid_zero_field':self.fid_zero,'phi_0': Qobj2array(self.phi_0), 
                         'phi_tgt':Qobj2array(self.phi_tgt), 'time_suggest':cum_time, 
                         'time_fit':0, 'message_BFGS':optim['message']}        
+        
+        elif(type_optim == 'LBFGSB'):
+            X_init = np.array([rdm.uniform(*d) for d in self.domain]) 
+            f_BFGS = lambda x: 1-f(x)
+            optim = scipy.optimize.minimize(f_BFGS, x0=X_init, method='L-BFGS-B',bounds = self.domain, options={'maxiter': nb_init+nb_iter-1, 'disp': False, 'return_all': False})
+            cum_time = time.time() - time_start
+            x_exp = optim['x']
+            x_seen = x_exp
+            test = f_test(x_exp)
+            #test_exp = f_test(xy_exp[0])
+            abs_diff = 1 - test
+            dico_res = {'test':test, 'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt,
+                        'x':x_seen, 'x_exp':x_exp, 'abs_diff':abs_diff,
+                        'call_f':self.call_f, 'call_f_test': self.call_f_test,
+                        'fid_zero_field':self.fid_zero,'phi_0': Qobj2array(self.phi_0), 
+                        'phi_tgt':Qobj2array(self.phi_tgt), 'time_suggest':cum_time, 
+                        'time_fit':0, 'message_BFGS':optim['message'],'x_init':X_init}  
+
              
         #Bayesian Optimization 2 flavors 'BO' and 'BO_NOOPTIM'
         # 'BO' classical bayesian optimization
@@ -797,9 +917,9 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_model_5_polish.txt', output_folder = '_tmp/_configs/_mo5polish', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_model_6_T11_mv1_infs.txt', output_folder = '_tmp/_configs/_mo6T11mv1infs', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
-        batch = BatchFS('_tmp/_configs/_mo5polish/config_res0.txt')
+        batch = BatchFS('_tmp/_configs/_mo6T14mv1_infs/config_res0.txt')
         batch.run_procedures(save_freq = 1)
 
         #pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ], [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])        
