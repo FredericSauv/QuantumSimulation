@@ -583,9 +583,7 @@ class BatchFS(BatchBase):
                 temp = Y_init
             index_best = np.argmin(np.average(temp, 1))
             x_seen = X_init[index_best]
-            y_seen = Y_init[index_best]
             x_exp = x_seen
-            y_exp = y_seen
             test = self.f_test(x_exp)
             abs_diff = 1 - test
 
@@ -642,21 +640,27 @@ class BatchFS(BatchBase):
         #              x_best is decided based on this model
         elif 'BO' in type_optim: 
             ### Main
-            time_allbo, time_fit, time_suggest = 0, 0, 0
+            dico_res, time_allbo, time_fit, time_suggest = {}, 0, 0, 0
             self.bo_args, f_BO = self.get_BO_args(optim_config)
             self.BO = GPyOpt.methods.BayesianOptimization(f_BO, **self.bo_args)
             force_grad_acq = optim_config.get('force_grad_acq',False)
             if force_grad_acq: self.BO.acquisition.analytical_gradient_acq = True  
+            if self.hp_constrains is not None: 
+                self.BO._create_model(self.BO.normalization_type)
+                self.constrain_hp(self.hp_constrains)
             max_time = self.bo_args['max_time_bo']
+            if(save_extra):
+                dico_res.update(self.get_info_BO(i_beg = None, i_end = None, tag='init0_'))            
             self.BO.run_optimization(max_iter = self.bo_args['nb_iter_bo'], eps = 0, max_time = max_time)
             time_allbo += self.BO.cum_time
             time_fit += self.BO.cum_time_fit
             time_suggest += self.BO.cum_time_suggest
             max_time -= self.BO.cum_time
+            if(save_extra):
+                dico_res.update(self.get_info_BO(i_beg = None, i_end = None, tag='explor0_'))
     
             nb_exploit = self.bo_args['nb_exploit']
             if nb_exploit>0:
-                (_, _), (x_bfexpl, _) = self.BO.get_best()
                 self.BO.acquisition_type = self.BO.acquisition_type.replace('EI', 'LCB')
                 self.BO.acquisition_weight = 0.000001
                 self.BO.kwargs['acquisition_weight'] = 0.000001
@@ -668,21 +672,24 @@ class BatchFS(BatchBase):
                 time_fit += self.BO.cum_time_fit
                 time_suggest += self.BO.cum_time_suggest
                 max_time -= self.BO.cum_time
-
+                if(save_extra):
+                    dico_res.update(self.get_info_BO(i_beg = None, i_end = None, tag='exploit0_'))
             
             ### Extra steps
-            
             nb_polish = self.bo_args['nb_polish']
             nb_tokeep = self.bo_args['nb_tokeep']
             nb_more = self.bo_args['nb_more']
-            polish_step = 1
+            hp_restart = self.bo_args['hp_restart']
+            polish_step = 0
+            X_keep_track = np.c_[(self.BO.X, np.zeros(len(self.BO.X)))]
+            Y_keep_track = np.c_[(self.BO.Y, np.zeros(len(self.BO.X)))]
+            self.save_hp_values()
             while nb_polish > 0 and max_time > 0:
                 (_,_), (x_exp, _) = self.BO.get_best()
                 logger.info('Polish, nb to keep {}, X times more shots {} '.format(nb_tokeep, nb_more))
                 nb_polish -= 1  
                 polish_step += 1
                 X_to_keep, Y_to_keep = filter_X(self.BO.X, self.BO.Y, x_exp, nb_tokeep)
-
                 self.domain = [(mi, ma) for mi, ma in zip(np.min(X_to_keep, 0), np.max(X_to_keep, 0))]
                 if(nb_more>1):
                     self.n_meas *= nb_more
@@ -691,16 +698,24 @@ class BatchFS(BatchBase):
                     optim_config.update({'X_init':X_to_keep, 'Y_init':Y_to_keep})
                 self.bo_args, f_BO = self.get_BO_args(optim_config)
                 self.BO = GPyOpt.methods.BayesianOptimization(f_BO, **self.bo_args)
+                if hp_restart: 
+                    self.BO._create_model(self.BO.normalization_type)
+                    self.restore_hp_values()
+                if self.hp_constrains is not None: 
+                    self.BO._create_model(self.BO.normalization_type)
+                    self.constrain_hp(self.hp_constrains)
                 if force_grad_acq: self.BO.acquisition.analytical_gradient_acq = True
+                if(save_extra):
+                    dico_res.update(self.get_info_BO(tag='init' + str(polish_step) + '_'))
                 self.BO.run_optimization(max_iter = self.bo_args['nb_iter_bo'], eps = 0, max_time = max_time)
                 time_allbo += self.BO.cum_time
                 time_fit += self.BO.cum_time_fit
                 time_suggest += self.BO.cum_time_suggest
                 max_time -= self.BO.cum_time
-
+                if(save_extra):
+                    dico_res.update(self.get_info_BO(tag='explor' + str(polish_step) + '_'))
                 
                 if nb_exploit>0:
-                    (_, _), (x_bfexpl, _) = self.BO.get_best()
                     self.BO.acquisition_type = self.BO.acquisition_type.replace('EI', 'LCB')
                     self.BO.acquisition_weight = 0.000001
                     self.BO.kwargs['acquisition_weight'] = 0.000001
@@ -712,32 +727,21 @@ class BatchFS(BatchBase):
                     time_fit += self.BO.cum_time_fit
                     time_suggest += self.BO.cum_time_suggest
                     max_time -= self.BO.cum_time
-                
-            (x_seen, y_seen), (x_exp,y_exp) = self.BO.get_best()
-            test = self.f_test(x_exp)
-            #test_exp = f_test(xy_exp[0])
-            abs_diff = 1 - test
-            dico_res = {'test':test, 'params_BO': self.BO.model.model.param_array, 
-                'params_BO_names': self.BO.model.model.parameter_names(), 
-                'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt, 'nb_output':self.nb_output, 
-                'x':x_seen, 'x_exp':x_exp, 'abs_diff':abs_diff,
-                'fid_zero_field':self.fid_zero,'phi_0': Qobj2array(self.phi_0), 
-                'phi_tgt':Qobj2array(self.phi_tgt),'polish_step':polish_step,
-                'nb_polish':nb_polish, 'nb_more':nb_more, 'nb_tokeep':nb_tokeep}
-            if(nb_exploit > 0):
-                f_bfexpl=self.f_test(x_bfexpl)
-                dico_res.update({'x_bfexpl':x_bfexpl, 'f_bfexpl':f_bfexpl, 'diff_expl':test - f_bfexpl})   
-                
-            if(save_extra): 
-                bo_acq, bo_acq_std = self.BO.acquisition._compute_acq_splitted(self.BO.X)
-                bo_tgt = self.f_test(self.BO.X)
-                dico_res.update({'bo_x': self.BO.X, 'bo_y': self.BO.Y, 'bo_acq':bo_acq, 'bo_tgt':bo_tgt,'bo_acq_std':bo_acq_std, 'bo_args':self.bo_args})
-            
-        cum_time = time.time() - time_start
-        dico_res.update({'time_allbo':time_allbo, 
-                'time_fit':time_fit, 'time_suggest':time_suggest, 'time_all':cum_time,
-                'x_tgt':self.x_tgt,'call_f':self.call_f, 'call_f_test': self.call_f_test})
-    
+                    if(save_extra):
+                        dico_res.update(self.get_info_BO(tag='exploit' + str(polish_step) + '_'))
+                X_keep_track = np.r_[(X_keep_track, np.c_[(self.BO.X, polish_step*np.ones(len(self.BO.X)))])]
+                Y_keep_track = np.r_[(Y_keep_track, np.c_[(self.BO.Y, polish_step*np.ones(len(self.BO.X)))])]
+            dico_res.update(self.get_info_BO(tag=''))            
+            dico_res.update({'params_BO_names': self.BO.model.model.parameter_names(), 'p_tgt':self.p_tgt, 
+                        'f_tgt':self.f_tgt, 'nb_output':self.nb_output, 'abs_diff':1-
+                        dico_res['test'], 'time_allbo':time_allbo, 'time_fit':time_fit, 
+                        'time_suggest':time_suggest, 'fid_zero_field':self.fid_zero,'phi_0':   
+                        Qobj2array(self.phi_0), 'phi_tgt':Qobj2array(self.phi_tgt), 'polish_step':polish_step, 
+                        'nb_polish':nb_polish, 'nb_more':nb_more, 'nb_tokeep':nb_tokeep})
+                         
+        cum_time = time.time() - time_start        
+        dico_res.update({'time_all':cum_time,'x_tgt':self.x_tgt, 'call_f':self.call_f, 
+                         'call_f_test': self.call_f_test})
         return dico_res 
 
     @classmethod
@@ -749,7 +753,7 @@ class BatchFS(BatchBase):
             #test = _stats_one_field('test', v)
             test_exp = _stats_one_field('test_exp', v)
             test = _stats_one_field('test', v)
-            abs_diff = _stats_one_field('adist_tobs_diff', v)
+            abs_diff = _stats_one_field('abs_diff', v)
             call_f = _stats_one_field('call_f', v)
             time_elapsed = _stats_one_field('time_elapsed', v)
             time_fit = _stats_one_field('time_fit', v)
@@ -778,6 +782,7 @@ class BatchFS(BatchBase):
         num_cores = optim_config.get('num_cores', 1)
         max_iters = optim_config.get('max_iters', 1000) # used when updating the hyper-parameters
         optimize_restarts = optim_config.get('optimize_restarts',5) # for the hyperparameters fitting
+        self.hp_constrains = optim_config.get('hp_constrains', None)
         if(optim_config.get('type_optim', 'BO') == 'BO_NOOPTIM'):
             nb_init_bo = nb_init + nb_iter
             nb_iter_bo = 0
@@ -809,11 +814,13 @@ class BatchFS(BatchBase):
             nb_polish = 0
             nb_tokeep = 0
             nb_more = 0
+            hp_restart = False
         else:
             polish_dico = optim_config['polish']
             nb_polish = optim_config.get('polish',None).get('nb_polish',0)
             nb_tokeep = polish_dico.get('nb_tokeep', nb_init)
             nb_more = polish_dico.get('nb_more', 1)
+            hp_restart = polish_dico.get('hp_restart', False)
         nb_exploit = optim_config.get('exploitation_steps',0)
         
         bo_args = {'model_update_interval':model_update_interval, 'X':X_init,
@@ -822,7 +829,7 @@ class BatchFS(BatchBase):
                 'max_iters':max_iters, 'optimize_restarts':optimize_restarts,
                 'hp_update_interval':hp_update_interval, 'nb_iter_bo':nb_iter_bo,
                 'max_time_bo':max_time_bo, 'nb_polish':nb_polish, 'nb_tokeep':nb_tokeep,
-                'nb_more':nb_more, 'nb_exploit':nb_exploit}
+                'nb_more':nb_more, 'nb_exploit':nb_exploit, 'hp_restart':hp_restart}
         
         if type_acq == 'EI':
             bo_args.update({'acquisition_type':'EI'})
@@ -835,8 +842,7 @@ class BatchFS(BatchBase):
         elif type_acq == 'LCB_target_oneq':
             acq_nbq = optim_config['acq_nbq']
             bo_args.update({'acquisition_type':'LCB_oneq', 'acquisition_ftarget': self.p_tgt,
-                            'acquisition_weight':acq_weight, 'acquisition_weight_lindec':acquisition_weight_lindec,
-                            'acq_nbq':acq_nbq})
+                            'acquisition_weight':acq_weight,'acquisition_weight_lindec':acquisition_weight_lindec,'acq_nbq':acq_nbq})
         
         elif type_acq == 'LCB_target':
             bo_args.update({'acquisition_type':'LCB_target','acquisition_weight':acq_weight, 
@@ -859,6 +865,45 @@ class BatchFS(BatchBase):
             
         
         return bo_args, f_BO
+    
+    def get_info_BO(self, i_beg = None, i_end = None, tag=''):
+        """ Extract domain""" 
+        res = {}
+        (x_seen, _), (x_exp,_) = self.BO.get_best()
+        x = self.BO.X
+        y = self.BO.Y
+        if i_beg is not None:
+            x, y = x[i_beg:], y[i_beg:]
+        if i_end is not None:
+            x, y = x[:-i_end], y[:-i_end]
+        res[tag + 'bo_x'] = x
+        res[tag + 'bo_y'] = y
+        bo_acq, bo_acq_std = self.BO.acquisition._compute_acq_splitted(x)
+        res[tag + 'bo_acq'] = bo_acq
+        res[tag + 'bo_acq_std'] = bo_acq_std
+        res[tag + 'bo_tgt'] = self.f_test(x)
+        res[tag + 'bo_args'] = self.BO.model.model.param_array, 
+        res[tag + 'domain'] = np.array([d['domain'] for d in self.BO.domain])
+        res[tag + 'x_exp'] = x_exp
+        res[tag + 'x_seen'] = x_seen
+        res[tag + 'test'] = self.f_test(x_exp)
+        
+        return res
+    
+    def constrain_hp(self, constrains_dico):
+        for k,v in constrains_dico.items():
+            if v == 'positive':
+                self.BO.model.model['.*'+k+'.*'].constrain_positive()
+            elif len(v) == 2:
+                self.BO.model.model['.*'+k+'.*'].constrain_bounded
+            else:
+                self.BO.model.model['.*'+k+'.*'] = v
+    def save_hp_values(self):
+        self.hp_vals = {name:[val] for name, val in zip(self.BO.model.model.parameter_names(),
+                        self.BO.model.model.param_array)}
+        
+    def restore_hp_values(self):
+        self.constrain_hp(self.hp_vals)
     
 def filter_X(X, Y,  x_best, nb):
     d_to_best = dist_to(X, x_best)
@@ -912,7 +957,7 @@ def get_UCPRY(x):
     g2 = controlled_gate(ry(x[1]))
     return g2 * g1
 
-    
+    'domain'
 def real_with_test(x):
     assert np.allclose(np.imag(x), 0.), ""
     return np.real(x)
@@ -990,7 +1035,7 @@ if __name__ == '__main__':
     if(testing):
         BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_model_4_polish.txt', output_folder = '_tmp/_configs/_mo4_polish', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
-        batch = BatchFS('_tmp/_configs/_mo4_polish/config_res1.txt')
+        batch = BatchFS('_tmp/_configs/_mo4_polish/config_res2.txt')
         batch.run_procedures(save_freq = 1)
 
         #pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ], [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])        
