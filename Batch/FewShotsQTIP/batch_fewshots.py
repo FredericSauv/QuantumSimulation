@@ -895,7 +895,7 @@ class BatchFS(BatchBase):
             if v == 'positive':
                 self.BO.model.model['.*'+k+'.*'].constrain_positive()
             elif len(v) == 2:
-                self.BO.model.model['.*'+k+'.*'].constrain_bounded
+                self.BO.model.model['.*'+k+'.*'].constrain_bounded(v[0], v[1], warning = False)
             else:
                 self.BO.model.model['.*'+k+'.*'] = v
     def save_hp_values(self):
