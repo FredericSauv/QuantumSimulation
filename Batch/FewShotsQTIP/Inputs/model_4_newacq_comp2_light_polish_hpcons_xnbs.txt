@@ -1,0 +1,14 @@
+# Model three qubits with a GHZ target. Now try it with different number of iterations and shots
+# new parameters used update hp every 5 iterations, static lcb 4
+model {'model':4,'noise_type':'SHOT2BASIS','noise_n_meas':1,'_FLAG':'1s'}
+
+optim {'save_extra':True,'nb_anchors':5,'type_acq':'LCB_target_oneq','acq_nbq':2,'type_lik':'binomial','nb_init':50,'nb_iter':250,'num_cores':4,'mo':{'output_dim':3,'rank':0,'missing':False,'kappa_fix':True},'optimize_restarts':1,'max_iters':500,'acquisition_weight_lindec':False,'acq_weight':4,'model_update_interval':1,'hp_update_interval':5,'_FLAG':'lcb1q_bin_250','exploitation_steps':10,'hp_constrains':{'Mat52.lengthscale':[0.5,3.],'Mat52.variance':[0.5,3.0],'white.variance':[1e-09,10.]}} {'nb_iter':50,'_FLAG':'lcb1q_bin_50'} {'nb_iter':250,'_FLAG':'lcb1q_bin_polish_1x5_250','polish':{'nb_more':5,'nb_polish':1}} {'nb_iter':250,'_FLAG':'lcb1q_bin_polish_1x10_250','polish':{'nb_more':10,'nb_polish':1}} {'nb_iter':250,'_FLAG':'lcb1q_bin_polish_1x20_250','polish':{'nb_more':20,'nb_polish':1}} {'nb_iter':250,'_FLAG':'lcb1q_bin_polish_1x40_250','polish':{'nb_more':40,'nb_polish':1}} {'nb_iter':250,'_FLAG':'lcb1q_bin_polish_1x80_250','polish':{'nb_more':80,'nb_polish':1}}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
