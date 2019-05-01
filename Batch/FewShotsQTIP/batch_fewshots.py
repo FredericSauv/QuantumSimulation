@@ -685,14 +685,26 @@ class BatchFS(BatchBase):
             Y_keep_track = np.c_[(self.BO.Y, np.zeros(len(self.BO.X)))]
             self.save_hp_values()
             while nb_polish > 0 and max_time > 0:
+                more = nb_more[polish_step]
                 (_,_), (x_exp, _) = self.BO.get_best()
                 logger.info('Polish, nb to keep {}, X times more shots {} '.format(nb_tokeep, nb_more))
                 nb_polish -= 1  
                 polish_step += 1
                 X_to_keep, Y_to_keep = filter_X(self.BO.X, self.BO.Y, x_exp, nb_tokeep)
                 self.domain = [(mi, ma) for mi, ma in zip(np.min(X_to_keep, 0), np.max(X_to_keep, 0))]
-                if(nb_more>1):
-                    self.n_meas *= nb_more
+                if(more == 'strat1'):
+                    bo_acq_tmp, _ = self.BO.acquisition._compute_acq_splitted(self.BO.X)
+                    try:
+                        alpha = np.sqrt(np.average(bo_acq_tmp, 0) * (1 - np.average(bo_acq_tmp, 0))/self.n_meas) 
+                    except:
+                        alpha = 0.5
+                    std_data = np.average(np.std(Y_to_keep, 0))/self.n_meas
+                    coeff = int(np.clip(np.square(alpha/std_data) , 1, 100))
+                    self.n_meas *= coeff
+                    optim_config.update({'X_init':X_to_keep, 'Y_init':None})
+                    
+                elif(more>1):
+                    self.n_meas *= more
                     optim_config.update({'X_init':X_to_keep, 'Y_init':None})
                 else:
                     optim_config.update({'X_init':X_to_keep, 'Y_init':Y_to_keep})
@@ -810,16 +822,21 @@ class BatchFS(BatchBase):
             Y_init = f_BO(X_init)
         bounds_bo = [{'name': str(i), 'type': 'continuous', 'domain': d} for i, d in enumerate(self.domain)]
 
-        if optim_config.get('polish',None) is None:
+        if 'polish' not in optim_config:
             nb_polish = 0
             nb_tokeep = 0
             nb_more = 0
             hp_restart = False
         else:
             polish_dico = optim_config['polish']
-            nb_polish = optim_config.get('polish',None).get('nb_polish',0)
+            nb_polish = polish_dico.get('nb_polish',0)
             nb_tokeep = polish_dico.get('nb_tokeep', nb_init)
             nb_more = polish_dico.get('nb_more', 1)
+            if  hasattr(nb_more, '__iter__'):
+                assert len(nb_more) == nb_polish, "pb len nb_more = {} while nb_polish is {} ".format(len(nb_more))
+            else:
+                nb_more = [nb_more] * nb_polish                
+
             hp_restart = polish_dico.get('hp_restart', False)
         nb_exploit = optim_config.get('exploitation_steps',0)
         
@@ -887,6 +904,11 @@ class BatchFS(BatchBase):
         res[tag + 'x_exp'] = x_exp
         res[tag + 'x_seen'] = x_seen
         res[tag + 'test'] = self.f_test(x_exp)
+        res[tag + 'nb_s'] = self.n_meas
+        try:
+            res[tag + 'alpha'] = np.sqrt(np.average(bo_acq, 0) * (1 - np.average(bo_acq, 0))/self.n_meas) 
+        except:
+            res[tag + 'alpha'] = 0.5
         
         return res
     
@@ -982,7 +1004,7 @@ def _stats_one_field(field, list_res, dico_output = False):
     else:
         field_avg = np.nan
         field_std = np.nan
-        field_min = np.nan
+        field_min = np.nandistance_to
         field_max = np.nan
         field_median = np.nan
     if dico_output:
@@ -1033,9 +1055,9 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_model_4_polish.txt', output_folder = '_tmp/_configs/_mo4_polish', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_model_4_polish_v2.txt', output_folder = '_tmp/_configs/_mo4_polish_v2', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
-        batch = BatchFS('_tmp/_configs/_mo4_polish/config_res2.txt')
+        batch = BatchFS('_tmp/_configs/_mo4_polish_v2/config_res1.txt')
         batch.run_procedures(save_freq = 1)
 
         #pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ], [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])        
