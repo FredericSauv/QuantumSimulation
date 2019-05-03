@@ -47,9 +47,9 @@ class BatchFS(BatchBase):
         #print(zero)
         model = model_config['model']
         verbose = model_config.get('verbose', False)
-        aggregate = model_config.get('aggregate', 'no') #implemented 'no', 'fid', 'close', 'perfect'
-        aggregate = 'fid' if(aggregate == True) else aggregate
-        aggregate = 'no' if(aggregate == False) else aggregate
+        agg = model_config.get('aggregate', 'no') #implemented 'no', 'fid', 'close', 'perfect'
+        agg = 'fid' if(agg == True) else agg
+        agg = 'no' if(agg == False) else agg
 
 
         x_tgt = None
@@ -115,10 +115,10 @@ class BatchFS(BatchBase):
             logger.info("dynamics has been created with QuTip and saved self.dyn")
             
             #use during optimization
-            def f(x, verbose = verbose, noise=noise_input, N = None):
+            def f(x, verbose = verbose, noise=noise_input, N = None, aggregate = None):
                 x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
                 if(np.ndim(x_n)>1):
-                    res = np.array([f(x_one, verbose,noise=0, N=N) for x_one in x_n])
+                    res = np.array([f(x_one, verbose,noise=0, N=N,aggregate=aggregate) for x_one in x_n])
                 else:
                     self.call_f += 1
                     amps = np.reshape(x_n, (self.n_ts, self.n_ctrls))
@@ -177,10 +177,10 @@ class BatchFS(BatchBase):
             self.fid_zero = None #we are not interested by this figure for this model
             #logger.info
             
-            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = aggregate):
+            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = agg):
                 x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
                 if(x_n.shape[0] != self.n_params):
-                    res = np.array([f(x_one, verbose,noise=0, N=N) for x_one in x_n])
+                    res = np.array([f(x_one, verbose,noise=0, N=N,aggregate=aggregate) for x_one in x_n])
                 else:
                     self.call_f += 1
                     H = get_HZY(x)
@@ -287,10 +287,10 @@ class BatchFS(BatchBase):
             logger.info("dynamics has been created with QuTip and saved self.dyn")
             
             #use during optimization
-            def f(x, verbose = verbose, noise=noise_input, N=None):
+            def f(x, verbose = verbose, noise=noise_input, N=None, aggregate = None):
                 x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
                 if(np.ndim(x_n)>1):
-                    res = np.array([f(x_one, verbose,noise=0, N=N) for x_one in x_n])
+                    res = np.array([f(x_one, verbose,noise=0, N=N, aggregate=aggregate) for x_one in x_n])
                 else:
                     self.call_f += 1
                     amps = np.reshape(x_n, (self.n_ts, self.n_ctrls))
@@ -338,10 +338,10 @@ class BatchFS(BatchBase):
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
             self.fid_zero = None #we are not interested by this figure for this model
 
-            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = aggregate):
+            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = agg):
                 x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
                 if(x_n.shape[0] != self.n_params):
-                    res = np.array([f(x_one, verbose,noise=0,N=N) for x_one in x_n])
+                    res = np.array([f(x_one, verbose,noise=0,N=N,aggregate=aggregate) for x_one in x_n])
                 else:
                     U = get_UCPRY(x)
                     list_e = all_e if self.n_meas_index is None else [all_e[self.n_meas_index]]
@@ -399,10 +399,10 @@ class BatchFS(BatchBase):
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
             self.fid_zero = None #we are not interested by this figure for this model
                 
-            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = aggregate):
+            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = agg):
                 x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
                 if(x_n.shape[0] != self.n_params):
-                    res = np.array([f(x_one, verbose,noise=0, N=N) for x_one in x_n])
+                    res = np.array([f(x_one, verbose,noise=0, N=N,aggregate=aggregate) for x_one in x_n])
                 else:
                     
                     U = get_UGHZ(x)
@@ -502,10 +502,10 @@ class BatchFS(BatchBase):
             logger.info("dynamics has been created with QuTip and saved self.dyn")
             
             #use during optimization
-            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = aggregate):
+            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = agg):
                 x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
                 if(np.ndim(x_n)>1):
-                    res = np.array([f(x_one, verbose,noise=0, N=N) for x_one in x_n])
+                    res = np.array([f(x_one, verbose,noise=0, N=N,aggregate=aggregate) for x_one in x_n])
                 else:
                     amps = np.reshape(x_n, (self.n_ts, self.n_ctrls))
                     self.dyn.update_ctrl_amps(amps)
@@ -640,38 +640,22 @@ class BatchFS(BatchBase):
         #              x_best is decided based on this model
         elif 'BO' in type_optim: 
             ### Main
-            dico_res, time_allbo, time_fit, time_suggest = {}, 0, 0, 0
-            self.bo_args, f_BO = self.get_BO_args(optim_config)
-            self.BO = GPyOpt.methods.BayesianOptimization(f_BO, **self.bo_args)
-            force_grad_acq = optim_config.get('force_grad_acq',False)
-            if force_grad_acq: self.BO.acquisition.analytical_gradient_acq = True  
-            if self.hp_constrains is not None: 
-                self.BO._create_model(self.BO.normalization_type)
-                self.constrain_hp(self.hp_constrains)
-            max_time = self.bo_args['max_time_bo']
+            dico_res, self.time_all_bo, self.time_fit_bo, self.time_suggest_bo = {}, 0, 0, 0
+            self.set_up_BO(optim_config)
+            self.max_time_bo = self.bo_args['max_time_bo'] 
             if(save_extra):
-                dico_res.update(self.get_info_BO(i_beg = None, i_end = None, tag='init0_'))            
-            self.BO.run_optimization(max_iter = self.bo_args['nb_iter_bo'], eps = 0, max_time = max_time)
-            time_allbo += self.BO.cum_time
-            time_fit += self.BO.cum_time_fit
-            time_suggest += self.BO.cum_time_suggest
-            max_time -= self.BO.cum_time
+                    dico_res.update(self.get_info_BO(i_beg = None, i_end = None, tag='init0_'))
+            self.BO.run_optimization(max_iter = self.bo_args['nb_iter_bo'], eps = 0, max_time = self.max_time_bo)
+            self.update_BO_time()
             if(save_extra):
                 dico_res.update(self.get_info_BO(i_beg = None, i_end = None, tag='explor0_'))
     
             nb_exploit = self.bo_args['nb_exploit']
             if nb_exploit>0:
-                self.BO.acquisition_type = self.BO.acquisition_type.replace('EI', 'LCB')
-                self.BO.acquisition_weight = 0.000001
-                self.BO.kwargs['acquisition_weight'] = 0.000001
-                self.BO.acquisition = self.BO._acquisition_chooser()
-                self.BO.evaluator = self.BO._evaluator_chooser()    
+                self.set_up_BO_exploit()
                 logger.info('Exploitation (i.e. ucb with k=0) for {}'.format(nb_exploit))
-                self.BO.run_optimization(nb_exploit, max_time = max_time)
-                time_allbo += self.BO.cum_time
-                time_fit += self.BO.cum_time_fit
-                time_suggest += self.BO.cum_time_suggest
-                max_time -= self.BO.cum_time
+                self.BO.run_optimization(nb_exploit, max_time = self.max_time_bo)
+                self.update_BO_time()
                 if(save_extra):
                     dico_res.update(self.get_info_BO(i_beg = None, i_end = None, tag='exploit0_'))
             
@@ -679,75 +663,44 @@ class BatchFS(BatchBase):
             nb_polish = self.bo_args['nb_polish']
             nb_tokeep = self.bo_args['nb_tokeep']
             nb_more = self.bo_args['nb_more']
-            hp_restart = self.bo_args['hp_restart']
             polish_step = 0
             X_keep_track = np.c_[(self.BO.X, np.zeros(len(self.BO.X)))]
-            Y_keep_track = np.c_[(self.BO.Y, np.zeros(len(self.BO.X)))]
+            Y_keep_track = np.c_[(self.BO.Y, np.zeros(len(self.BO.Y)))]
             self.save_hp_values()
-            while nb_polish > 0 and max_time > 0:
+            while nb_polish > 0 and self.max_time_bo > 0:
                 more = nb_more[polish_step]
-                (_,_), (x_exp, _) = self.BO.get_best()
                 logger.info('Polish, nb to keep {}, X times more shots {} '.format(nb_tokeep, nb_more))
                 nb_polish -= 1  
                 polish_step += 1
-                X_to_keep, Y_to_keep = filter_X(self.BO.X, self.BO.Y, x_exp, nb_tokeep)
-                self.domain = [(mi, ma) for mi, ma in zip(np.min(X_to_keep, 0), np.max(X_to_keep, 0))]
-                if(more == 'strat1'):
-                    bo_acq_tmp, _ = self.BO.acquisition._compute_acq_splitted(self.BO.X)
-                    try:
-                        alpha = np.sqrt(np.average(bo_acq_tmp, 0) * (1 - np.average(bo_acq_tmp, 0))/self.n_meas) 
-                    except:
-                        alpha = 0.5
-                    std_data = np.average(np.std(Y_to_keep, 0))/self.n_meas
-                    coeff = int(np.clip(np.square(alpha/std_data) , 1, 100))
-                    self.n_meas *= coeff
-                    optim_config.update({'X_init':X_to_keep, 'Y_init':None})
-                    
-                elif(more>1):
-                    self.n_meas *= more
-                    optim_config.update({'X_init':X_to_keep, 'Y_init':None})
-                else:
-                    optim_config.update({'X_init':X_to_keep, 'Y_init':Y_to_keep})
-                self.bo_args, f_BO = self.get_BO_args(optim_config)
-                self.BO = GPyOpt.methods.BayesianOptimization(f_BO, **self.bo_args)
-                if hp_restart: 
-                    self.BO._create_model(self.BO.normalization_type)
-                    self.restore_hp_values()
-                if self.hp_constrains is not None: 
-                    self.BO._create_model(self.BO.normalization_type)
-                    self.constrain_hp(self.hp_constrains)
-                if force_grad_acq: self.BO.acquisition.analytical_gradient_acq = True
+                self.set_up_BO(optim_config, nb_to_keep = nb_tokeep, restrict_domain = True, adapt_shots=more)   
                 if(save_extra):
                     dico_res.update(self.get_info_BO(tag='init' + str(polish_step) + '_'))
-                self.BO.run_optimization(max_iter = self.bo_args['nb_iter_bo'], eps = 0, max_time = max_time)
-                time_allbo += self.BO.cum_time
-                time_fit += self.BO.cum_time_fit
-                time_suggest += self.BO.cum_time_suggest
-                max_time -= self.BO.cum_time
+                self.BO.run_optimization(max_iter = self.bo_args['nb_iter_bo'], eps = 0, max_time = self.max_time_bo)
                 if(save_extra):
                     dico_res.update(self.get_info_BO(tag='explor' + str(polish_step) + '_'))
-                
                 if nb_exploit>0:
-                    self.BO.acquisition_type = self.BO.acquisition_type.replace('EI', 'LCB')
-                    self.BO.acquisition_weight = 0.000001
-                    self.BO.kwargs['acquisition_weight'] = 0.000001
-                    self.BO.acquisition = self.BO._acquisition_chooser()
-                    self.BO.evaluator = self.BO._evaluator_chooser()    
+                    self.set_up_BO_exploit()
                     logger.info('Exploitation (i.e. ucb with k=0) for {}'.format(nb_exploit))
-                    self.BO.run_optimization(nb_exploit, max_time=max_time)
-                    time_allbo += self.BO.cum_time
-                    time_fit += self.BO.cum_time_fit
-                    time_suggest += self.BO.cum_time_suggest
-                    max_time -= self.BO.cum_time
+                    self.BO.run_optimization(nb_exploit, max_time=self.max_time_bo)
+                    self.update_BO_time()
                     if(save_extra):
                         dico_res.update(self.get_info_BO(tag='exploit' + str(polish_step) + '_'))
+
+                                
                 X_keep_track = np.r_[(X_keep_track, np.c_[(self.BO.X, polish_step*np.ones(len(self.BO.X)))])]
-                Y_keep_track = np.r_[(Y_keep_track, np.c_[(self.BO.Y, polish_step*np.ones(len(self.BO.X)))])]
+                if(self.BO.Y.shape[1] == (Y_keep_track.shape[1]-1)):
+                    Y_keep_track = np.r_[(Y_keep_track, np.c_[(self.BO.Y, polish_step*np.ones(len(self.BO.Y)))])]
+                else:
+                    to_add_tmp = [Y_keep_track] * (Y_keep_track.shape[1]-1)
+                    to_add_tmp.append(polish_step*np.ones(len(self.BO.Y)))
+                    
+                    #Y_keep_track = np.r_[(Y_keep_track,  np.c_[to_add_tmp])]
+            
             dico_res.update(self.get_info_BO(tag=''))            
             dico_res.update({'params_BO_names': self.BO.model.model.parameter_names(), 'p_tgt':self.p_tgt, 
                         'f_tgt':self.f_tgt, 'nb_output':self.nb_output, 'abs_diff':1-
-                        dico_res['test'], 'time_allbo':time_allbo, 'time_fit':time_fit, 
-                        'time_suggest':time_suggest, 'fid_zero_field':self.fid_zero,'phi_0':   
+                        dico_res['test'], 'time_allbo':self.time_all_bo, 'time_fit':self.time_fit_bo, 
+                        'time_suggest':self.time_suggest_bo, 'fid_zero_field':self.fid_zero,'phi_0':   
                         Qobj2array(self.phi_0), 'phi_tgt':Qobj2array(self.phi_tgt), 'polish_step':polish_step, 
                         'nb_polish':nb_polish, 'nb_more':nb_more, 'nb_tokeep':nb_tokeep})
                          
@@ -777,11 +730,104 @@ class BatchFS(BatchBase):
                 'best_res': best_res, 'median_res':median_res, 'time_fit':time_fit,
                 'time_suggest':time_suggest}})
         return processed
+
+
+    def update_BO_time(self):
+        self.time_all_bo += self.BO.cum_time
+        self.time_fit_bo += self.BO.cum_time_fit
+        self.time_suggest_bo += self.BO.cum_time_suggest
+        self.max_time_bo -= self.BO.cum_time
             
+
+    def set_up_BO_exploit(self):
+        self.BO.acquisition_type = self.BO.acquisition_type.replace('EI', 'LCB')
+        self.BO.acquisition_weight = 0.000001
+        self.BO.kwargs['acquisition_weight'] = 0.000001
+        self.BO.acquisition = self.BO._acquisition_chooser()
+        self.BO.evaluator = self.BO._evaluator_chooser()    
+        
+
+    def set_up_BO(self, optim_config, nb_to_keep = None, restrict_domain = False, adapt_shots=1):
+        """ set up the BO object. At the end the model is initiated
+        Restrict domain // Implement rules for the adaptation of the number of shots // 
+        Deal with the fixing of the constraints and the forcing the use of grad
+        
+        adapt_shots:
+            <int> N: multi
+            <str> 'Strat1': 
+        """
+        MAX_INCREASE = 5000
+        if nb_to_keep is not None:
+            (_,_), (x_exp, _) = self.BO.get_best()
+            X_to_keep, Y_to_keep = filter_X(self.BO.X, self.BO.Y, x_exp, nb_to_keep)
+        else:
+            if(hasattr(self, 'BO')):
+                X_to_keep = self.BO.X 
+                Y_to_keep = self.BO.Y
+            else:
+                X_to_keep = None
+                Y_to_keep = None
+
+        if restrict_domain:
+            self.domain = [(mi, ma) for mi, ma in zip(np.min(X_to_keep, 0), np.max(X_to_keep, 0))]
+
+        if type(adapt_shots) == int: #base case
+            if adapt_shots == 1:
+                optim_config.update({'X_init':X_to_keep, 'Y_init':Y_to_keep})
+            else:
+                self.n_meas *= adapt_shots
+                optim_config.update({'X_init':X_to_keep, 'Y_init':None})
+
+            self.bo_args, f_BO = self.get_BO_args(optim_config)
+            self.BO = GPyOpt.methods.BayesianOptimization(f_BO, **self.bo_args)            
+            force_grad_acq = optim_config.get('force_grad_acq',False)
+            if force_grad_acq: self.BO.acquisition.analytical_gradient_acq = True
+            hp_restart = self.bo_args['hp_restart']
+            if hp_restart: 
+                self.BO._create_model(self.BO.normalization_type)
+                self.restore_hp_values() ### What about first step
+            if self.hp_constrains is not None: 
+                self.BO._create_model(self.BO.normalization_type)
+                self.constrain_hp(self.hp_constrains)
+
+
+        else:
+            model_mean, model_std = self.BO.acquisition._compute_acq_splitted(X_to_keep)
+            model_std_avg = np.median(model_std)
+            model_mean_disp = np.std(model_mean)
+            try:
+                alpha = np.sqrt(np.median(model_mean, 0) * (1 - np.median(model_mean, 0))/self.n_meas) 
+            except:
+                alpha = 0.5
+            std_data = np.average(np.std(Y_to_keep, 0))/self.n_meas
+            
+            if adapt_shots == 'strat1':
+                coeff = int(np.clip(np.square(alpha/std_data) , 1, MAX_INCREASE))
+                self.set_up_BO(optim_config, nb_to_keep = nb_to_keep, restrict_domain = restrict_domain, adapt_shots=coeff)
+                    
+            elif adapt_shots == 'strat2':
+                coeff = int(np.clip(np.square(model_mean_disp/model_std_avg), 1,MAX_INCREASE))
+                self.set_up_BO(optim_config, nb_to_keep = nb_to_keep, restrict_domain = restrict_domain, adapt_shots=coeff)
+
+            elif adapt_shots == 'strat3': 
+                coeff =  int(np.clip(np.square(model_mean_disp/model_std_avg), 1, 100))
+                self.set_up_BO(optim_config, nb_to_keep = nb_to_keep, restrict_domain = restrict_domain, adapt_shots=coeff)
+                self.set_up_BO(optim_config, nb_to_keep = None, restrict_domain = False, adapt_shots='strat2')
+
+            else:
+                raise NotImplementedError()
+                
+                
+
+
+
+
+
     def get_BO_args(self, optim_config):
         nb_init = optim_config['nb_init']
         nb_iter = optim_config['nb_iter']
         type_acq = optim_config['type_acq']
+        is_acq_target = type_acq.find('target') > 0
         logger.info('type_acq: {}'.format(type_acq))
         type_lik = optim_config['type_lik']
         mo = optim_config.get('mo')
@@ -795,6 +841,17 @@ class BatchFS(BatchBase):
         max_iters = optim_config.get('max_iters', 1000) # used when updating the hyper-parameters
         optimize_restarts = optim_config.get('optimize_restarts',5) # for the hyperparameters fitting
         self.hp_constrains = optim_config.get('hp_constrains', None)
+        switch_to_gauss = optim_config.get('switch_to_gauss', None)
+        n_meas = self.n_meas
+        aggregate = optim_config.get('aggregate', 'no')
+        if (switch_to_gauss is not None) and (n_meas > switch_to_gauss):
+            type_lik = None
+            aggregate = 'fid'
+            is_acq_target = False
+            type_acq = type_acq.split('_')[0]
+            mo=None
+            logger.warning('nb shots: {}, Swith to Gaussian likelihood with fidelity aggregated output'.format(n_meas))
+
         if(optim_config.get('type_optim', 'BO') == 'BO_NOOPTIM'):
             nb_init_bo = nb_init + nb_iter
             nb_iter_bo = 0
@@ -804,10 +861,10 @@ class BatchFS(BatchBase):
             nb_iter_bo = nb_iter
             max_time_bo = optim_config.get('max_time', 23.5*3600)
         f_fact = self.n_meas if type_lik == 'binomial' else 1
-        if type_acq.find('target') > 0:
-            f_wrap = lambda x: self.f(x, N=self.n_meas) 
+        if is_acq_target:
+            f_wrap = lambda x: self.f(x, N=self.n_meas, aggregate=aggregate) 
         else: 
-            f_wrap = lambda x: 1-self.f(x, N=self.n_meas)
+            f_wrap = lambda x: 1-self.f(x, N=self.n_meas, aggregate=aggregate)
         f_BO = lambda x: f_fact * f_wrap(x)
         
         
@@ -905,6 +962,7 @@ class BatchFS(BatchBase):
         res[tag + 'x_seen'] = x_seen
         res[tag + 'test'] = self.f_test(x_exp)
         res[tag + 'nb_s'] = self.n_meas
+        res[tag + 'call_f'] = self.call_f
         try:
             res[tag + 'alpha'] = np.sqrt(np.average(bo_acq, 0) * (1 - np.average(bo_acq, 0))/self.n_meas) 
         except:
@@ -925,8 +983,11 @@ class BatchFS(BatchBase):
                         self.BO.model.model.param_array)}
         
     def restore_hp_values(self):
-        self.constrain_hp(self.hp_vals)
-    
+        if(hasattr(self, 'hp_vals')):
+            self.constrain_hp(self.hp_vals)
+        else:
+            logger.warning("no hp_vals to restore")
+            
 def filter_X(X, Y,  x_best, nb):
     d_to_best = dist_to(X, x_best)
     return X[np.argsort(d_to_best)[:nb]], Y[np.argsort(d_to_best)[:nb]]
@@ -1004,7 +1065,7 @@ def _stats_one_field(field, list_res, dico_output = False):
     else:
         field_avg = np.nan
         field_std = np.nan
-        field_min = np.nandistance_to
+        field_min = np.nan
         field_max = np.nan
         field_median = np.nan
     if dico_output:
@@ -1055,9 +1116,9 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_model_4_polish_v2.txt', output_folder = '_tmp/_configs/_mo4_polish_v2', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_model_4_polish_v3.txt', output_folder = '_tmp/_configs/_model_4_polish_v3', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
-        batch = BatchFS('_tmp/_configs/_mo4_polish_v2/config_res1.txt')
+        batch = BatchFS('_tmp/_configs/_model_4_polish_v3/config_res4.txt')
         batch.run_procedures(save_freq = 1)
 
         #pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ], [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])        
