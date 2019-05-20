@@ -394,6 +394,12 @@ class BatchFS(BatchBase):
             #Fixed phi_tgt (Bell state) - may be random later on
             x_tgt = np.array((np.pi/2, np.pi/2, np.pi, np.pi/2, np.pi/2, np.pi/2))     #x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
             U_tgt = get_UGHZ(x_tgt)
+            # all possible solutions
+            x_tgt = np.array([[1., 3., 2., 3., 1., 3.], [3., 1., 2., 1., 3., 3.], [3., 3., 4., 1., 1., 3.],
+                              [3., 1., 4., 3., 1., 1.], [1., 1., 4., 3., 3., 3.],[1., 3., 4., 1., 3., 1.],
+                              [1., 1., 0., 3., 3., 3.],[1., 1., 2., 1., 1., 1.],[3., 3., 2., 3., 3., 1.],
+                              [1., 3., 0., 1., 3., 1.],[3., 1., 0., 3., 1., 1.],[3., 3., 0., 1., 1., 3.]]) * np.pi/2
+            
             self.phi_tgt = U_tgt * self.phi_0
             self.e_tgt = [real_with_test(e.matrix_element(self.phi_tgt, self.phi_tgt)) for e in all_e]
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
@@ -843,8 +849,14 @@ class BatchFS(BatchBase):
         self.hp_constrains = optim_config.get('hp_constrains', None)
         switch_to_gauss = optim_config.get('switch_to_gauss', None)
         n_meas = self.n_meas
+        
+        # some redundancy here 
         aggregate = optim_config.get('aggregate', 'no')
+        aggregate = 'fid' if(aggregate == True) else aggregate
+        aggregate = 'no' if(aggregate == False) else aggregate
+        
         if (switch_to_gauss is not None) and (n_meas > switch_to_gauss):
+            #overwride parameters
             type_lik = None
             aggregate = 'fid'
             is_acq_target = False
@@ -860,6 +872,7 @@ class BatchFS(BatchBase):
             nb_init_bo = nb_init
             nb_iter_bo = nb_iter
             max_time_bo = optim_config.get('max_time', 23.5*3600)
+            
         f_fact = self.n_meas if type_lik == 'binomial' else 1
         if is_acq_target:
             f_wrap = lambda x: self.f(x, N=self.n_meas, aggregate=aggregate) 
@@ -971,7 +984,7 @@ class BatchFS(BatchBase):
         return res
     
     def constrain_hp(self, constrains_dico):
-        for k,v in constrains_dico.items():
+        for k, v in constrains_dico.items():
             if v == 'positive':
                 self.BO.model.model['.*'+k+'.*'].constrain_positive()
             elif len(v) == 2:
@@ -1116,9 +1129,9 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_model_4_polish_v3.txt', output_folder = '_tmp/_configs/_model_4_polish_v3', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_verif_gauss_hp_constr.txt', output_folder = '_tmp/_configs/_verif_gauss_hp_constr', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
-        batch = BatchFS('_tmp/_configs/_model_4_polish_v3/config_res4.txt')
+        batch = BatchFS('_tmp/_configs/_config131.txt')
         batch.run_procedures(save_freq = 1)
 
         #pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ], [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])        
