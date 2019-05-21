@@ -669,19 +669,21 @@ class BatchFS(BatchBase):
             nb_polish = self.bo_args['nb_polish']
             nb_tokeep = self.bo_args['nb_tokeep']
             nb_more = self.bo_args['nb_more']
+            nb_iter_polish = self.bo_args['nb_iter_polish']
             polish_step = 0
             X_keep_track = np.c_[(self.BO.X, np.zeros(len(self.BO.X)))]
             Y_keep_track = np.c_[(self.BO.Y, np.zeros(len(self.BO.Y)))]
             self.save_hp_values()
             while nb_polish > 0 and self.max_time_bo > 0:
                 more = nb_more[polish_step]
+                new_iter = nb_iter_polish[polish_step]
                 logger.info('Polish, nb to keep {}, X times more shots {} '.format(nb_tokeep, nb_more))
                 nb_polish -= 1  
                 polish_step += 1
                 self.set_up_BO(optim_config, nb_to_keep = nb_tokeep, restrict_domain = True, adapt_shots=more)   
                 if(save_extra):
                     dico_res.update(self.get_info_BO(tag='init' + str(polish_step) + '_'))
-                self.BO.run_optimization(max_iter = self.bo_args['nb_iter_bo'], eps = 0, max_time = self.max_time_bo)
+                self.BO.run_optimization(max_iter = new_iter, eps = 0, max_time = self.max_time_bo)
                 if(save_extra):
                     dico_res.update(self.get_info_BO(tag='explor' + str(polish_step) + '_'))
                 if nb_exploit>0:
@@ -902,10 +904,18 @@ class BatchFS(BatchBase):
             nb_polish = polish_dico.get('nb_polish',0)
             nb_tokeep = polish_dico.get('nb_tokeep', nb_init)
             nb_more = polish_dico.get('nb_more', 1)
+            nb_iter_polish = polish_dico.get('nb_iter', nb_iter_bo)
             if  hasattr(nb_more, '__iter__'):
                 assert len(nb_more) == nb_polish, "pb len nb_more = {} while nb_polish is {} ".format(len(nb_more))
             else:
                 nb_more = [nb_more] * nb_polish                
+
+            if  hasattr(nb_iter_polish, '__iter__'):
+                assert len(nb_iter_polish) == nb_polish, "pb len nb_more = {} while nb_polish is {} ".format(len(nb_more))
+            else:
+                nb_iter_polish = [nb_iter_polish] * nb_polish                
+
+
 
             hp_restart = polish_dico.get('hp_restart', False)
         nb_exploit = optim_config.get('exploitation_steps',0)
@@ -916,7 +926,8 @@ class BatchFS(BatchBase):
                 'max_iters':max_iters, 'optimize_restarts':optimize_restarts,
                 'hp_update_interval':hp_update_interval, 'nb_iter_bo':nb_iter_bo,
                 'max_time_bo':max_time_bo, 'nb_polish':nb_polish, 'nb_tokeep':nb_tokeep,
-                'nb_more':nb_more, 'nb_exploit':nb_exploit, 'hp_restart':hp_restart}
+                'nb_more':nb_more, 'nb_exploit':nb_exploit, 'hp_restart':hp_restart, 
+                'nb_iter_polish':nb_iter_polish}
         
         if type_acq == 'EI':
             bo_args.update({'acquisition_type':'EI'})
@@ -985,12 +996,15 @@ class BatchFS(BatchBase):
     
     def constrain_hp(self, constrains_dico):
         for k, v in constrains_dico.items():
-            if v == 'positive':
-                self.BO.model.model['.*'+k+'.*'].constrain_positive()
-            elif len(v) == 2:
-                self.BO.model.model['.*'+k+'.*'].constrain_bounded(v[0], v[1], warning = False)
-            else:
-                self.BO.model.model['.*'+k+'.*'] = v
+            str_param = '.*'+k
+            if np.any([k in name for name in self.BO.model.model.parameter_names()]):
+                if v == 'positive':
+                    self.BO.model.model[str_param].constrain_positive()
+                elif len(v) == 2:
+                    self.BO.model.model[str_param].constrain_bounded(v[0], v[1], warning = False)
+                else:
+                    self.BO.model.model[str_param] = v
+                
     def save_hp_values(self):
         self.hp_vals = {name:[val] for name, val in zip(self.BO.model.model.parameter_names(),
                         self.BO.model.model.param_array)}
@@ -1129,9 +1143,9 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_verif_gauss_hp_constr.txt', output_folder = '_tmp/_configs/_verif_gauss_hp_constr', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_model_4_polish_v3.txt', output_folder = '_tmp/_configs/_model_4_polish_v3', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
-        batch = BatchFS('_tmp/_configs/_config131.txt')
+        batch = BatchFS('_tmp/_configs/_model_4_polish_v3/config_res1.txt')
         batch.run_procedures(save_freq = 1)
 
         #pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ], [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])        
