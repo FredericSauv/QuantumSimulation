@@ -899,6 +899,7 @@ class BatchFS(BatchBase):
             nb_tokeep = 0
             nb_more = 0
             hp_restart = False
+            nb_iter_polish = 0
         else:
             polish_dico = optim_config['polish']
             nb_polish = polish_dico.get('nb_polish',0)
