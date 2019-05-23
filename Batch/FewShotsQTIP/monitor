@@ -1,0 +1,36 @@
+#!/bin/bash
+
+## Should be run from the root of the results needed 
+## i.e. from $WORK/Res/1Q1/ if folder is $WORK/Res/1Q1/pcw5
+input_folder=$1 #e.g. pcw5
+prefix_res=${2:-'res'}
+suffix_file=".txt"
+
+## Build all the paths
+path_main=$(pwd)/"$input_folder"
+path_res="$path_main"/"$input_folder"
+path_config="$path_main"/Config
+
+NBCONFIG="$(ls ${path_config} | wc -l)"
+NBRES="$(ls ${path_res} | wc -l)"
+
+NBRUN="$(ls ${path_main}/to_qsub.e* | wc -l)"
+NBERROR="$(grep -irm 1 error ${path_main}/to_qsub.e*  | wc -l )"
+NBWALLTIME="$(grep -irm 1 walltime ${path_main}/to_qsub.e* | wc -l )"
+
+NBRUNTOPUP="$(ls ${path_main}/to_qsub_topup.e* | wc -l)"
+NBERRORTOPUP="$(grep -irm 1 error ${path_main}/to_qsub_topup.e*  | wc -l )"
+NBWALLTIMETOPUP="$(grep -irm 1 walltime ${path_main}/to_qsub_topup.e* | wc -l )"
+
+
+## Print results
+echo "nb configs: "${NBCONFIG}
+echo "nb res: "${NBRES}
+
+echo "nb runs (first): "${NBRUN}
+echo "nb errors (first): "${NBERROR}
+echo "nb walltime excess (first): "${NBWALLTIME}
+
+echo "nb runs (topup): "${NBRUNTOPUP}
+echo "nb errors (topup): "${NBERRORTOPUP}
+echo "nb walltime excess (topup): "${NBWALLTIMETOPUP}
