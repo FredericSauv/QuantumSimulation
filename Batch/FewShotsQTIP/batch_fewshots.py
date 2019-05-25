@@ -120,6 +120,7 @@ class BatchFS(BatchBase):
                 if(np.ndim(x_n)>1):
                     res = np.array([f(x_one, verbose,noise=0, N=N,aggregate=aggregate) for x_one in x_n])
                 else:
+                    self.call_f_single += 1
                     self.call_f += 1
                     amps = np.reshape(x_n, (self.n_ts, self.n_ctrls))
                     self.dyn.update_ctrl_amps(amps)
@@ -182,7 +183,7 @@ class BatchFS(BatchBase):
                 if(x_n.shape[0] != self.n_params):
                     res = np.array([f(x_one, verbose,noise=0, N=N,aggregate=aggregate) for x_one in x_n])
                 else:
-                    self.call_f += 1
+                    self.call_f_single += 1
                     H = get_HZY(x)
                     e = all_e if self.n_meas_index is None else [all_e[self.n_meas_index]]
                     evol = mesolve(H, self.phi_0, tlist = [0., 1.], e_ops=e, options = options_evolve)
@@ -293,6 +294,7 @@ class BatchFS(BatchBase):
                     res = np.array([f(x_one, verbose,noise=0, N=N, aggregate=aggregate) for x_one in x_n])
                 else:
                     self.call_f += 1
+                    self.call_f_single += 1
                     amps = np.reshape(x_n, (self.n_ts, self.n_ctrls))
                     self.dyn.update_ctrl_amps(amps)
                     
@@ -326,28 +328,32 @@ class BatchFS(BatchBase):
             self.n_meas = model_config.get('noise_n_meas', 1)
             if self.n_meas == 'inf': self.n_meas = inf
             self.n_meas_index = model_config.get('n_meas_index')         
-            noise_input = model_config.get('noise_input', 0)
+            n_input = model_config.get('noise_input', 0)
+            n_gate = model_config.get('noise_gate', 0)
+            n_ro = model_config.get('noise_readout', 0)
             self.nb_output = 3 if self.n_meas_index is None else 1
         
             #Fixed phi_tgt (Bell state) - may be random later on
             #x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
             x_tgt = np.array((np.pi/2, np.pi))
-            U_tgt = get_UCPRY(x_tgt)
+            U_tgt = get_UCPRY(x_tgt, n_gate=0)
             self.phi_tgt = U_tgt * self.phi_0
             self.e_tgt = [real_with_test(e.matrix_element(self.phi_tgt, self.phi_tgt)) for e in all_e]
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
             self.fid_zero = None #we are not interested by this figure for this model
 
-            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = agg):
-                x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
+            def f(x, verbose = verbose, N = self.n_meas, aggregate = agg, n_input=n_input, n_gate=n_gate, n_ro=n_ro):
+                x_n = np.clip(x + rdm.norm(0.0, n_input, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if n_input>0 else x
                 if(x_n.shape[0] != self.n_params):
-                    res = np.array([f(x_one, verbose,noise=0,N=N,aggregate=aggregate) for x_one in x_n])
+                    res = np.array([f(x_one, verbose,N=N,aggregate=aggregate,n_input=0, n_gate=n_gate,n_ro=n_ro) for x_one in x_n])
                 else:
-                    U = get_UCPRY(x)
+                    self.call_f_single += 1
+                    U = get_UCPRY(x, n_gate=n_gate)
                     list_e = all_e if self.n_meas_index is None else [all_e[self.n_meas_index]]
                     phi_f = U * self.phi_0
                     final_expect = [real_with_test(e.matrix_element(phi_f, phi_f)) for e in list_e]
                     proba = np.array([(1 + e)/2 for e in final_expect])
+                    proba = corrupt_readout_qubit(proba, n_ro)
                     assert np.any(proba < 1 + 1e-5), "proba > 1: {}".format(proba)
                     assert np.any(proba > -1e-5), "proba > 1: {}".format(proba)
                     proba = np.clip(proba, 0, 1)
@@ -388,12 +394,14 @@ class BatchFS(BatchBase):
             self.n_meas = model_config.get('noise_n_meas', 1)
             if self.n_meas == 'inf': self.n_meas = inf
             self.n_meas_index = model_config.get('n_meas_index')         
-            noise_input = model_config.get('noise_input', 0)
+            n_input = model_config.get('noise_input', 0)
+            n_gate = model_config.get('noise_gate', 0)
+            n_ro = model_config.get('noise_readout', 0)
             self.nb_output = 3 if self.n_meas_index is None else 1
         
             #Fixed phi_tgt (Bell state) - may be random later on
             x_tgt = np.array((np.pi/2, np.pi/2, np.pi, np.pi/2, np.pi/2, np.pi/2))     #x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
-            U_tgt = get_UGHZ(x_tgt)
+            U_tgt = get_UGHZ(x_tgt, n_gate=0)
             # all possible solutions
             x_tgt = np.array([[1., 3., 2., 3., 1., 3.], [3., 1., 2., 1., 3., 3.], [3., 3., 4., 1., 1., 3.],
                               [3., 1., 4., 3., 1., 1.], [1., 1., 4., 3., 3., 3.],[1., 3., 4., 1., 3., 1.],
@@ -405,17 +413,18 @@ class BatchFS(BatchBase):
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
             self.fid_zero = None #we are not interested by this figure for this model
                 
-            def f(x, verbose = verbose, noise=noise_input, N = self.n_meas, aggregate = agg):
-                x_n = np.clip(x + rdm.norm(0.0, noise, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if noise>0 else x
+            def f(x, verbose = verbose, N = self.n_meas, aggregate = agg, n_input=n_input, n_gate=n_gate, n_ro=n_ro):
+                x_n = np.clip(x + rdm.norm(0.0, n_input, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if n_input>0 else x
                 if(x_n.shape[0] != self.n_params):
-                    res = np.array([f(x_one, verbose,noise=0, N=N,aggregate=aggregate) for x_one in x_n])
+                    res = np.array([f(x_one, verbose, N=N,aggregate=aggregate, n_input=0, n_gate=n_gate,n_ro=n_ro) for x_one in x_n])
                 else:
-                    
-                    U = get_UGHZ(x)
+                    self.call_f_single += 1
+                    U = get_UGHZ(x, n_gate=n_gate)
                     list_e = all_e if self.n_meas_index is None else [all_e[self.n_meas_index]]
                     phi_f = U * self.phi_0
                     final_expect = [real_with_test(e.matrix_element(phi_f, phi_f)) for e in list_e]
                     proba = np.array([(1 + e)/2 for e in final_expect])
+                    proba = corrupt_readout_qubit(proba, n_ro)
                     assert np.any(proba < 1 + 1e-5), "proba > 1: {}".format(proba)
                     assert np.any(proba > -1e-5), "proba > 1: {}".format(proba)
                     proba = np.clip(proba, 0, 1)
@@ -432,6 +441,8 @@ class BatchFS(BatchBase):
         
                     if(verbose): print(x, res, proba)
                 return np.atleast_1d(res)
+        
+        
         
             #Use for testing the optimal pulse
             def f_test(x, verbose = verbose):
@@ -513,6 +524,7 @@ class BatchFS(BatchBase):
                 if(np.ndim(x_n)>1):
                     res = np.array([f(x_one, verbose,noise=0, N=N,aggregate=aggregate) for x_one in x_n])
                 else:
+                    self.call_f_single += 1
                     amps = np.reshape(x_n, (self.n_ts, self.n_ctrls))
                     self.dyn.update_ctrl_amps(amps)
                     res_perfect = self.dyn.fid_computer.get_fidelity_perfect()
@@ -560,6 +572,7 @@ class BatchFS(BatchBase):
         """ implemention of what is a procedure.
         """
         self.call_f = 0
+        self.call_f_single = 0
         self.call_f_test = 0
         model_config = config['model']
         optim_config = config['optim']
@@ -595,7 +608,6 @@ class BatchFS(BatchBase):
 
             dico_res = {'test':test, 'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt, 
                 'nb_output':self.nb_output, 'x':x_seen[0], 'x_exp':x_exp[0], 
-                'abs_diff':abs_diff,'call_f':self.call_f, 'call_f_test': self.call_f_test,
                 'fid_zero_field':self.fid_zero, 'phi_0': Qobj2array(self.phi_0), 
                 'phi_tgt':Qobj2array(self.phi_tgt), 'time_fit':0, 'time_suggest':0} 
 
@@ -617,7 +629,6 @@ class BatchFS(BatchBase):
             abs_diff = 1 - test
             dico_res = {'test':test, 'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt,
                         'x':x_seen, 'x_exp':x_exp, 'abs_diff':abs_diff,
-                        'call_f':self.call_f, 'call_f_test': self.call_f_test,
                         'fid_zero_field':self.fid_zero,'phi_0': Qobj2array(self.phi_0), 
                         'phi_tgt':Qobj2array(self.phi_tgt), 'time_suggest':cum_time, 
                         'time_fit':0, 'message_BFGS':optim['message']}        
@@ -634,7 +645,6 @@ class BatchFS(BatchBase):
             abs_diff = 1 - test
             dico_res = {'test':test, 'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt,
                         'x':x_seen, 'x_exp':x_exp, 'abs_diff':abs_diff,
-                        'call_f':self.call_f, 'call_f_test': self.call_f_test,
                         'fid_zero_field':self.fid_zero,'phi_0': Qobj2array(self.phi_0), 
                         'phi_tgt':Qobj2array(self.phi_tgt), 'time_suggest':cum_time, 
                         'time_fit':0, 'message_BFGS':optim['message'],'x_init':X_init}  
@@ -667,7 +677,7 @@ class BatchFS(BatchBase):
             
             ### Extra steps
             nb_polish = self.bo_args['nb_polish']
-            nb_tokeep = self.bo_args['nb_tokeep']
+            nb_to_keep = self.bo_args['nb_to_keep']
             nb_more = self.bo_args['nb_more']
             nb_iter_polish = self.bo_args['nb_iter_polish']
             polish_step = 0
@@ -677,10 +687,11 @@ class BatchFS(BatchBase):
             while nb_polish > 0 and self.max_time_bo > 0:
                 more = nb_more[polish_step]
                 new_iter = nb_iter_polish[polish_step]
-                logger.info('Polish, nb to keep {}, X times more shots {} '.format(nb_tokeep, nb_more))
+                keep = nb_to_keep[polish_step]
+                logger.info('Polish, nb to keep {}, X times more shots {} '.format(keep, nb_more))
                 nb_polish -= 1  
                 polish_step += 1
-                self.set_up_BO(optim_config, nb_to_keep = nb_tokeep, restrict_domain = True, adapt_shots=more)   
+                self.set_up_BO(optim_config, nb_restrict_data = keep, restrict_domain = True, adapt_shots=more)   
                 if(save_extra):
                     dico_res.update(self.get_info_BO(tag='init' + str(polish_step) + '_'))
                 self.BO.run_optimization(max_iter = new_iter, eps = 0, max_time = self.max_time_bo)
@@ -710,11 +721,11 @@ class BatchFS(BatchBase):
                         dico_res['test'], 'time_allbo':self.time_all_bo, 'time_fit':self.time_fit_bo, 
                         'time_suggest':self.time_suggest_bo, 'fid_zero_field':self.fid_zero,'phi_0':   
                         Qobj2array(self.phi_0), 'phi_tgt':Qobj2array(self.phi_tgt), 'polish_step':polish_step, 
-                        'nb_polish':nb_polish, 'nb_more':nb_more, 'nb_tokeep':nb_tokeep})
+                        'nb_polish':nb_polish, 'nb_more':nb_more, 'nb_to_keep':nb_to_keep})
                          
         cum_time = time.time() - time_start        
         dico_res.update({'time_all':cum_time,'x_tgt':self.x_tgt, 'call_f':self.call_f, 
-                         'call_f_test': self.call_f_test})
+                         'call_f_single':self.call_f_single,'call_f_test': self.call_f_test})
         return dico_res 
 
     @classmethod
@@ -755,7 +766,7 @@ class BatchFS(BatchBase):
         self.BO.evaluator = self.BO._evaluator_chooser()    
         
 
-    def set_up_BO(self, optim_config, nb_to_keep = None, restrict_domain = False, adapt_shots=1):
+    def set_up_BO(self, optim_config, nb_restrict_data = None, restrict_domain = False, adapt_shots=1):
         """ set up the BO object. At the end the model is initiated
         Restrict domain // Implement rules for the adaptation of the number of shots // 
         Deal with the fixing of the constraints and the forcing the use of grad
@@ -765,9 +776,9 @@ class BatchFS(BatchBase):
             <str> 'Strat1': 
         """
         MAX_INCREASE = 5000
-        if nb_to_keep is not None:
+        if nb_restrict_data is not None:
             (_,_), (x_exp, _) = self.BO.get_best()
-            X_to_keep, Y_to_keep = filter_X(self.BO.X, self.BO.Y, x_exp, nb_to_keep)
+            X_to_keep, Y_to_keep = filter_X(self.BO.X, self.BO.Y, x_exp, nb_restrict_data)
         else:
             if(hasattr(self, 'BO')):
                 X_to_keep = self.BO.X 
@@ -811,15 +822,15 @@ class BatchFS(BatchBase):
             
             if adapt_shots == 'strat1':
                 coeff = int(np.clip(np.square(alpha/std_data) , 1, MAX_INCREASE))
-                self.set_up_BO(optim_config, nb_to_keep = nb_to_keep, restrict_domain = restrict_domain, adapt_shots=coeff)
+                self.set_up_BO(optim_config, nb_restrict_data = nb_restrict_data, restrict_domain = restrict_domain, adapt_shots=coeff)
                     
             elif adapt_shots == 'strat2':
                 coeff = int(np.clip(np.square(model_mean_disp/model_std_avg), 1,MAX_INCREASE))
-                self.set_up_BO(optim_config, nb_to_keep = nb_to_keep, restrict_domain = restrict_domain, adapt_shots=coeff)
+                self.set_up_BO(optim_config, nb_restrict_data = nb_restrict_data, restrict_domain = restrict_domain, adapt_shots=coeff)
 
             elif adapt_shots == 'strat3': 
                 coeff =  int(np.clip(np.square(model_mean_disp/model_std_avg), 1, 100))
-                self.set_up_BO(optim_config, nb_to_keep = nb_to_keep, restrict_domain = restrict_domain, adapt_shots=coeff)
+                self.set_up_BO(optim_config, nb_restrict_data = nb_restrict_data, restrict_domain = restrict_domain, adapt_shots=coeff)
                 self.set_up_BO(optim_config, nb_to_keep = None, restrict_domain = False, adapt_shots='strat2')
 
             else:
@@ -896,28 +907,16 @@ class BatchFS(BatchBase):
 
         if 'polish' not in optim_config:
             nb_polish = 0
-            nb_tokeep = 0
+            nb_to_keep = 0
             nb_more = 0
             hp_restart = False
             nb_iter_polish = 0
         else:
             polish_dico = optim_config['polish']
             nb_polish = polish_dico.get('nb_polish',0)
-            nb_tokeep = polish_dico.get('nb_tokeep', nb_init)
-            nb_more = polish_dico.get('nb_more', 1)
-            nb_iter_polish = polish_dico.get('nb_iter', nb_iter_bo)
-            if  hasattr(nb_more, '__iter__'):
-                assert len(nb_more) == nb_polish, "pb len nb_more = {} while nb_polish is {} ".format(len(nb_more))
-            else:
-                nb_more = [nb_more] * nb_polish                
-
-            if  hasattr(nb_iter_polish, '__iter__'):
-                assert len(nb_iter_polish) == nb_polish, "pb len nb_more = {} while nb_polish is {} ".format(len(nb_more))
-            else:
-                nb_iter_polish = [nb_iter_polish] * nb_polish                
-
-
-
+            nb_to_keep = make_iter_if_not_iter(polish_dico.get('nb_to_keep', nb_init), nb_polish)
+            nb_more = make_iter_if_not_iter(polish_dico.get('nb_more', 1), nb_polish)
+            nb_iter_polish = make_iter_if_not_iter(polish_dico.get('nb_iter', nb_iter_bo), nb_polish)
             hp_restart = polish_dico.get('hp_restart', False)
         nb_exploit = optim_config.get('exploitation_steps',0)
         
@@ -926,7 +925,7 @@ class BatchFS(BatchBase):
                 'optim_num_samples':optim_num_samples, 'num_cores':num_cores, 
                 'max_iters':max_iters, 'optimize_restarts':optimize_restarts,
                 'hp_update_interval':hp_update_interval, 'nb_iter_bo':nb_iter_bo,
-                'max_time_bo':max_time_bo, 'nb_polish':nb_polish, 'nb_tokeep':nb_tokeep,
+                'max_time_bo':max_time_bo, 'nb_polish':nb_polish, 'nb_to_keep':nb_to_keep,
                 'nb_more':nb_more, 'nb_exploit':nb_exploit, 'hp_restart':hp_restart, 
                 'nb_iter_polish':nb_iter_polish}
         
@@ -988,6 +987,7 @@ class BatchFS(BatchBase):
         res[tag + 'test'] = self.f_test(x_exp)
         res[tag + 'nb_s'] = self.n_meas
         res[tag + 'call_f'] = self.call_f
+        res[tag + 'call_f_single'] = self.call_f_single
         try:
             res[tag + 'alpha'] = np.sqrt(np.average(bo_acq, 0) * (1 - np.average(bo_acq, 0))/self.n_meas) 
         except:
@@ -1023,6 +1023,15 @@ def filter_X(X, Y,  x_best, nb):
 #=======================================#
 # HELPER FUNCTIONS
 #=======================================#
+def make_iter_if_not_iter(x, nb_elements):
+    if  hasattr(x, '__iter__'):
+        assert len(x) == nb_elements, "pb len nb_more = {} while nb_polish is {} ".format(len(nb_elements))
+        x_iter = x
+    else:
+        x_iter = [x] * nb_elements
+    return x_iter
+
+
 def Qobj2array(qobj):
     if hasattr(qobj,'full'):
         return qobj.full() 
@@ -1030,22 +1039,49 @@ def Qobj2array(qobj):
         return qobj
 
 
-def ansatz_H(angle):
+def ansatz_H(angle, n_gate= 0):
     """ exactly H if angle = pi/2"""
-    return ry(angle) * Z
+    gate = ry(angle) * Z
+    if n_gate > 0:
+        gate *= ansatz_N(n_gate)
+    return gate
 
-def ansatz_X(angle):
+def ansatz_X(angle, n_gate= 0):
     """ -j X if angle = pi"""
-    return rx(angle)
+    gate = rx(angle)
+    if n_gate > 0:
+        gate *= ansatz_N(n_gate)
+    return gate
+
+def ansatz_I(n_gate = 0):
+    gate = I
+    if n_gate > 0:
+        gate *= ansatz_N(n_gate)
+    return gate
+        
+
+def layer_N(nb_qubits, n_gate = 0):
+    """one layer of nb _qubits independent I or Noise gates"""
+    return tensor(*[ansatz_I(n_gate)for _ in range(nb_qubits)])
     
-def get_UGHZ(x):
+    
+def ansatz_N(epsilon):
+    """ noisy gate: G = exp(-i n.sigma) """
+    ampl = rdm.normal(scale=epsilon*np.pi)
+    direction = rdm.normal(size=3)
+    direction /= np.sqrt(np.dot(direction, direction))
+    H = -1.j * ampl * (direction[0] * X + direction[1] * Y + direction[2] * Z)
+    return H.expm()
+    
+def get_UGHZ(x, n_gate = 0):
     """ parametrized (6 parameters) circuitry which can create a c. GHZ 
     state i.e. |000> - |111>"""
-    g1 = tensor(ansatz_H(x[0]), ansatz_H(x[1]), ansatz_X(x[2]))
+    g1 = tensor(ansatz_H(x[0], n_gate), ansatz_H(x[1], n_gate), ansatz_X(x[2], n_gate))
     g2 = cnot(3, 1,2)
     g3 = cnot(3, 0,2)
-    g4 = tensor(ansatz_H(x[3]), ansatz_H(x[4]), ansatz_H(x[5]))
-    return g4 * g3 * g2 * g1
+    g4 = tensor(ansatz_H(x[3], n_gate), ansatz_H(x[4], n_gate), ansatz_H(x[5], n_gate))
+    g5 = layer_N(3, n_gate)
+    return g5 * g4 * g3 * g2 * g1
 
 def get_HZY(theta):
     """ setup a parametrized Hamiltonian """
@@ -1062,11 +1098,14 @@ def get_HZY_2(theta):
     H = alpha * Z + Y * beta
     return H
 
-def get_UCPRY(x):
+def get_UCPRY(x, n_gate=0):
     """ setup a parametrized Unitary in the form of two parametrized gates """
+    n1 = layer_N(nb_qubits=2, n_gate = n_gate)
     g1 = tensor(ry(x[0]), I)
+    n2 = layer_N(nb_qubits=2, n_gate = n_gate) 
     g2 = controlled_gate(ry(x[1]))
-    return g2 * g1
+    n3 = layer_N(nb_qubits=2, n_gate = n_gate) 
+    return n3 * g2 *n2 * g1 * n1
 
     'domain'
 def real_with_test(x):
@@ -1110,6 +1149,15 @@ def closest_to(X, x_tgt):
 
 def dist_to(X, x_tgt):
     return np.linalg.norm(X-x_tgt, axis = 1) / np.shape(X)[1]
+
+def corrupt_readout_qubit(proba, n_ro=0):
+    """ classical readout noise with noise[i] = 1-p(i|i) with i \in {0,1}"""
+    proba_corrupted = np.array(proba)
+    if n_ro>0:
+        proba_corrupted = proba_corrupted * (1-n_ro) + (1-proba_corrupted) * n_ro
+    return proba_corrupted 
+    
+
 
 if __name__ == '__main__':
     # 3 BEHAVIORS DEPENDING ON THE FIRST PARAMETER:
