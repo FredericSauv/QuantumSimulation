@@ -889,8 +889,10 @@ class BatchFS(BatchBase):
         f_fact = self.n_meas if type_lik == 'binomial' else 1
         if is_acq_target:
             f_wrap = lambda x: self.f(x, N=self.n_meas, aggregate=aggregate) 
+            self.sign_f = 1
         else: 
             f_wrap = lambda x: 1-self.f(x, N=self.n_meas, aggregate=aggregate)
+            self.sign_f = -1
         f_BO = lambda x: f_fact * f_wrap(x)
         
         
@@ -960,7 +962,7 @@ class BatchFS(BatchBase):
             self.nb_output = mo['output_dim']
         else:
             self.nb_output = 1
-            
+        self.type_likelihood = type_lik
         
         return bo_args, f_BO
     
@@ -977,6 +979,17 @@ class BatchFS(BatchBase):
         res[tag + 'bo_x'] = x
         res[tag + 'bo_y'] = y
         bo_acq, bo_acq_std = self.BO.acquisition._compute_acq_splitted(x)
+        if self.BO.normalize_Y:
+            norm_args = self.BO.norm_args
+            #normalization_type = self.normalization_type
+            norm_mean = norm_args['mean']
+            norm_std = norm_args['std']
+            bo_acq = norm_std * bo_acq + norm_mean
+        else:
+            norm_mean = 0.
+            norm_std = 1.
+        res[tag + 'norm_mean'] = norm_mean
+        res[tag + 'norm_std'] = norm_std
         res[tag + 'bo_acq'] = bo_acq
         res[tag + 'bo_acq_std'] = bo_acq_std
         res[tag + 'bo_tgt'] = self.f_test(x)
@@ -984,7 +997,7 @@ class BatchFS(BatchBase):
         res[tag + 'domain'] = np.array([d['domain'] for d in self.BO.domain])
         res[tag + 'x_exp'] = x_exp
         res[tag + 'x_seen'] = x_seen
-        res[tag + 'test'] = self.f_test(x_exp)
+        res[tag + 'test'] = self.f_test(x_exp) * self.sign_f
         res[tag + 'nb_s'] = self.n_meas
         res[tag + 'call_f'] = self.call_f
         res[tag + 'call_f_single'] = self.call_f_single
@@ -1002,6 +1015,10 @@ class BatchFS(BatchBase):
                 if v == 'positive':
                     self.BO.model.model[str_param].constrain_positive()
                 elif len(v) == 2:
+#                    v_min, v_max = v[0], v[1]
+#                    if('variance' in k) and self.BO.normalize_Y:
+#                        scale = np.square(self.BO.args_norm['std'])                        
+#                    
                     self.BO.model.model[str_param].constrain_bounded(v[0], v[1], warning = False)
                 else:
                     self.BO.model.model[str_param] = v
@@ -1192,7 +1209,7 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_model_4_polish_v3.txt', output_folder = '_tmp/_configs/_model_4_polish_v3', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/model_5_comp3_gaussianpolish_noisy_10s.txt', output_folder = '_tmp/_configs/_tmp', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
         batch = BatchFS('_tmp/_configs/_model_4_polish_v3/config_res1.txt')
         batch.run_procedures(save_freq = 1)
