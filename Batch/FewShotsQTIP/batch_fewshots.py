@@ -889,10 +889,10 @@ class BatchFS(BatchBase):
         f_fact = self.n_meas if type_lik == 'binomial' else 1
         if is_acq_target:
             f_wrap = lambda x: self.f(x, N=self.n_meas, aggregate=aggregate) 
-            self.sign_f = 1
+            self.warp_f = lambda x:x
         else: 
             f_wrap = lambda x: 1-self.f(x, N=self.n_meas, aggregate=aggregate)
-            self.sign_f = -1
+            self.warp_f = lambda x:1-x
         f_BO = lambda x: f_fact * f_wrap(x)
         
         
@@ -985,19 +985,22 @@ class BatchFS(BatchBase):
             norm_mean = norm_args['mean']
             norm_std = norm_args['std']
             bo_acq = norm_std * bo_acq + norm_mean
+            bo_acq_std = norm_std * bo_acq_std
         else:
             norm_mean = 0.
             norm_std = 1.
+        bo_acq = self.warp_f(bo_acq)
         res[tag + 'norm_mean'] = norm_mean
         res[tag + 'norm_std'] = norm_std
         res[tag + 'bo_acq'] = bo_acq
         res[tag + 'bo_acq_std'] = bo_acq_std
         res[tag + 'bo_tgt'] = self.f_test(x)
-        res[tag + 'bo_args'] = self.BO.model.model.param_array, 
+        res[tag + 'bo_args'] = np.copy(self.BO.model.model.param_array), 
+        res[tag + 'bo_args_names'] = self.BO.model.model.parameter_names()
         res[tag + 'domain'] = np.array([d['domain'] for d in self.BO.domain])
         res[tag + 'x_exp'] = x_exp
         res[tag + 'x_seen'] = x_seen
-        res[tag + 'test'] = self.f_test(x_exp) * self.sign_f
+        res[tag + 'test'] = self.f_test(x_exp)
         res[tag + 'nb_s'] = self.n_meas
         res[tag + 'call_f'] = self.call_f
         res[tag + 'call_f_single'] = self.call_f_single
@@ -1168,7 +1171,7 @@ def dist_to(X, x_tgt):
     return np.linalg.norm(X-x_tgt, axis = 1) / np.shape(X)[1]
 
 def corrupt_readout_qubit(proba, n_ro=0):
-    """ classical readout noise with noise[i] = 1-p(i|i) with i \in {0,1}"""
+    """ classical readout noise with noise[i] = 1-p(i|i) with i in {0,1}"""
     proba_corrupted = np.array(proba)
     if n_ro>0:
         proba_corrupted = proba_corrupted * (1-n_ro) + (1-proba_corrupted) * n_ro
