@@ -34,8 +34,8 @@ def squerror(p_pred, p_true):
 # Data training / test
 ### ============================================================ ###
 x_range = (0, np.pi)
-nb_obs = 500
-nb_meas = 10
+nb_obs = 100
+nb_meas = 1
 nb_obs_nm = int(nb_obs/nb_meas)
 x_test = np.linspace(*x_range)[:, np.newaxis]
 p_test = proba(x_test)
