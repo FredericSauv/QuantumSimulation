@@ -13,7 +13,7 @@ from matplotlib import cm
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.optimize import minimize 
+from scipy.optimize import minimize, differential_evolution
 from matplotlib.lines import Line2D 
 
 def reshape(x,input_dim):
@@ -103,15 +103,20 @@ class branin(function2d):
 
 
 
-
-#nm
-#  scipy.optimize.minimize(fun, x0, args=(), method='Nelder-Mead', tol=None, callback=None, options={'func': None, 'maxiter': None, 'maxfev': None, 'disp': False, 'return_all': False, 'initial_simplex': None, 'xatol': 0.0001, 'fatol': 0.0001, 'adaptive': False})
+###############################################################################
+#               NEDLER MEAD
+#  scipy.optimize.minimize(fun, x0, args=(), method='Nelder-Mead', tol=None, callback=None, 
+#options={'func': None, 'maxiter': None, 'maxfev': None, 'disp': False, 'return_all': False, 
+#'initial_simplex': None, 'xatol': 0.0001, 'fatol': 0.0001, 'adaptive': False})
+###############################################################################
+#optim
 br = branin()
 f_min = lambda x: br.f(x)
 #x0 = np.array([[np.random.uniform(b[0], b[1]) for b in br.bounds] for _ in range(3)])
 x0 = np.array([(6.3, 14.5), (6.57, 11.12), (2.29, 14.303)])
 optim_nm = minimize(f_min, x0[0],method='Nelder-Mead', options={'initial_simplex':x0, 'return_all':True, 'xatol': 1,'fatol':0.01})
 
+#plot res
 all_points_nm = np.array(br.x_seen)
 print(len(all_points_nm))
 nb_points = len(all_points_nm)
@@ -130,5 +135,41 @@ for i in range(nb_points-3):
 
 ax.set_xlim(-5, 10)
 ax.set_ylim(1, 15)
-
 br.plot()
+
+
+
+###############################################################################
+#               DE
+#scipy.optimize.differential_evolution(func, bounds, args=(), strategy='best1bin', 
+#maxiter=None, popsize=15, tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=None, 
+#callback=None, disp=False, polish=True, init='latinhypercube')
+###############################################################################
+#optim
+br = branin()
+f_min = lambda x: br.f(x)
+#x0 = np.array([[np.random.uniform(b[0], b[1]) for b in br.bounds] for _ in range(3)])
+optim_de = differential_evolution(f_min, br.bounds, popsize = 5)
+
+#plot res
+all_points_nm = np.array(br.x_seen)
+print(len(all_points_nm))
+nb_points = len(all_points_nm)
+fig = plt.figure()
+ax = fig.add_subplot(111)
+x = all_points_nm[:,0]
+y = all_points_nm[:,1]
+to_plot = [35,36, 37]
+for i in range(nb_points-3):
+    if(i in to_plot):
+        x_tmp = [x[i], x[i+1], x[i+2], x[i]]
+        y_tmp = [y[i], y[i+1], y[i+2], y[i]]
+        line = Line2D(x_tmp, y_tmp)
+        ax.add_line(line)
+
+
+ax.set_xlim(-5, 10)
+ax.set_ylim(1, 15)
+br.plot()
+
+
