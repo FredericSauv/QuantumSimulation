@@ -331,6 +331,7 @@ class BatchFS(BatchBase):
             n_input = model_config.get('noise_input', 0)
             n_gate = model_config.get('noise_gate', 0)
             n_ro = model_config.get('noise_readout', 0)
+            repetition = model_config.get('noise_repetition', 0)
             self.nb_output = 3 if self.n_meas_index is None else 1
         
             #Fixed phi_tgt (Bell state) - may be random later on
@@ -342,33 +343,36 @@ class BatchFS(BatchBase):
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
             self.fid_zero = None #we are not interested by this figure for this model
 
-            def f(x, verbose = verbose, N = self.n_meas, aggregate = agg, n_input=n_input, n_gate=n_gate, n_ro=n_ro):
-                x_n = np.clip(x + rdm.norm(0.0, n_input, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if n_input>0 else x
+        
+            def f(x, verbose = verbose, N = self.n_meas, aggregate = agg, n_input=n_input, 
+                  n_gate=n_gate, n_ro=n_ro, repetition = repetition):
+                """
+                n_input: noise in the input
+                n_ro: noise in readout
+                n_gate: noise in gates
+                repetition: when n_gate is not 0 how to deal with it
+                            
+                """
+                x_n = np.clip(x + rdm.norm(0.0, n_input, np.shape(x)), dyn.params_lbnd, 
+                              dyn.params_ubnd) if n_input>0 else x
                 if(x_n.shape[0] != self.n_params):
-                    res = np.array([f(x_one, verbose,N=N,aggregate=aggregate,n_input=0, n_gate=n_gate,n_ro=n_ro) for x_one in x_n])
+                    res = np.array([f(x_one, verbose, N=N, aggregate=aggregate, 
+                                      n_input=0, n_gate=n_gate,n_ro=n_ro, repetition=repetition) for x_one in x_n])
                 else:
-                    self.call_f_single += 1
-                    U = get_UCPRY(x, n_gate=n_gate)
                     list_e = all_e if self.n_meas_index is None else [all_e[self.n_meas_index]]
-                    phi_f = U * self.phi_0
-                    final_expect = [real_with_test(e.matrix_element(phi_f, phi_f)) for e in list_e]
-                    proba = np.array([(1 + e)/2 for e in final_expect])
-                    proba = corrupt_readout_qubit(proba, n_ro)
-                    assert np.any(proba < 1 + 1e-5), "proba > 1: {}".format(proba)
-                    assert np.any(proba > -1e-5), "proba > 1: {}".format(proba)
-                    proba = np.clip(proba, 0, 1)
-                    if (N == np.inf): 
-                        res = proba 
-                        self.call_f += 1
+                    if (n_gate >0) and (repetition ==1) and (N < np.inf) and (N>1):
+                        measurement = [f(x, verbose, N=1, aggregate=aggregate, n_input=n_input,
+                                         n_gate=n_gate, n_ro=n_ro, repetition = 0) for _ in range(N)]                        
                     else:
-                        res = rdm.binomial(N, proba) / N
-                        self.call_f += len(list_e)*N
-                    if aggregate == 'fid':
-                        res = 1/4 * (1 + np.dot(2*self.p_tgt-1,2*res-1))
-                    if aggregate == 'close':
-                        res = 1 - np.average(np.abs(self.p_tgt-res))
+                        self.call_f_single += 1
+                        U = get_UCPRY(x, n_gate=n_gate)                    
+                        proba = get_proba_after_evol(U, self.phi_0, list_e, n_ro)
+                        measurement, n_call = get_measurement_from_proba(proba, N, aggregate, self.p_tgt)
+                        self.call_f += n_call
+                    res = np.squeeze(np.average(np.atleast_2d(measurement),0))+0
                     if(verbose): print(x, res, proba)
                 return np.atleast_1d(res)
+        
         
             #Use for testing the optimal pulse
             def f_test(x, verbose = verbose):
@@ -397,12 +401,13 @@ class BatchFS(BatchBase):
             n_input = model_config.get('noise_input', 0)
             n_gate = model_config.get('noise_gate', 0)
             n_ro = model_config.get('noise_readout', 0)
+            repetition = model_config.get('noise_repetition', 0)
             self.nb_output = 3 if self.n_meas_index is None else 1
         
             #Fixed phi_tgt (Bell state) - may be random later on
             x_tgt = np.array((np.pi/2, np.pi/2, np.pi, np.pi/2, np.pi/2, np.pi/2))     #x_tgt = np.array([rdm.uniform(*d) for d in self.domain])
             U_tgt = get_UGHZ(x_tgt, n_gate=0)
-            # all possible solutions
+            # all possible solutions in the domain
             x_tgt = np.array([[1., 3., 2., 3., 1., 3.], [3., 1., 2., 1., 3., 3.], [3., 3., 4., 1., 1., 3.],
                               [3., 1., 4., 3., 1., 1.], [1., 1., 4., 3., 3., 3.],[1., 3., 4., 1., 3., 1.],
                               [1., 1., 0., 3., 3., 3.],[1., 1., 2., 1., 1., 1.],[3., 3., 2., 3., 3., 1.],
@@ -412,33 +417,37 @@ class BatchFS(BatchBase):
             self.e_tgt = [real_with_test(e.matrix_element(self.phi_tgt, self.phi_tgt)) for e in all_e]
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
             self.fid_zero = None #we are not interested by this figure for this model
-                
-            def f(x, verbose = verbose, N = self.n_meas, aggregate = agg, n_input=n_input, n_gate=n_gate, n_ro=n_ro):
-                x_n = np.clip(x + rdm.norm(0.0, n_input, np.shape(x)), dyn.params_lbnd, dyn.params_ubnd) if n_input>0 else x
+            
+            
+
+            
+            
+            def f(x, verbose = verbose, N = self.n_meas, aggregate = agg, n_input=n_input, 
+                  n_gate=n_gate, n_ro=n_ro, repetition = repetition):
+                """
+                n_input: noise in the input
+                n_ro: noise in readout
+                n_gate: noise in gates
+                repetition: when n_gate is not 0 how to deal with it
+                            
+                """
+                x_n = np.clip(x + rdm.norm(0.0, n_input, np.shape(x)), dyn.params_lbnd, 
+                              dyn.params_ubnd) if n_input>0 else x
                 if(x_n.shape[0] != self.n_params):
-                    res = np.array([f(x_one, verbose, N=N,aggregate=aggregate, n_input=0, n_gate=n_gate,n_ro=n_ro) for x_one in x_n])
+                    res = np.array([f(x_one, verbose, N=N, aggregate=aggregate, 
+                                      n_input=0, n_gate=n_gate,n_ro=n_ro, repetition=repetition) for x_one in x_n])
                 else:
-                    self.call_f_single += 1
-                    U = get_UGHZ(x, n_gate=n_gate)
                     list_e = all_e if self.n_meas_index is None else [all_e[self.n_meas_index]]
-                    phi_f = U * self.phi_0
-                    final_expect = [real_with_test(e.matrix_element(phi_f, phi_f)) for e in list_e]
-                    proba = np.array([(1 + e)/2 for e in final_expect])
-                    proba = corrupt_readout_qubit(proba, n_ro)
-                    assert np.any(proba < 1 + 1e-5), "proba > 1: {}".format(proba)
-                    assert np.any(proba > -1e-5), "proba > 1: {}".format(proba)
-                    proba = np.clip(proba, 0, 1)
-                    if (N == np.inf): 
-                        res = proba 
-                        self.call_f += 1
+                    if (n_gate >0) and (repetition ==1) and (N < np.inf) and (N>1):
+                        measurement = [f(x, verbose, N=1, aggregate=aggregate, n_input=n_input,
+                                         n_gate=n_gate, n_ro=n_ro, repetition = 0) for _ in range(N)]                        
                     else:
-                        res = rdm.binomial(N, proba) / N
-                        self.call_f += len(list_e)*N
-                    if aggregate == 'fid':
-                        res = 1/8 * (1 + np.dot(2*self.p_tgt-1,2*res-1))
-                    elif aggregate == 'close':
-                        res = np.average(np.abs(self.p_tgt-res))
-        
+                        self.call_f_single += 1
+                        U = get_UGHZ(x, n_gate=n_gate)                    
+                        proba = get_proba_after_evol(U, self.phi_0, list_e, n_ro)
+                        measurement, n_call = get_measurement_from_proba(proba, N, aggregate, self.p_tgt)
+                        self.call_f += n_call
+                    res = np.squeeze(np.average(np.atleast_2d(measurement),0))+0
                     if(verbose): print(x, res, proba)
                 return np.atleast_1d(res)
         
@@ -1043,6 +1052,29 @@ def filter_X(X, Y,  x_best, nb):
 #=======================================#
 # HELPER FUNCTIONS
 #=======================================#
+def get_proba_after_evol(U, phi_0, list_e, n_ro):
+     phi_f = U * phi_0
+     final_expect = [real_with_test(e.matrix_element(phi_f, phi_f)) for e in list_e]
+     proba = np.array([(1 + e)/2 for e in final_expect])
+     proba = corrupt_readout_qubit(proba, n_ro)
+     assert np.any(proba < 1 + 1e-5), "proba > 1: {}".format(proba)
+     assert np.any(proba > -1e-5), "proba > 1: {}".format(proba)
+     proba = np.clip(proba, 0, 1)
+     return proba
+ 
+def get_measurement_from_proba(proba, N, aggregate, p_tgt=None):
+    if (N == np.inf): 
+        res = proba 
+        n_call = 1
+    else:
+        res = rdm.binomial(N, proba) / N
+        n_call = len(res)*N
+    if aggregate == 'fid':
+        res = 1/8 * (1 + np.dot(2*p_tgt-1,2*res-1))
+    elif aggregate == 'close':
+        res = np.average(np.abs(p_tgt-res))
+    return res, n_call
+
 def make_iter_if_not_iter(x, nb_elements):
     if  hasattr(x, '__iter__'):
         assert len(x) == nb_elements, "pb len nb_more = {} while nb_polish is {} ".format(len(nb_elements))
@@ -1212,10 +1244,11 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/model_5_comp3_gaussianpolish_noisy_10s.txt', output_folder = '_tmp/_configs/_tmp', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/model_5_comp3_gaussianpolish_noisy_5s.txt', output_folder = '_tmp/_configs/_tmp', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
         batch = BatchFS('_tmp/_configs/_model_4_polish_v3/config_res1.txt')
         batch.run_procedures(save_freq = 1)
+
 
         #pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ], [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])        
         #keys_collect = [['config', 'model', '_FLAG'], ['config', 'optim', '_FLAG']]
@@ -1226,5 +1259,42 @@ if __name__ == '__main__':
         #x_exp_pi[np.array([np.all([ (xx>=-0.5) and (xx<=2.1) for xx in x]) for x in x_exp_pi])]
         #diff_x = x_exp - x_exp_pi * np.pi/2
         #test_exp = np.array([c['test'] for c in c_perfect['infs_grad_100']])
+        perfect_x = np.pi/2 * np.array([1., 3., 2., 3., 1., 3.])
+        inperfect_x = perfect_x + 0.5 * np.pi/2 * np.random.normal(size=6) 
+        inperfect_x_small = perfect_x + 0.1 * np.pi/2 * np.random.normal(size=6)
+        optim = np.array([4.72841866, 4.71646124, 6.28318531, 1.56676997, 1.56157624,4.71475796])
         
+        fid_res = [batch.f(perfect_x, aggregate='fid', N=np.inf, n_gate=0.01) for _ in range(10000)]
+        fid_res_inper = [batch.f(inperfect_x, aggregate='fid', N=np.inf, n_gate=0.01) for _ in range(1000)]
+        fid_res_inper_small = [batch.f(inperfect_x_small, aggregate='fid', N=np.inf, n_gate=0.01) for _ in range(1000)]      
+        fid_res_optim = [batch.f(optim, aggregate='fid', N=np.inf, n_gate=0.01) for _ in range(10000)]
         
+        l1 = "F=" + str(np.round(batch.f_test(perfect_x) * 100,0)) + "%"
+        l2 = "F=" + str(np.round(batch.f_test(inperfect_x) * 100,0)) + "%"
+        l3 = "F=" + str(np.round(batch.f_test(inperfect_x_small) * 100,0)) + "%"
+        import matplotlib
+        import matplotlib.pylab as plt
+        matplotlib.rcParams['text.usetex'] = False
+        matplotlib.rcParams['text.latex.unicode'] = True
+        plt.hist(np.squeeze(fid_res), label = r'$F=100\%$', bins=3, rwidth=100)
+        plt.hist(np.squeeze(fid_res_inper_small), label =r'$F=97\%$')
+        plt.hist(np.squeeze(fid_res_inper), label = r'$F=73\%$')
+        plt.legend()
+        plt.title(r'$\varepsilon_n=0.1\%$')
+        #plt.savefig("noise01pc.pdf", bbox_inches='tight', transparent=True, pad_inches=0)
+        
+        print(np.std(np.squeeze(fid_res)))
+        print(np.std(np.squeeze(fid_res_inper)))
+        print(np.std(np.squeeze(fid_res_inper_small)))
+        
+        print(np.average(np.squeeze(fid_res)))
+        print(np.average(np.squeeze(fid_res_inper)))
+        print(np.average(np.squeeze(fid_res_inper_small)))        
+        print(np.average(np.squeeze(fid_res_optim)))  
+        
+
+        ideal = np.array([4.71238898, 4.71238898, 6.28318531, 1.57079633, 1.57079633,
+       4.71238898])
+        
+        batch.f(optim, aggregate='fid', N=1000000000000000)
+        batch.f(ideal, aggregate='fid', N=100000000000)
