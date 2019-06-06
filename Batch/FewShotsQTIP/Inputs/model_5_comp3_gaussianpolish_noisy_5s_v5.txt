@@ -1,0 +1,16 @@
+# Three qubits circuit with a GHZ target - introducing classical readout error
+# Several steps: the first one employs few shots and binomial likelihood, then the number of shots is increased
+# and the likelihood used is gaussian 
+# Increase of the number of shots
+model {'model':5,'noise_type':'SHOT2BASIS','noise_n_meas':5,'_FLAG':'5s','noise_repetition':1} {'noise_gate':0.01,'_FLAG':'5s_ng1pc'} {'noise_gate':0.05,'_FLAG':'5s_ng5pc'} {'noise_gate':0.001,'_FLAG':'5s_ng01pc'} {'noise_gate':0.005,'_FLAG':'5s_ng05pc'} {'noise_readout':0.1,'_FLAG':'5s_ro10pc'} {'noise_readout':0.01,'_FLAG':'5s_ro1pc'}
+
+optim {'save_extra':True,'nb_anchors':5,'type_acq':'LCB_target_oneq','acq_nbq':3,'type_lik':'binomial','nb_init':100,'nb_iter':100,'num_cores':4,'mo':{'output_dim':7,'rank':0,'missing':False,'kappa_fix':True},'optimize_restarts':1,'max_iters':500,'acquisition_weight_lindec':False,'acq_weight':4,'model_update_interval':1,'hp_update_interval':10,'_FLAG':'lcb1q_bin_100','exploitation_steps':10,'hp_constrains':{'Mat52.lengthscale':[0.01,25.],'Mat52.variance':[0.1,25.0],'white.variance':[1e-09,10.]},'switch_to_gauss':20} {'nb_iter':50,'_FLAG':'lcb1q_bin_50'} {'nb_iter':250,'_FLAG':'lcb1q_bin_250'} {'nb_iter':0,'exploitation_steps':0,'_FLAG':'lcb1q_bin_0'} {'nb_iter':400,'exploitation_steps':0,'_FLAG':'lcb1q_bin_400'} {'nb_iter':150,'_FLAG':'lcb1q_bin_150_k75n250x20','polish':{'nb_more':[20],'nb_polish':1,'nb_iter':[250],'nb_to_keep':[75]}} {'nb_iter':150,'_FLAG':'lcb1q_bin_150_k75n500x20','polish':{'nb_more':[20],'nb_polish':1,'nb_iter':[500],'nb_to_keep':[75]}} {'nb_iter':150,'_FLAG':'lcb1q_bin_150_k75n750x20','polish':{'nb_more':[20],'nb_polish':1,'nb_iter':[750],'nb_to_keep':[75]}} {'nb_iter':150,'_FLAG':'lcb1q_bin_150_k75n250x50','polish':{'nb_more':[50],'nb_polish':1,'nb_iter':[250],'nb_to_keep':[75]}} {'nb_iter':150,'_FLAG':'lcb1q_bin_150_k75n500x50','polish':{'nb_more':[50],'nb_polish':1,'nb_iter':[500],'nb_to_keep':[75]}} {'nb_iter':150,'_FLAG':'lcb1q_bin_150_k75n750x50','polish':{'nb_more':[50],'nb_polish':1,'nb_iter':[750],'nb_to_keep':[75]}}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
