@@ -52,6 +52,22 @@ plt.plot(x_test, p_test, label = 'real proba')
 plt.scatter(x_init, y_init, label='one shot')
 plt.legend()
 
+def predict_p(model, X):
+    mean, var = model._raw_predict(X, full_cov=False, kern=None)
+    likelihood = model.likelihood
+    Nf_samp = 10000
+    s = np.random.randn(mean.shape[0], Nf_samp) * np.sqrt(var) + mean
+    #ss_y = self.samples(s, Y_metadata, samples=Ny_samp)
+    p = likelihood.gp_link.transf(s)
+    p_min = np.min(p)
+    p_max = np.max(p)
+    mean = np.median(p, axis = 1)
+    q = np.quantile(p, [0.025, 0.975], axis=1)
+    y = np.linspace(p_max, p_min)
+    density = np.diff(np.array([[np.sum(pp < yy) for pp in p] for yy in y]), axis=0)
+    return mean, q[0], q[1], density, (p_min, p_max)
+    
+
 
 ### ============================================================ ###
 # Regression task
@@ -66,7 +82,7 @@ k_classi = GPy.kern.Matern52(input_dim = 1, variance = 1., lengthscale = (x_rang
 # 1 Classic set-up
 # ------------------------------------------ #
 m_reg_one = GPy.models.GPRegression(X = x_init, Y=y_init, kernel=k_one)
-m_reg_one.optimize_restarts(num_restarts = 10)
+m_reg_one.optimize_restarts(num_restarts = 5)
 yp_reg_one, _ = m_reg_one.predict(x_test)
 error_reg_one = squerror(yp_reg_one, p_test)
 print(error_reg_one)
@@ -74,6 +90,20 @@ m_reg_one.plot()
 plt.plot(x_test, p_test, 'r', label = 'real p')
 plt.ylim([0.0,1.0])
 plt.legend()
+
+
+col_custom = (0.1, 0.2, 0.5)
+a, b, c, d, d_range = predict_p(m_reg_one, x_test)
+plt.figure()
+plt.plot(x_test, a, color = col_custom, linewidth = 0.8, label = 'model')
+plt.plot(x_test, b, color = col_custom, alpha = 0.5, linewidth = 0.4)
+plt.plot(x_test, c, color = col_custom, alpha = 0.5, linewidth = 0.4)
+plt.imshow(-d, cmap = 'Blues', aspect='auto', interpolation='spline16', extent = (0,  np.pi, d_range[0], d_range[1]), alpha=0.6)
+plt.scatter(x_init, y_init, label = 'Observations', marker = 'o', c='red', s=5)
+plt.plot(x_test, p_test, 'r--', label='F')
+plt.legend(loc='lower right')
+plt.ylim([-0.099, 1.099])
+#plt.savefig("gaussian_1000obs.pdf", bbox_inches='tight', transparent=True, pad_inches=0)
 
 
 
@@ -102,30 +132,19 @@ plt.ylim([0.0,1.0])
 
 
 
-def predict_p(model, X):
-    mean, var = model._raw_predict(X, full_cov=False, kern=None)
-    likelihood = model.likelihood
-    Nf_samp = 10000
-    s = np.random.randn(mean.shape[0], Nf_samp) * np.sqrt(var) + mean
-    #ss_y = self.samples(s, Y_metadata, samples=Ny_samp)
-    p = likelihood.gp_link.transf(s)
-    mean = np.median(p, axis = 1)
-    q = np.quantile(p, [0.025, 0.975], axis=1)
-    y = np.linspace(1,0)
-    density = np.diff(np.array([[np.sum(pp < yy) for pp in p] for yy in y]), axis=0)
-    return mean, q[0], q[1], density
-    
+
 
 col_custom = (0.1, 0.2, 0.5)
 
-a, b, c, d = predict_p(m_classi, x_test)
+a, b, c, d, d_range = predict_p(m_classi, x_test)
 plt.figure()
 plt.plot(x_test, a, color = col_custom, linewidth = 0.8, label = 'model')
 plt.plot(x_test, b, color = col_custom, alpha = 0.5, linewidth = 0.4)
 plt.plot(x_test, c, color = col_custom, alpha = 0.5, linewidth = 0.4)
-plt.imshow(-d, cmap = 'Blues', aspect='auto', interpolation='spline16', extent = (0,  np.pi, 0, 1), alpha=0.6)
+plt.imshow(-5*d, cmap = 'Blues', aspect='auto', interpolation='spline16', extent = (0,  np.pi, d_range[0], d_range[1]), alpha=0.6)
 plt.scatter(x_init, y_init, label = 'Observations', marker = 'o', c='red', s=5)
 plt.plot(x_test, p_test, 'r--', label='F')
 plt.legend(loc='lower right')
-plt.savefig("bernouilli_1000obs.pdf", bbox_inches='tight', transparent=True, pad_inches=0)
+plt.ylim([-0.099, 1.099])
+#plt.savefig("bernouilli_1000obs.pdf", bbox_inches='tight', transparent=True, pad_inches=0)
 

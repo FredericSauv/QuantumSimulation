@@ -24,13 +24,13 @@ def reshape(x,input_dim):
 
 
 class function2d:
-    def plot(self):
+    def plot(self, infos=True):
         bounds = self.bounds
         x1 = np.linspace(bounds[0][0], bounds[0][1], 100)
         x2 = np.linspace(bounds[1][0], bounds[1][1], 100)
         X1, X2 = np.meshgrid(x1, x2)
         X = np.hstack((X1.reshape(100*100,1),X2.reshape(100*100,1)))
-        Y = self.f(X)
+        Y = self.f(X, append=False)
         
         #fig = plt.figure()
         #ax = fig.gca(projection='3d')
@@ -38,20 +38,30 @@ class function2d:
         #ax.zaxis.set_major_locator(LinearLocator(10))
         #ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
         #ax.set_title(self.name)    
-            
-        plt.figure()    
-        plt.contourf(X1, X2, Y.reshape((100,100)),100)
-        if (len(self.min)>1):    
-            plt.plot(np.array(self.min)[:,0], np.array(self.min)[:,1], 'w.', markersize=20, label=u'Observations')
+
+
+        fig = plt.figure()    
+        ax = fig.add_subplot(111)   
+        cs = ax.contourf(X1, X2, Y.reshape((100,100)),100, cmap=cm.PuBu_r)
+        alpha_val = 1      
+
+        if infos:
+            if (len(self.min)>1):    
+                ax.plot(np.array(self.min)[:,0], np.array(self.min)[:,1], 'r.', markersize=10, alpha = alpha_val, label=u'Minima')
+            else:
+                ax.plot(self.min[0][0], self.min[0][1], 'r.', markersize=10, alpha = alpha_val, label=u'Minima')
+            fig.colorbar(cs)
+            ax.set_xlabel('X1')
+            ax.set_ylabel('X2')
+            #fig.suptitle(self.name)
         else:
-            plt.plot(self.min[0][0], self.min[0][1], 'w.', markersize=20, label=u'Observations')
-        plt.colorbar()
-        plt.xlabel('X1')
-        plt.ylabel('X2')
-        plt.title(self.name)
-        plt.show()
+            if (len(self.min)>1):    
+                ax.plot(np.array(self.min)[:,0], np.array(self.min)[:,1], 'r.', markersize=10, alpha = alpha_val)
+            else:
+                ax.plot(self.min[0][0], self.min[0][1], 'r.', markersize=10, alpha = 0.2)
+        fig.show()
         
-        
+        return fig, ax
         
 class branin(function2d):
     '''
@@ -84,8 +94,9 @@ class branin(function2d):
         self.x_seen = []
     
     
-    def f(self,X):
-        self.x_seen.append(X)
+    def f(self,X, append = True):
+        if append:
+            self.x_seen.append(X)
         X = reshape(X,self.input_dim)
         n = X.shape[0]
         if X.shape[1] != self.input_dim: 
@@ -114,28 +125,63 @@ br = branin()
 f_min = lambda x: br.f(x)
 #x0 = np.array([[np.random.uniform(b[0], b[1]) for b in br.bounds] for _ in range(3)])
 x0 = np.array([(6.3, 14.5), (6.57, 11.12), (2.29, 14.303)])
-optim_nm = minimize(f_min, x0[0],method='Nelder-Mead', options={'initial_simplex':x0, 'return_all':True, 'xatol': 1,'fatol':0.01})
+optim_nm = minimize(f_min, x0[0],method='Nelder-Mead', options={'initial_simplex':x0, 'return_all':True, 'xatol': 0.01,'fatol':0.01})
+
 
 #plot res
 all_points_nm = np.array(br.x_seen)
 print(len(all_points_nm))
 nb_points = len(all_points_nm)
-fig = plt.figure()
-ax = fig.add_subplot(111)
+
+
+fig, ax = br.plot()
 x = all_points_nm[:,0]
 y = all_points_nm[:,1]
-to_plot = [35,36, 37]
+to_plot_main = [0, 1, ]
+to_plot_sec = [3, 4, 6, 9, 35,36,37,38]
+
 for i in range(nb_points-3):
-    if(i in to_plot):
+    if(i == 0):
         x_tmp = [x[i], x[i+1], x[i+2], x[i]]
         y_tmp = [y[i], y[i+1], y[i+2], y[i]]
-        line = Line2D(x_tmp, y_tmp)
+        line = Line2D(x_tmp, y_tmp, marker ='s',color='black',linewidth=1., label=r'$1^{st} \; simplex$')
+        ax.add_line(line)
+    if(i == 1):
+        x_tmp = [x[i], x[i+1], x[i+2], x[i]]
+        y_tmp = [y[i], y[i+1], y[i+2], y[i]]
+        line = Line2D(x_tmp, y_tmp, marker ='x',color='black',linestyle='dashed',linewidth=1, label=r'$2^{nd} simplex$')
         ax.add_line(line)
 
+    elif(i % 2 ==0):
+            x_tmp = [x[i], x[i+1], x[i+2], x[i]]
+            y_tmp = [y[i], y[i+1], y[i+2], y[i]]
+x = all_points_nm[:,0]
+y = all_points_nm[:,1]
+to_plot_main = [0, 1, ]
+to_plot_sec = [3, 4, 6, 9, 35,36,37,38]
 
+for i in range(nb_points-3):
+    if(i == 0):
+        x_tmp = [x[i], x[i+1], x[i+2], x[i]]
+        y_tmp = [y[i], y[i+1], y[i+2], y[i]]
+        line = Line2D(x_tmp, y_tmp, marker ='s',color='black',linewidth=1., label=r'$1^{st} \; simplex$')
+        ax.add_line(line)
+    if(i == 1):
+        x_tmp = [x[i], x[i+1], x[i+2], x[i]]
+        y_tmp = [y[i], y[i+1], y[i+2], y[i]]
+        line = Line2D(x_tmp, y_tmp, marker ='x',color='black',linestyle='dashed',linewidth=1, label=r'$2^{nd} simplex$')
+        ax.add_line(line)
+
+    elif(i % 2 ==0):
+            x_tmp = [x[i], x[i+1], x[i+2], x[i]]
+            y_tmp = [y[i], y[i+1], y[i+2], y[i]]
+            line = Line2D(x_tmp, y_tmp, linestyle='dashed', linewidth=0.2, color='black', marker ='x', markersize=0.6)
+            ax.add_line(line)
 ax.set_xlim(-5, 10)
 ax.set_ylim(1, 15)
-br.plot()
+ax.scatter(all_points_nm[-1][0], all_points_nm[-1][1], c ='yellow', s = 45, marker = '^', label=r'$Final$')
+ax.legend(loc='lower left', fontsize=8)
+plt.savefig("optim_graphs_nm.pdf", bbox_inches='tight', transparent=True, pad_inches=0)
 
 
 
@@ -149,27 +195,78 @@ br.plot()
 br = branin()
 f_min = lambda x: br.f(x)
 #x0 = np.array([[np.random.uniform(b[0], b[1]) for b in br.bounds] for _ in range(3)])
-optim_de = differential_evolution(f_min, br.bounds, popsize = 5)
+optim_de = differential_evolution(f_min, br.bounds, popsize = 5, disp = True)
 
 #plot res
-all_points_nm = np.array(br.x_seen)
-print(len(all_points_nm))
-nb_points = len(all_points_nm)
-fig = plt.figure()
-ax = fig.add_subplot(111)
-x = all_points_nm[:,0]
-y = all_points_nm[:,1]
-to_plot = [35,36, 37]
-for i in range(nb_points-3):
-    if(i in to_plot):
-        x_tmp = [x[i], x[i+1], x[i+2], x[i]]
-        y_tmp = [y[i], y[i+1], y[i+2], y[i]]
-        line = Line2D(x_tmp, y_tmp)
-        ax.add_line(line)
+all_points_de = np.array(br.x_seen)
+print(len(all_points_de))
+nb_points = len(all_points_de)
+
+fig, ax = br.plot(infos=False)
+
+x = all_points_de[:,0]
+y = all_points_de[:,1]
+cmap = cm.get_cmap('plasma')
+size= 35
+ax.scatter(x[0:10], y[0:10], s=size, c='black',marker='s', label=r'$1^{st}\;gen.$')
+ax.scatter(x[10:20], y[10:20], s=size, c='black', marker='o', label=r'$2^{nd}\;gen.$')
+ax.scatter(x[70:80], y[70:80], s=size, c='black',marker='x', label=r'$7^{th}\;gen.$')
+ax.scatter(x[140:155], y[140:155], s=45, c='yellow', marker='^', label=r'$Final$')
+ax.set_xlim(-5, 10)
+ax.set_ylim(1, 15)
+ax.legend(loc='lower left', fontsize=9)
+plt.savefig("optim_graphs_de.pdf", bbox_inches='tight', transparent=True, pad_inches=0)
+
+###############################################################################
+#               FGBS
+#  scipy.optimize.minimize(fun, x0, args=(), method='L-BFGS-B', jac=None, 
+# bounds=None, tol=None, callback=None, options={'disp': None, 'maxcor': 10, 
+# 'ftol': 2.220446049250313e-09, 'gtol': 1e-05, 'eps': 1e-08, 'maxfun': 15000, 
+# 'maxiter': 15000, 'iprint': -1, 'maxls': 20})
+###############################################################################
+#optim
+br = branin()
+f_min = lambda x: br.f(x)
+x0 = np.array([[np.random.uniform(b[0], b[1]) for b in br.bounds] for _ in range(3)])
+x0 = [6.3, 14.5]
+#x0= [-4.7,1.7]
+#x0 = np.array([np.random.uniform(b[0], b[1]) for b in br.bounds])
+optim_bfgs = minimize(f_min, x0=x0, bounds = br.bounds, method='L-BFGS-B',options={'disp': True,'ftol': 2.2204e-03, 'gtol': 1e-03})
+all_points_gd = np.array(br.x_seen)
+print(len(all_points_gd))
+nb_points = len(all_points_gd)
+
+
+
+
+x = all_points_gd[:,0]
+y = all_points_gd[:,1]
+gd_points = np.arange(nb_points//3) *3 + 1
+gd_points = np.array([ 1,  4,   10, 13, 16, 19])
+for i in range(len(gd_points)-1):
+    ind = gd_points[i]
+    ind_next = gd_points[i+1] 
+    print(x[ind], y[ind])
+    ax.arrow(x[ind], y[ind], 0.95 * (x[ind_next]-x[ind]), 0.95 *  (y[ind_next]-y[ind]), width=0.01, head_width=0.25, color='black')
+    plt.scatter(x[ind], y[ind], marker='x', s=35, c = 'black')
+plt.scatter(all_points_gd[-1][0], all_points_gd[-1][1], c ='yellow', marker = '^')
 
 
 ax.set_xlim(-5, 10)
 ax.set_ylim(1, 15)
-br.plot()
+#ax.legend(loc='upper left')
 
 
+scale = [0.95, 0.60, 0.75, 0.75, 0.75]
+
+fake_data = np.array([[6.30000001, 14.5],[7.43089982823581, 1.1],[8.668840930371791, 1.1],[9.9,2.3813562802149137],[9.406160849428316,2.6684957148002137], [9.42535787, 2.4756237 ]])
+x= fake_data[:,0]
+y= fake_data[:,1]
+fig, ax = br.plot(infos=False)
+for i in range(len(fake_data)-1):
+    ax.arrow(x[i], y[i], scale[i]*(x[i+1]-x[i]), scale[i]*(y[i+1]-y[i]), width=0.01, head_width=0.25, color='black')
+    plt.scatter(x[i], y[i], marker='x', s=35, c = 'black')
+plt.scatter(all_points_gd[-1][0], all_points_gd[-1][1], c ='yellow', marker = '^', s=45)
+ax.set_xlim(-5, 10)
+ax.set_ylim(1, 15)
+plt.savefig("optim_graphs_lbfgsb.pdf", bbox_inches='tight', transparent=True, pad_inches=0)
