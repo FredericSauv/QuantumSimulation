@@ -1,0 +1,16 @@
+# Three qubits circuit with a GHZ target - introducing classical readout error
+# Several steps: the first one employs few shots and binomial likelihood, then the number of shots is increased
+# and the likelihood used is gaussian
+# constraints on hyperparameters have been relaxed and noise gate decreased
+model {'model':5,'noise_type':'SHOT2BASIS','noise_n_meas':1,'_FLAG':'1s','noise_repetition':1} {'noise_gate':0.01,'_FLAG':'1s_ng1pc'} {'noise_gate':0.05,'_FLAG':'1s_ng5pc'} {'noise_gate':0.001,'_FLAG':'1s_ng01pc'} {'noise_gate':0.005,'_FLAG':'1s_ng05pc'} {'noise_readout':0.1,'_FLAG':'1s_ro10pc'} {'noise_readout':0.01,'_FLAG':'1s_ro1pc'}
+
+optim {'save_extra':True,'nb_anchors':5,'acq_nbq':3,'nb_init':100,'num_cores':4,'optimize_restarts':1,'max_iters':500,'acquisition_weight_lindec':False,'acq_weight':4,'model_update_interval':1,'hp_update_interval':10,'exploitation_steps':10,'hp_constrains':{'Mat52.lengthscale':[0.01,25.],'Mat52.variance':[0.1,25.0],'white.variance':[1e-09,10.]},'aggregate':True,'type_lik':None,'mo':None,'type_acq':'LCB','nb_iter':100,'_FLAG':'gaussian_100'} {'nb_iter':50,'_FLAG':'gaussian_50'} {'nb_iter':250,'_FLAG':'gaussian_250'} {'nb_iter':500,'_FLAG':'gaussian_500'} {'nb_iter':400,'_FLAG':'gaussian_400'} {'nb_iter':0,'exploitation_steps':0,'_FLAG':'gaussian_0'}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
