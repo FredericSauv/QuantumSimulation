@@ -33,7 +33,46 @@ if __name__ == '__main__':
 else:
     sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
     from QuantumSimulation.Utility.Optim.batch_base import BatchBase
-    
+
+
+#import GPy
+#class Logistic(GPy.likelihoods.link_functions.GPTransformation):
+#    """
+#    .. math::
+#
+#        g(f) = \\Phi^{-1} (mu)
+#
+#    """
+#    def __init__(self):
+#        super(Logistic, self).__init__()
+#
+#    def transf(self,f):
+#        return 1/(1+np.exp(-f))
+#
+#    def dtransf_df(self,f):
+#        return self.alpha * std_norm_pdf(self.alpha*f)
+#
+#    def d2transf_df2(self,f):
+#        return -f * std_norm_pdf(self.alpha * f) * np.power(self.alpha, 3)
+#
+#    def d3transf_df3(self,f):
+#        return (safe_square(self.alpha * f)-1.) *std_norm_pdf(self.alpha * f) * np.power(self.alpha, 3)
+#
+#    def to_dict(self):
+#        """
+#        Convert the object into a json serializable dictionary.
+#
+#        Note: It uses the private method _save_to_input_dict of the parent.
+#
+#        :return dict: json serializable dictionary containing the needed information to instantiate the object
+#        """
+#
+#        input_dict = super(Probit, self)._save_to_input_dict()
+#        input_dict["class"] = "GPy.likelihoods.link_functions.Probit2"
+#        return input_dict
+
+
+
 X, Y, Z, I, zero, one = sigmax(), sigmay(), sigmaz(), identity(2), basis(2,0), basis(2,1)
 class BatchFS(BatchBase):
     """Implement few shots simulations for batching.
@@ -963,6 +1002,13 @@ class BatchFS(BatchBase):
             logger.info('FTARGET is used by BO')
             bo_args.update({ 'model_type':'GP_CUSTOM_LIK', 'inf_method':'Laplace', 
                 'likelihood':'Binomial_' + str(self.n_meas), 'normalize_Y':False})
+            if type_acq != 'LCB_target_oneq':
+                bo_args.update({'acquisition_ftarget':self.f_tgt})
+        
+        elif type_lik == 'bernoulli':
+            logger.info('FTARGET is used by BO')
+            bo_args.update({ 'model_type':'GP_CUSTOM_LIK', 'inf_method':'EP', 
+                'likelihood':'Bernoulli_1', 'normalize_Y':False})
             if type_acq != 'LCB_target_oneq':
                 bo_args.update({'acquisition_ftarget':self.f_tgt})
         # multioutput

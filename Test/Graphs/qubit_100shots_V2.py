@@ -27,7 +27,11 @@ def proba(x, noise=0, model = 0):
         x_noise = x
     if model == 0:
         p = np.square(np.sin(x))
-    elif model == 1:    
+    elif model == 1:  
+        x_noise = +np.sin(3*(x+0.3))/2 + (x+0.3)/1.5
+        p = np.square(np.sin(x_noise))
+        #p = np.abs(np.sin(n * x_noise) * np.exp(- np.square((x_noise-np.pi/2) / s)))
+    elif model == 2:
         p = np.abs(np.sin(n * x_noise) * np.exp(- np.square((x_noise-np.pi/2) / s)))
     else:
         raise NotImplementedError()
@@ -74,7 +78,7 @@ def do_one_BO_optim(type_acq = 'EI', type_gp='gaussian', X_init = None, Y_init =
     elif type_acq == 'LCB':
         base_dico = {'acquisition_type':'LCB', 'domain': bounds_bo, 
                      'optim_num_anchor':15, 'optim_num_samples':10000, 
-                     'acquisition_weight':2, 'acquisition_weight_lindec':True,'maximize':True} 
+                     'acquisition_weight':4, 'acquisition_weight_lindec':True,'maximize':True} 
     
     base_dico['X'] = X_init
     base_dico['Y'] = Y_init
@@ -127,52 +131,16 @@ x_range = (0, np.pi)
 # models to simulate
 # ------------------------------------------ #
 verbose = True
-f0_perfect = lambda x: measure(x, nb_measures = np.inf, verbose = verbose, model = 0, noise_input = 0)
-f0_perfect_neg = lambda x: measure(x, nb_measures = np.inf, verbose = verbose, model = 0, noise_input = 0)
-f0_gaussian = lambda x: measure(x, nb_measures = 0.2, verbose = verbose, model = 0, noise_input = 0)
-f0_bin1 = lambda x: measure(x, nb_measures = 1, verbose = verbose, model = 0, noise_input = 0)
-f0_bin3 = lambda x: 3 * (measure(x, nb_measures = 3, verbose = verbose, model = 0, noise_input = 0))
-f0_bin50 = lambda x: 50 * (measure(x, nb_measures = 50, verbose = verbose, model = 0, noise_input = 0))
-f0_bin1000 = lambda x: 1000 * (measure(x, nb_measures = 1000, verbose = verbose, model = 0, noise_input = 0))
 
-f0_gaussian_noise = lambda x: measure(x, nb_measures = 0.2, verbose = verbose, model = 0, noise_input = 0.05)
-f0_bin1_noise5 = lambda x: measure(x, nb_measures = 1, verbose = verbose, model = 0, noise_input = 0.05)
-f0_bin3_noise5 = lambda x: 3 * (measure(x, nb_measures = 3, verbose = verbose, model = 0, noise_input = 0.05))
-f0_bin50_noise5 = lambda x: 50 * (measure(x, nb_measures = 50, verbose = verbose, model = 0, noise_input = 0.05))
-f0_bin1_noise10 = lambda x: measure(x, nb_measures = 1, verbose = verbose, model = 0, noise_input = 0.1)
-f0_bin3_noise10 = lambda x: 3 * (measure(x, nb_measures = 3, verbose = verbose, model = 0, noise_input = 0.1))
-f0_bin50_noise10 = lambda x: 50 * (measure(x, nb_measures = 50, verbose = verbose, model = 0, noise_input = 0.1))
-
-
-
-
+## perfect measurement
 f1_perfect = lambda x: measure(x, nb_measures = np.inf, verbose = verbose, model = 1, noise_input = 0)
 f1_perfect_neg = lambda x: measure(x, nb_measures = np.inf, verbose = verbose, model = 1, noise_input = 0)
 f1_gaussian = lambda x: measure(x, nb_measures = 0.2, verbose = verbose, model = 1, noise_input = 0)
 f1_bin1 = lambda x: measure(x, nb_measures = 1, verbose = verbose, model = 1, noise_input = 0)
-f1_bin3 = lambda x: 3 * (measure(x, nb_measures = 3, verbose = verbose, model = 1, noise_input = 0))
-f1_bin50 = lambda x: 50 * (measure(x, nb_measures = 50, verbose = verbose, model = 1, noise_input = 0))
-
-f1_gaussian_noise = lambda x: measure(x, nb_measures = 0.2, verbose = verbose, model = 1, noise_input = 0.05)
-f1_bin1_noise = lambda x: measure(x, nb_measures = 1, verbose = verbose, model = 1, noise_input = 0.05)
-f1_bin3_noise = lambda x: 3 * (measure(x, nb_measures = 3, verbose = verbose, model = 1, noise_input = 0.05))
-f1_bin50_noise = lambda x: 50 * (measure(x, nb_measures = 50, verbose = verbose, model = 1, noise_input = 0.05))
-
-
 
 # model, nb_measures, model_test, nb_init, nb_iter, name
-list_to_simul_f0_1 = [(f0_bin1, 1, f0_perfect, 50, 50, 'f0_bin1')] # OK
-list_to_simul_f0_3 = [(f0_bin3, 3, f0_perfect, 16, 17, 'f0_bin3')] # OK                
-list_to_simul_f0_1_noise_5 = [(f0_bin1_noise5, 1, f0_perfect, 50, 50, 'f0_bin1_noise5')] # OK
-list_to_simul_f0_3_noise_5 = [(f0_bin3_noise5, 3, f0_perfect, 16, 17, 'f0_bin3_noise5')] # OK
-list_to_simul_f0_1_noise_10 = [(f0_bin1_noise5, 1, f0_perfect, 50, 50, 'f0_bin1_noise10')]
-list_to_simul_f1_1 = [(f1_bin1, 1, f1_perfect, 50, 50, 'f1_bin1')] #OK
-list_to_simul_f1_3 = [(f1_bin3, 3, f1_perfect, 16, 17, 'f1_bin3')] #ok
-list_to_simul_f0_50 = [(f0_bin50, 50, f0_perfect, 16, 84, 'f0_bin50')]
-
-list_to_simul_f0_perfect = [(f0_perfect_neg, np.inf, f0_perfect, 15, 85, 'f0_perfect')]
-list_to_simul_f1_perfect = [(f1_perfect_neg, np.inf, f1_perfect, 15, 85, 'f1_perfect')]
-
+list_to_simul_f1_1 = [(f1_bin1, 1, f1_perfect, 100, 50, 'f1_bin1')] #OK
+list_to_simul_f1_perfect = [(f1_perfect, np.inf, f1_perfect, 1000, 85, 'f1_perfect')]
 
 nb_repetitions = 10
 dico_res = {}
@@ -181,14 +149,20 @@ dico_res = {}
 # ------------------------------------------ #
 # Interlude PLOTTING
 # ------------------------------------------ #
-model, nb_measures, model_test, nb_init, nb_iter, name = list_to_simul_f1_1[0]
-res = np.zeros((2))
-x_init = rdm.uniform(*x_range, nb_init)[:, np.newaxis]
-y_init = model(x_init)
+#model, nb_measures, model_test, nb_init, nb_iter, name = list_to_simul_f1_perfect[0]
+#res = np.zeros((2))
+#x_init = rdm.uniform(*x_range, nb_init)[:, np.newaxis]
+#y_init = model(x_init)
 
 #test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='gaussian', 
 #        X_init = x_init, Y_init = y_init, cost = model, cost_test = model_test, 
 #        x_range = (0, np.pi), nb_iter = nb_iter, nb_measures = nb_measures)
+
+
+model, nb_measures, model_test, nb_init, nb_iter, name = list_to_simul_f1_1[0]
+res = np.zeros((2))
+x_init = rdm.uniform(*x_range, nb_init)[:, np.newaxis]
+y_init = model(x_init)
 
 test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='binomial', 
         X_init = x_init, Y_init = y_init, cost = model, cost_test = model_test, 
@@ -202,7 +176,7 @@ plt.plot(x_test, 1 - y_test, 'r--', label = '1 - p')
 plt.xlim([0, np.pi])
 plt.ylim([-0.05, 1.05])
 plt.legend()
-plt.savefig('gaussian_likelihoop_optim.pdf', bbox_inches = 'tight')
+#plt.savefig('gaussian_likelihoop_optim.pdf', bbox_inches = 'tight')
 
 
 
