@@ -894,6 +894,7 @@ class BatchFS(BatchBase):
         nb_init = optim_config['nb_init']
         nb_iter = optim_config['nb_iter']
         type_acq = optim_config['type_acq']
+        ARD = optim_config.get('ARD', False)
         is_acq_target = type_acq.find('target') > 0
         logger.info('type_acq: {}'.format(type_acq))
         type_lik = optim_config['type_lik']
@@ -910,7 +911,7 @@ class BatchFS(BatchBase):
         self.hp_constrains = optim_config.get('hp_constrains', None)
         switch_to_gauss = optim_config.get('switch_to_gauss', None)
         n_meas = self.n_meas
-        
+                
         # some redundancy here 
         aggregate = optim_config.get('aggregate', 'no')
         aggregate = 'fid' if(aggregate == True) else aggregate
@@ -977,7 +978,7 @@ class BatchFS(BatchBase):
                 'hp_update_interval':hp_update_interval, 'nb_iter_bo':nb_iter_bo,
                 'max_time_bo':max_time_bo, 'nb_polish':nb_polish, 'nb_to_keep':nb_to_keep,
                 'nb_more':nb_more, 'nb_exploit':nb_exploit, 'hp_restart':hp_restart, 
-                'nb_iter_polish':nb_iter_polish}
+                'nb_iter_polish':nb_iter_polish,'ARD':ARD}
         
         if type_acq == 'EI':
             bo_args.update({'acquisition_type':'EI'})
@@ -1227,16 +1228,20 @@ def _stats_one_field(field, list_res, dico_output = False):
         field_min = np.min(f)
         field_max = np.max(f)
         field_median = np.median(f)
+        field_q25 = np.quantile(f, 0.25)
+        field_q75 = np.quantile(f, 0.75)
     else:
         field_avg = np.nan
         field_std = np.nan
         field_min = np.nan
         field_max = np.nan
         field_median = np.nan
+        field_q25 = np.nan
+        field_q75 = np.nan
     if dico_output:
-        res = {'avg':field_avg, 'median': field_median, 'std': field_std, 'min': field_min, 'max':field_max, 'N':N}
+        res = {'avg':field_avg, 'median': field_median, 'std': field_std, 'min': field_min, 'max':field_max, 'N':N, 'q25':field_q25, 'q75':field_q75}
     else:
-        res = [field_avg, field_median, field_std, field_min, field_max, N]
+        res = [field_avg, field_median, field_std, field_min, field_max, N, field_q25, field_q75]
     return res
 
 def probit(p):
@@ -1290,9 +1295,9 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = 'Inputs/model_5_comp3_gaussianpolish_noisy_5s.txt', output_folder = '_tmp/_configs/_tmp', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_configs/config_res330.txt', output_folder = '_tmp/_configs/_tmp', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
-        batch = BatchFS('_tmp/_configs/_model_4_polish_v3/config_res1.txt')
+        batch = BatchFS('_tmp/_configs/config_res330.txt')
         batch.run_procedures(save_freq = 1)
 
 
@@ -1338,7 +1343,9 @@ if __name__ == '__main__':
         print(np.average(np.squeeze(fid_res_inper_small)))        
         print(np.average(np.squeeze(fid_res_optim)))  
         
-
+        optim = np.array([-0.78539816, -0.78539816,  0.02833566,  1.25481877,  1.2002048 ,-0.78539816])
+        optim = np.array([ 1.97794626,  0.87526163, -0.08617058, -0.78539816,  3.92699082,-0.78539816])
+        #array([-0.78539816,  1.49716499,  0.26609553, -0.78539816,  1.22848759, 1.33899117])
         ideal = np.array([4.71238898, 4.71238898, 6.28318531, 1.57079633, 1.57079633,
        4.71238898])
         
