@@ -22,6 +22,7 @@ logger = logging.get_logger()
 from scipy.special import erfinv
 sys.path.insert(0, '/home/fred/Desktop/GPyOpt/')
 import GPyOpt
+import GPy
 import qutip.control.optimconfig as optimconfig
 import qutip.control.dynamics as dynamics
 from fidcompnoisy import FidCompUnitNoisy
@@ -895,6 +896,7 @@ class BatchFS(BatchBase):
         nb_iter = optim_config['nb_iter']
         type_acq = optim_config['type_acq']
         ARD = optim_config.get('ARD', False)
+        kernel_type = optim_config.get('kernel_type', None)
         is_acq_target = type_acq.find('target') > 0
         logger.info('type_acq: {}'.format(type_acq))
         type_lik = optim_config['type_lik']
@@ -916,6 +918,18 @@ class BatchFS(BatchBase):
         aggregate = optim_config.get('aggregate', 'no')
         aggregate = 'fid' if(aggregate == True) else aggregate
         aggregate = 'no' if(aggregate == False) else aggregate
+        
+        if kernel_type == 'Matern52':
+            kernel = GPy.kern.Matern52(self.n_params, variance=1., ARD=ARD)
+        elif kernel_type == 'Matern32':
+            kernel = GPy.kern.Matern32(self.n_params, variance=1., ARD=ARD)
+        elif kernel_type == 'RBF':
+            kernel = GPy.kern.RBF(self.n_params, variance=1., ARD=ARD)
+        else:
+            kernel = None
+
+            
+        
         
         if (switch_to_gauss is not None) and (n_meas > switch_to_gauss):
             #overwride parameters
@@ -978,7 +992,7 @@ class BatchFS(BatchBase):
                 'hp_update_interval':hp_update_interval, 'nb_iter_bo':nb_iter_bo,
                 'max_time_bo':max_time_bo, 'nb_polish':nb_polish, 'nb_to_keep':nb_to_keep,
                 'nb_more':nb_more, 'nb_exploit':nb_exploit, 'hp_restart':hp_restart, 
-                'nb_iter_polish':nb_iter_polish,'ARD':ARD}
+                'nb_iter_polish':nb_iter_polish,'ARD':ARD, 'kernel':kernel}
         
         if type_acq == 'EI':
             bo_args.update({'acquisition_type':'EI'})
