@@ -925,6 +925,8 @@ class BatchFS(BatchBase):
             kernel = GPy.kern.Matern32(self.n_params, variance=1., ARD=ARD)
         elif kernel_type == 'RBF':
             kernel = GPy.kern.RBF(self.n_params, variance=1., ARD=ARD)
+        elif kernel_type == 'Exponential':
+            kernel = GPy.kern.Exponential(self.n_params, variance=1., ARD=ARD)
         else:
             kernel = None
 
