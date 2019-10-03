@@ -30,7 +30,8 @@ def proba2(x, noise=0, scaling = 1.):
     if(noise>0):
         x_noise = x + rdm.normal(0, noise, size = x.shape)
     else:
-        x_noise = +np.sin(3*(x+0.3))/2 + (x+0.3)/1.5
+        #x_noise = +np.sin(3*(x+0.3))/2 + (x+0.3)/1.5
+        x_noise = +np.sin(3*(x))/2 + (x)/1.5
     return np.square(scaling * np.sin(x_noise))
 
 
@@ -117,25 +118,25 @@ def next_ucb_std_v2(model, loc, w=4, alpha=1):
 # Data training / test
 ### ============================================================ ###
 
-version = 'v5_'
+version = 'v6_'
 save=False
 weight=6
 col_custom = (0.1, 0.2, 0.5)
-nb_init = 100
+nb_init = 30
 weight = 4
-scale = 0.995
+scale = 1
 
 
 x_range = (0, 4)
 x_test = np.linspace(*x_range, 2000)[:, np.newaxis]
 p_test = proba2(x_test, scaling=scale)
 x_init = rdm.uniform(*x_range, nb_init)[:, np.newaxis]
-x_init = rdm.uniform(*[1.65, 2.15], nb_init)[:, np.newaxis]
-x_init = np.row_stack((x_init, rdm.uniform(*[1.70, 2.1], 6*nb_init)[:, np.newaxis]))
+#x_init = rdm.uniform(*[1.65, 2.15], nb_init)[:, np.newaxis]
+#x_init = np.row_stack((x_init, rdm.uniform(*[1.70, 2.1], 6*nb_init)[:, np.newaxis]))
 y_init = measure(x_init, underlying_p = lambda x: proba2(x, scaling=scale))
 
 
-alpha=5.
+alpha=1.
 k_classi = GPy.kern.Matern52(input_dim = 1, variance = 1.* alpha, lengthscale = (x_range[1]-x_range[0])/25)
 i_meth = GPy.inference.latent_function_inference.Laplace()
 l_func = GPy.likelihoods.link_functions.Probit2(alpha)

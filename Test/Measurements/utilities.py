@@ -6,22 +6,52 @@ Created on Tue Feb 19 16:20:28 2019
 @author: fred
 """
 import numpy as np
+import qutip as qt
 from qutip import sigmax, sigmay, sigmaz, identity, tensor, basis, ket2dm, Qobj, cnot, hadamard_transform
 import qutip
 import itertools as it
 
+## Shortcuts of some main qutip objects
+zero = qt.qubits.qubit_states(1,[0])
+one = qt.qubits.qubit_states(1,[1])
+I, X, Y, Z = qt.identity([2]), qt.sigmax(), qt.sigmay(), qt.sigmaz()
+Rx, Ry, Rz = qt.rx, qt.ry, qt.rz
+op_pauli_1 = [X, Y, Z, I]
+s_zero_1, s_one_1 = basis(2, 0), basis(2,1)
+s_plus_1, s_minus_1 = 1/np.sqrt(2) * (s_zero_1 + s_one_1), 1/np.sqrt(2) * (s_zero_1 - s_one_1)
 
+
+#two qubits
+CN = cnot()
+HDM = hadamard_transform()
 
 # =========================================================================== #
 # Define the functions needed
 # =========================================================================== #
+# GHZ related functions
+def get_ghz(nb_qubits, angle=0):
+    """ Generate a GHZ state of the form |00..00> + exp(i * angle) |11..11> """
+    a = tensor([zero for _ in range(nb_qubits)])
+    b = tensor([one for _ in range(nb_qubits)])
+    return 1/np.sqrt(2) * (a+ np.exp(1.0j*angle) * b)
+
+def get_ghz_offdiag(nb_qubits):
+    """ generate the Hermitian operator |0...0><1...1| + |1...1><0...0|"""
+    one_ghz, zero_ghz = tensor([one for _ in range(nb_qubits)]), tensor([zero for _ in 
+                              range(nb_qubits)]) 
+    return one_ghz * zero_ghz.dag() + zero_ghz * one_ghz.dag()
+
+
 def is_qobj(obj):
+    """ check if qutip object"""
     return type(obj) == Qobj
 
 def is_ket(obj):
+    """ check if it is a ket qutip object  """
     return is_qobj(obj) and obj.type == 'ket'
 
 def is_oper(obj):
+    """ check if it is a oper qutip object  """
     return is_qobj(obj) and obj.type == 'oper'
 
 def norm_dm(A):
@@ -176,19 +206,10 @@ def after_decomp(decomp):
             res.append([-c, opA_ah, opB_ah])
     return res
 
-# one qubit
-X, Y, Z, I = sigmax(), sigmay(), sigmaz(), identity(2)
-op_pauli_1 = [X, Y, Z, I]
+
 op_comput_1 = arr2lqo(np.sqrt(2) * np.eye(4))
-s_zero_1, s_one_1 = basis(2, 0), basis(2,1)
-s_plus_1, s_minus_1 = 1/np.sqrt(2) * (s_zero_1 + s_one_1), 1/np.sqrt(2) * (s_zero_1 - s_one_1)
 dm_nielsen_1 = [norm_dm(dm) for dm in [I, I+X, I+Y, I+Z]]
 dm_naive_1 = [norm_dm(dm) for dm in [I+Z, I-Z, I+X, I-X]]
-
-#two qubits
-CN = cnot()
-HDM = hadamard_transform()
-
 
 
 
