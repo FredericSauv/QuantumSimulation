@@ -24,7 +24,7 @@ else:
     from ...Utility.Optim import pFunc_base as pf
     from .. import ModelBase as mod
 
-imp.reload(mod)
+#imp.reload(mod)
 
 class BH1D(mod.pcModel_qspin):
     """ Simulate a 1D - MH model. Implementation of the pcModel_qspin """
