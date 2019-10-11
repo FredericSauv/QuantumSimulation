@@ -133,7 +133,7 @@ class model_base:
         self.T = None #Horizon of the simulation
         
         # ensemble behavior
-        self._ensemble_simulation = False # Should we simulate
+        self._ensemble_simulation = False # Should we simulate ensembles
         self._nb_H_ensemble = 1 # How many H in the ensemble
         self._nb_init_ensemble = 1 # How many state_init in the ensemble
         self._H_ensemble = None # list with len = _nb_H_ensemble
@@ -560,7 +560,20 @@ class pcModel_base(cModel_base):
     def __init__(self, **args_model):
         cModel_base.__init__(self, **args_model)
         # flag indicating if we  track the calls to the control_fun
-        self._flag_track_calls_void = True 
+        self.track = args_model.pop('track_callf', False)
+        self.track_freq = args_model.pop('track_freq', 0)
+        self._timer = time
+        if self.track:
+            self._init_time = self._timer.time()
+            self._time_cumul_call_tmp = 0 
+            self._time_total_tmp = 0
+            self._track_fom = None
+            self._flag_track_calls_void = False
+            self._track_calls = {'history_nev':[], 'history_res':[],'history_nev':[],
+                    'history_func':[], 'best_fun':np.inf, 'best_fun_full':None, 
+                    'history_params':[], 'history_time_total':[], 'history_time_call':[],
+                    'history_res_full':[], 'history_measured':[]}
+
 
     @property
     def n_params(self):
@@ -642,11 +655,14 @@ class pcModel_base(cModel_base):
         * Could add a gradient if available
 
         """
+        args_call_dupl = copy.copy(args_call)
+
+        self._aggregated_nb_call += 1
+        if self.track:
+            _track_time_call = self._timer.time()
         if(args_call.pop('debug', False)):
             pdb.set_trace()
-        self._aggregated_nb_call += 1
-        args_call_dupl = copy.copy(args_call)
-        track = args_call_dupl.pop('track_learning', False)
+
         update = args_call_dupl.pop('update_H', None)
         if(update is None):
             if(len(self._noise_func) > 0):
@@ -660,31 +676,28 @@ class pcModel_base(cModel_base):
         res = res_tmp[0] if(trunc_res and ut.is_iter(res_tmp)) else res_tmp
 
         # 
-        if track:
-            if self._flag_track_calls_void:
-                if(not(hasattr(self, '_timer'))):
-                    self._timer = time
-                self._track_time_init = self._timer.time()
-                self._track_fom = None
-                self._flag_track_calls_void = False
-                
-                self._track_calls = {'history_nev_fun':[], 'history_time_fun':[],
-                    'history_func_fun':[], 'best_fun':None, 'best_fun_full':None, 
-                    'history_nev_params':[], 'history_nev_time':[], 'history_measured':[]}
-                                
+        if self.track:
             best = self._track_calls['best_fun']
-            if (best is None) or (best > res):
-                time_elapsed = self._timer.time() - self._track_time_init
+            now = self._timer.time()
+            #add only time used for simul
+            self._time_cumul_call_tmp += (now - _track_time_call)  
+            self._time_total_tmp = now - self._init_time
+            if ((self.track_freq == 0) and (best > res)) or ((self.track_freq > 0) 
+                and (self._aggregated_nb_call % self.track_freq)==0):
+                # updated only when result is the best so far
                 self._track_calls['best_fun'] = res
                 self._track_calls['best_fun_full'] = res_tmp
-                self._track_calls['history_nev_fun'].append([self._aggregated_nb_call, res])
-                self._track_calls['history_time_fun'].append([time_elapsed, res])
-                self._track_calls['history_func_fun'].append([repr(self.control_fun), res])
-                self._track_calls['history_nev_params'].append([self._aggregated_nb_call, params])
+                self._track_calls['history_nev'].append(self._aggregated_nb_call)
+                self._track_calls['history_res'].append(res)
+                self._track_calls['history_time_total'].append(self._time_total_tmp)
+                self._track_calls['history_time_call'].append(self._time_cumul_call_tmp)
+                self._track_calls['history_func'].append(repr(self.control_fun))
+                self._track_calls['history_params'].append(params)
+                self._track_calls['history_resfull'].append(res_tmp)
                 if(self.measured is not None):
-                    self._track_calls['history_nev_measured'].append([self._aggregated_nb_call, self.measured])
-
+                    self._track_calls['history_measured'].append(self.measured)
         return res
+
 
 
     

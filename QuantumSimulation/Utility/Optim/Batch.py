@@ -4,8 +4,8 @@ Created on Thu Jul 27 13:51:45 2017
 
 @author: fs
 """
-from sklearn.gaussian_process.kernels import Matern, WhiteKernel, RBF, ConstantKernel
-import csv, os, pathlib, pdb, copy, sys
+#from sklearn.gaussian_process.kernels import Matern, WhiteKernel, RBF, ConstantKernel
+import csv, os, pathlib, pdb, copy, sys, time
 from ast import literal_eval as ev
 import matplotlib.pylab as plt
 import numpy as np
@@ -58,13 +58,16 @@ class Batch:
     _DEF_RES_NAME = "res_default"
     
     # METAPARAMETERS OF THE BATCH
-    # INFO {'Name':(def_value, type)}.
-    # type is not used atm
+    # INFO {'Name':(def_value, type)}, type is not used atm
     METAPARAMS_FIRST_CHAR = "_"
-    METAPARAMS_INFO = {'_RDM_RUNS': (1, 'int'), '_RDM_FIXSEED': (False, 'bool'),
-                      '_OUT_PREFIX': ('res_','str'),'_OUT_FOLDER': (None, 'str'),
-                      '_OUT_COUNTER': (None, 'int'), '_OUT_NAME': (None, 'list'),
-                      '_OUT_STORE_CONFIG': (True, 'bool'), '_MP_FLAG':(False, 'bool'),
+    METAPARAMS_INFO = {'_RDM_RUNS': (1, 'int'), 
+                       '_RDM_FIXSEED': (False, 'bool'),
+                      '_OUT_PREFIX': ('res_','str'),
+                      '_OUT_FOLDER': (None, 'str'),
+                      '_OUT_COUNTER': (None, 'int'), 
+                      '_OUT_NAME': (None, 'list'),
+                      '_OUT_STORE_CONFIG': (True, 'bool'), 
+                      '_MP_FLAG':(False, 'bool'),
                       '_WALL_TIME': (None, 'float')}
     METAPARAMS_NAME = METAPARAMS_INFO.keys()
     
@@ -74,8 +77,7 @@ class Batch:
         (several configs) OR <str:file_path> (onefile = one config) OR
         <list<str:file_path>> (several configs)
         """
-        if(debug):
-            pdb.set_trace()
+        if(debug):  pdb.set_trace()
         self.listConfigs = self._read_configs(config_object) 
 
 
@@ -88,9 +90,7 @@ class Batch:
         (it should be implemented in _dispatch_configs implemented)
         
         """
-        if(debug):
-            pdb.set_trace()
-
+        if(debug): pdb.set_trace()
         list_configs = cls.parse_meta_config(metaFile, extra_processing = extra_processing, 
                                              update_rules = update_rules)
         obj = Batch(list_configs, rdm_object, procToRun)
@@ -103,10 +103,7 @@ class Batch:
 # ---------------------------
     @classmethod
     def _build_underlying_model(cls, model_dico):
-        """ to be implemented in the subclass.. 
-        e.g. model = tl.Qubits(**model_dico)
-            return model
-        """
+        """ to be implemented in the subclass """
         if(cls.UNDERLYING_MODEL_CONSTRUCTOR is None):
             raise NotImplementedError()
         else:
@@ -114,6 +111,7 @@ class Batch:
         return model
 
     def _build_control(self,model_dico):
+        """ to be implemented in the subclass """
         pass
 
     def run_procedures(self, config = None, saveFreq = 0, splitRes = False, printInfo = False, debug=False):
@@ -125,14 +123,8 @@ class Batch:
                     (1) save each time / (N)save each N res
         +splitRes: (False) only one file /(True):generate a file for each simulations 
         """
-        #pdb.set_trace()#
-        
-        if(debug):
-            pdb.set_trace()
-        if(config is None):
-            list_configs = self.listConfigs
-        else:
-            list_configs = self._read_configs(config)
+        if(debug): pdb.set_trace()
+        list_configs = self.listConfigs if(config is None) else self._read_configs(config) 
 
         self.listRes = []
         listConfTmp = []
@@ -141,15 +133,11 @@ class Batch:
 
         for conf in list_configs:
             _time_zero = time.time()
-            #conf_filt = ut.filter_dico_first_char(conf, self.METAPARAMS_FIRST_CHAR, keep = False)
             tmp = self.run_one_procedure(conf) # run the simulation for one config
             tmp['time_elapsed'] = time.time() - _time_zero
             i_config +=1
-            if(printInfo):
-                logger.info(i_config)
-            #self.listRes.append(tmp)
+            if(printInfo): logger.info(i_config)
             listResTmp.append(tmp)
-            #if(conf['_OUT_STORE_CONFIG']): 
             listConfTmp.append(conf)
             
             if ((saveFreq > 0) and (i_config%saveFreq == 0)):
@@ -166,8 +154,6 @@ class Batch:
         """ Iniatilze the model (based on _build_underlying_model), initaialize the optimizer
         run the optimization, save results, build a testing_model, test optimal parameters 
         save testing results
-
-
         """
         self.random_gen = RandomGenerator.RandomGenerator.init_random_generator(config['_RDM_SEED'])
         self.mp = MP.MPCapability.init_mp(config.get(config['_MP_FLAG']))
@@ -1123,7 +1109,6 @@ class BatchParametrizedControler(Batch):
             sinpi = "{'name_func':'FourierFunc','A':[0], 'B':[1],'Om':[np.pi/T]}"
             pow15 = "{'name_func':'PowerFunc','power':1.5}"
             sqrt  = "{'name_func':'PowerFunc','power':0.5}"
-            # square = "{'name_func':'PowerFunc','power':2}"
     
             
             #tunable

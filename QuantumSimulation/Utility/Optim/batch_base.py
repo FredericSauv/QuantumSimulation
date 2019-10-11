@@ -25,11 +25,11 @@ if __name__ == '__main__':
     sys.path.append("../../../")
     from QuantumSimulation.Utility import Helper as ut
     from QuantumSimulation.Utility.Misc import RandomGenerator
-
+    from QuantumSimulation.Utility.Optim import pFunc_base, pFunc_zoo
 else:
     from .. import Helper as ut
     from ..Misc import RandomGenerator
-
+    from . import pFunc_base, pFunc_zoo
 
 class BatchBase:
     """
@@ -244,7 +244,7 @@ class BatchBase:
 
         Output
         ------
-        list_configs: <list<dic>>
+        list_configs_processing_meta_configs: <list<dic>>
 
         """
         if(debug): pdb.set_trace()
@@ -289,9 +289,17 @@ class BatchBase:
 
             list_configs = [ut.lists2dico(list_keys, l) for l in list_values]           
             list_configs = cls._apply_metaparams(list_configs, dico_METAPARAMS)
+            list_configs = [cls._processing_meta_configs(c) for c in list_configs]
+
 
         return list_configs
 
+    @classmethod
+    def _processing_meta_configs(cls, dico):
+        """ AdHoc processing rules when dealing with meta configs: 
+        helps to create the controler 
+        """
+        return dico
 
     def _apply_context(string, dico_context):
         """ replace patterns in string based on dico_context """
@@ -531,6 +539,346 @@ class BatchBase:
 
 
 #==============================================================================
+#                   BATCH CLASS
+# Add some ad-hoc capabilities to deal with parametrized functions for the 
+# controls of the model
+#==============================================================================
+class BatchBaseParamControl(BatchBase):
+    """
+    Batch:
+        * parse an input file to create a list of configurations to run
+        * run it According to some procedures (funcProc)
+        * save results 
+    """
+    def __init__(self, config_object = None, debug = False):
+        """ Init the batch with a <dic> (it represents one config) OR <list<dico>>
+        (several configs) OR <str:file_path> (onefile = one config) OR
+        <list<str:file_path>> (several configs)
+        """
+        super().__init__(config_object, debug)
+
+# ---------------------------
+#   ADHOC METHODS TO DEAL WITH THE PARAMETRIZED FUNCTIONS
+# ---------------------------    
+    def _build_control(self, model_dico):
+        """ if the control_object is a string evaluate it if not do nothing"""
+        control = model_dico.get('control_obj', None)
+        if(ut.is_str(control)):
+            model_dico['control_obj'] = type(self)._build_control_from_string(control,
+                      None, model_dico)
+
+
+    @classmethod
+    def _build_control_from_string(cls, control, random_gen=None, context_dico = None):
+        if(context_dico is not None):
+            context = {k:v for k, v in context_dico.items() if k not in 
+                       ['control_obj', 'random_obj', 'mp_obj']}
+        else:
+            context = None
+    
+        #if(random_gen is None):
+        #   random_gen = RandomGenerator.RandomGenerator()
+        
+        func_factory = pFunc_zoo.pFunc_factory(rdm_obj=None, context=context)
+        built_control = func_factory.eval_string(control)
+        return built_control
+    
+        
+    @classmethod
+    def _processing_meta_configs(cls, dico):
+        """ AdHoc processing rules when dealing with meta configs: 
+        helps to create the controler    
+        """
+        np.random.seed(dico.get('_RDM_SEED', None))
+        dico_new = {k: cls._process_controler(v) for k, v in dico.items()}
+        return dico_new
+
+    @classmethod
+    def _process_controler(cls, dico):
+        """ ad-hoc processing to make description of the controller not too long 
+        (1) retrieve all the keys starting with ctl_
+        (1a) ctl_final is the expression of the controler
+        (1b) otherss are the definition of bricks involved in ctl_final
+        They are parsed by pFunc_parser
+        
+        e.g. dico = {'ctl_a':xxx, 'ctl_b':yyy, 'ctl_c':zzz, 'ctl_final':"*(#a, +(#b, #c))"}
+        #TODO: NEED TO BE REFACTORED // PUT SOMEWHERE ELSE
+        """
+        if type(dico) != dict:
+            return dico
+        dico_processed = copy.copy(dico)
+        if('ctl_shortcut' in dico):
+            logger.info('use of shortcut')
+            shortcut = dico['ctl_shortcut']
+            
+            # no free params
+            ow = "{'name_func':'OwriterYWrap', 'ow':[(-inf,0,0),(T,inf,1)]}"
+            ow_r = "{'name_func':'OwriterYWrap', 'ow':[(-inf,0,1),(T,inf,0)]}"
+            bds = "{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}"
+            linear = "{'name_func':'LinearFunc', 'bias':0, 'w':1/T}"
+            linear_r = "{'name_func':'LinearFunc', 'bias':1, 'w':-1/T}"
+            one = "{'name_func':'ConstantFunc', 'c0':[1]}"
+            half = "{'name_func':'ConstantFunc', 'c0':[0.5]}"
+            mone = "{'name_func':'ConstantFunc', 'c0':[-1]}"
+            sinpi = "{'name_func':'FourierFunc','A':[0], 'B':[1],'Om':[np.pi/T]}"
+            pow15 = "{'name_func':'PowerFunc','power':1.5}"
+            sqrt  = "{'name_func':'PowerFunc','power':0.5}"
+            
+            #tunable
+            grbf = "{'name_func':'GRBFFunc','A':%s, 'x0':%s,'l':%s,'A_bounds':%s}"
+            rfour ="{'name_func':'FourierFunc','T':T,'freq_type':'CRAB','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
+            rsinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'CRAB','B_bounds':%s,'nb_H':%s}"
+            four = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
+            sinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'principal','B_bounds':%s,'nb_H':%s}"
+            omfour = "{'name_func':'FourierFunc','T':T,'freq_type':'CRAB_FREEOM','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
+            omsinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'CRAB_FREEOM','B_bounds':%s,'nb_H':%s}"
+            pwc = "{'name_func':'StepFunc','T':T,'F_bounds':%s,'nb_steps':%s}"
+            pwl = "{'name_func':'PWL','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}"
+            pwlr = "{'name_func':'PWL','TLast':T,'T0':0,'F0':1,'FLast':0,'F_bounds':%s,'nb_steps':%s}"
+            logis = "{'name_func':'LogisticFunc','L':2,'k':%s,'x0':0}"
+            logisflex = "{'name_func':'LogisticFunc','L':%s,'k':%s,'x0':%s}"
+
+            
+            if(shortcut[:11] == 'owbds01_pwc'):
+                nb_params = int(shortcut[11:])
+                dico_atom = {'ow':ow,'bd':bds,'pwc':pwc %('(0,1)',nb_params)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwc))'}
+
+            elif(shortcut[:12] == 'owbds01r_pwc'):
+                nb_params = int(shortcut[12:])
+                dico_atom = {'ow':ow_r,'bd':bds,'pwc':pwc %('(0,1)',nb_params)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwc))'}
+                        
+            elif(shortcut[:11] == 'owbds01_pwl'):
+                nb_params = int(shortcut[11:])
+                dico_atom = {'ow':ow,'bd':bds,'pwl':pwl %('(0,1)',nb_params+1)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwl))'}
+
+            elif(shortcut[:13] == 'owbds01r_pwlr'):
+                nb_params = int(shortcut[13:])
+                dico_atom = {'ow':ow_r,'bd':bds,'pwlr':pwlr %('(0,1)',nb_params+1)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwlr))'}
+
+            ### RDMIZED FREQ
+            elif(shortcut[:13] == 'owbds01_1crab'):
+                # Custom Crab parametrization f(t) = g(t) * (1 + alpha(t)* erf((four series)))
+                # slightly different from the normal one (cf. before)
+                # additional erf function (logistic function such that the four 
+                # series is bounded) alpha(t) is sine ** 1.5
+                nb_params = int(shortcut[13:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                k = 4 /nb_params
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                             'ctm':mone,'logis': logis%(str(k)),
+                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,**(+(#logis,#ctm),#rfour))))))'}
+             
+            elif(shortcut[:13] == 'owbds01_2crab'):
+                # alpha(t) is sine ** 0.5
+                nb_params = int(shortcut[13:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                k = 4 /nb_params
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                             'powscale':sqrt, 'ctm':mone,'logis': logis%(str(k)),
+                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(**(#powscale,#scale),**(+(#logis,#ctm),#rfour))))))'}
+                        
+            elif(shortcut[:13] == 'owbds01_3crab'):
+                # Custom Crab parametrization f(t) = g(t) * (1 + alpha(t)* erf((four series)))
+                # slightly different from the normal one (cf. before)
+                # additional erf function (logistic function such that the four 
+                # series is bounded) alpha(t) is sine ** 1.5
+                nb_params = int(shortcut[13:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                k = 4 /nb_params
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': linear_r, 'ct': one,
+                             'ctm':mone,'logis': logis%(str(k)),
+                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,+(#guess,*(#scale,**(+(#logis,#ctm),#rfour)))))'}
+
+            elif(shortcut[:13] == 'owbds01_4crab'):
+                # AANOTHER Custom Crab parametrization f(t) = g(t) + erf((sin four series)))
+                nb_params = int(shortcut[13:])
+                k = 4 /nb_params
+                x0 = '0.1*T'
+                k2 = '60/T'          
+                L = '1'
+                
+                dico_atom = {'ow':ow,'bd':bds,'trend':linear, 'ctm':mone, 'mask':logisflex%(L,k2,x0),
+                             'logis': logis%(str(k)), 'sinfour':rsinfour%('(-1,1)', nb_params)}
+                dico_expr = {'final':'**(#ow,**(#bd,+(#trend,*(#mask,**(+(#logis,#ctm),#sinfour)))))'}
+
+
+            elif(shortcut[:12] == 'owbds01_crab'):
+                # Crab parametrization f(t) = g(t) * (1+alpha(t)*(four series))
+                # with g(t) a linear guess, alpha(t) a sine s.t alpha(0) = alpha(T) = 0
+                # and the four series used randomized frequencies
+                nb_params = int(shortcut[12:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                            'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#rfour)))))'}
+                        
+                        
+            ##########  WITH FREE OMEGAS  ##########
+            elif(shortcut[:15] == 'owbds01_Om4crab'):
+                # AANOTHER Custom Crab parametrization f(t) = g(t) + erf((sin four series)))
+                nb_params = int(shortcut[15:])
+                k = 4 /nb_params
+                x0 = '0.1*T'
+                k2 = '60/T'          
+                L = '1'
+                if(nb_params % 2 != 0):
+                    SystemError('nb_params = {} while it should be 2n'.format(nb_params))
+                nbH = int(nb_params/2)
+                dico_atom = {'ow':ow,'bd':bds,'trend':linear, 'ctm':mone, 'mask':logisflex%(L,k2,x0),
+                             'logis': logis%(str(k)), 'sinfour':omsinfour%('(-1,1)', nb_params-1)}
+                dico_expr = {'final':'**(#ow,**(#bd,+(#trend,*(#mask,**(+(#logis,#ctm),#sinfour)))))'}
+
+
+            elif(shortcut[:14] == 'owbds01_Omcrab'):
+                # f(t) = g(t) * (1+alpha(t)*(four series))
+                nb_params = int(shortcut[14:])
+                if(nb_params % 3 != 0):
+                    SystemError('nb_params = {} while it should be 3n'.format(nb_params))
+                nbH = int(nb_params/3)
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                            'rfour':omfour%('(-1,1)', '(-1,1)', str(nbH))}
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#rfour)))))'}           
+            
+
+            ### NOMORERANDOMIZATION BUT GRBF INSTEAD
+            elif(shortcut[:13] == 'owbds01_1grbf'):
+                #pdb.set_trace()
+                # (t) = g(t) * (1 + alpha(t)* RBF)
+                nb_params = int(shortcut[13:])
+                #RBF
+                a_scale = np.sqrt(8* np.log(2))
+                b_scale = np.sqrt(8* np.log(4))
+                cc = (2 * b_scale + (nb_params - 1) * a_scale)
+                sigma_str = 'T/' + str(cc)
+                sigma = [sigma_str for _ in range(nb_params)]
+                l = '[' + ",".join(sigma) + "]"
+                A = str([0.0 for _ in range(nb_params)]) #np.repeat(1, nb_P)
+                x0_list = [str(b_scale) +'*'+ sigma_str + "+" + str(a_scale) + "*" + sigma_str + "*" + str(p) for p in np.arange(nb_params)]  
+                x0 = "[" + ",".join(x0_list)+"]"
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                             'ctm':mone, 'grbf':grbf%(A, x0, l, (-1,1))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#grbf)))))'}
+
+
+            ### W/O RANDOMIZED FREQ    
+            elif(shortcut[:14] == 'owbds01_crfour'):
+                # Crab parametrization w/o randomized freq
+                nb_params = int(shortcut[14:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                            'four':four%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(#scale,#four)))))'}
+             
+            elif(shortcut[:15] == 'owbds01_Ccrfour'):
+                # Custom Crab parametrization w/o randomized freq
+                nb_params = int(shortcut[15:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                k = 4 /nb_params
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                             'powscale':pow15, 'ctm':mone,'logis': logis%(str(k)),
+                             'four':four%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,*(#guess,+(#ct,*(**(#powscale,#scale),**(+(#logis,#ctm),#four))))))'}
+                        
+            
+            elif(shortcut[:14] == 'owbds01_trevfour'):
+                #trend and fourier (sine part only)
+                nb_params = int(shortcut[14:])
+                dico_atom = {'ow':ow,'bd':bds,'trend':linear, 'sinfour':sinfour%('(-1,1)', nb_params)}
+                dico_expr = {'final':'**(#ow,**(#bd,+(#trend,#sinfour)))'}
+                        
+                        
+            elif(shortcut[:13] == 'owbds01_trsin'):
+                #f(t) = g(t) + erf((sin four series)))
+                nb_params = int(shortcut[13:])
+                k = 4 /nb_params
+                x0 = '0.1*T'
+                k2 = '60/T'          
+                L = '1'
+                dico_atom = {'ow':ow,'bd':bds,'trend':linear, 'ctm':mone,
+                             'logis': logis%(str(k)), 'sinfour':sinfour%('(-1,1)', nb_params)}
+                dico_expr = {'final':'**(#ow,**(#bd,+(#trend,**(+(#logis,#ctm),#sinfour))))'}
+            
+            
+            # LINEAR RAMP
+            elif(shortcut[:14] == 'owbds01_linear'):
+                dico_atom = {'ow':ow,'bd':bds,'lin':linear}
+                dico_expr = {'final':'**(#ow,**(#bd,#lin))'}
+            
+            #LINEAR INVERTED
+            elif(shortcut[:16] == 'owbds01r_linearr'):
+                dico_atom = {'ow':ow_r,'bd':bds,'lin':linear_r}
+                dico_expr = {'final':'**(#ow,**(#bd,#lin))'}
+            
+            elif(shortcut[:14] == 'owbds01_wrfour'):
+                #wrapped fourier
+                dico_atom = {'ow':ow,'bd':bds,'lin':linear}
+                dico_expr = {'final':'**(#ow,**(#bd,#lin))'}
+                        
+            elif(shortcut[:13] == 'owbds01_cfred'):
+                # Custom parametrization f(t) = g(t)  + alpha(t)* erf((four series)))
+                # slightly different from the normal one (cf. before)
+                # additional erf function (logistic function such that the four 
+                # series is bounded) alpha(t) = sine ** 0.5
+                nb_params = int(shortcut[13:])
+                if(ut.is_odd(nb_params)):
+                    SystemError('nb_params = {} while it should be even'.format(nb_params))
+                k = 4 /nb_params
+                dico_atom = {'ow':ow,'bd':bds,'guess':linear, 'scale': sinpi, 'ct': one,
+                             'powscale':sqrt, 'ctm':mone,'logis': logis%(str(k)), 'half':half,
+                             'rfour':rfour%('(-1,1)', '(-1,1)', str(int(nb_params/2)))}
+                
+                dico_expr = {'final':'**(#ow,**(#bd,+(#guess,*(*(#half,**(#powscale,#scale)),**(+(#logis,#ctm),#rfour)))))'}
+                        
+            
+            else:
+                 raise SystemError('implement more shotcuts here')
+            
+            dico_processed['control_obj'] = pFunc_zoo.pFunc_factory.parse(dico_atom, dico_expr)['final']
+        
+        else:
+            dico_atom = {}
+            dico_expr = {}
+            list_keys_to_remove = []
+            for k, v in dico_processed.items():
+                bits = k.split('_')
+                if(bits[0] == 'ctl'):
+                    list_keys_to_remove.append(k)
+                    if(bits[1] == 'final'):
+                        dico_expr.update({bits[1]:v})
+                    else:
+                        dico_atom.update({bits[1]:v})    
+            for k in list_keys_to_remove:
+                del dico_processed[k]
+            if('final' in dico_expr):
+                dico_processed['control_obj'] = pFunc_zoo.pFunc_factory.parse(dico_atom, dico_expr)['final']
+
+        return dico_processed
+        
+    @classmethod
+    def evaluator(expr):
+        return pFunc_base.pFunc_base.eval_with_pFunc(expr)
+
+
+
+#==============================================================================
 #                   Testing
 # 
 #==============================================================================
@@ -538,7 +886,7 @@ if __name__ == "__main__":
     import numpy.random as rdm
     test1 = False #
     
-    class BatchDummy(BatchBase):
+    class BatchDummy(BatchBaseParamControl):
         def run_one_procedure(self, config):
             rdstate = rdm.RandomState(config.get('_RDM_SEED'))
             return {'res': rdstate.uniform(size=10)}
