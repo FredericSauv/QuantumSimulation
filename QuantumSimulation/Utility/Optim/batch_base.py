@@ -500,7 +500,7 @@ class BatchBase:
 
         """
         listFileName = ut.findFile(nameFile, allPrefix, folderName)
-        results = [BatchBase.eval_from_onefile(f, replace_func = replace_func) for f in listFileName]
+        results = [cls.eval_from_onefile(f, replace_func = replace_func) for f in listFileName]
         if returnName:
             return results, listFileName
         else:
@@ -876,7 +876,12 @@ class BatchBaseParamControl(BatchBase):
     def evaluator(expr):
         return pFunc_base.pFunc_base.eval_with_pFunc(expr)
 
-
+    @classmethod
+    def eval_from_onefile(cls, name, replace_func = None):
+        """ Get results from a file. Open a file and evaluate (with eval) its first element"""
+        res = ut.eval_from_file(name, evfunc = pFunc_base.eval_with_pFunc,replace_func = replace_func)
+        return res
+    
 
 #==============================================================================
 #                   Testing
