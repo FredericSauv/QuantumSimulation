@@ -569,11 +569,10 @@ class pcModel_base(cModel_base):
             self._time_total_tmp = 0
             self._track_fom = None
             self._flag_track_calls_void = False
-            self._track_calls = {'history_nev':[], 'history_res':[],'history_nev':[],
+            self._track_calls = {'history_nev':[], 'history_res':[],'history_resfull':[],
                     'history_func':[], 'best_fun':np.inf, 'best_fun_full':None, 
                     'history_params':[], 'history_time_total':[], 'history_time_call':[],
                     'history_res_full':[], 'history_measured':[]}
-
 
     @property
     def n_params(self):
@@ -673,7 +672,7 @@ class pcModel_base(cModel_base):
         res_tmp = self.Simulate(**args_call_dupl)
         if(self._fom_print):
             logger.info(res_tmp)
-        res = res_tmp[0] if(trunc_res and ut.is_iter(res_tmp)) else res_tmp
+        res_trunc = np.atleast_1d(res_tmp)[0]
 
         # 
         if self.track:
@@ -682,13 +681,13 @@ class pcModel_base(cModel_base):
             #add only time used for simul
             self._time_cumul_call_tmp += (now - _track_time_call)  
             self._time_total_tmp = now - self._init_time
-            if ((self.track_freq == 0) and (best > res)) or ((self.track_freq > 0) 
+            if ((self.track_freq == 0) and (best > res_trunc)) or ((self.track_freq > 0) 
                 and (self._aggregated_nb_call % self.track_freq)==0):
                 # updated only when result is the best so far
-                self._track_calls['best_fun'] = res
+                self._track_calls['best_fun'] = res_trunc
                 self._track_calls['best_fun_full'] = res_tmp
                 self._track_calls['history_nev'].append(self._aggregated_nb_call)
-                self._track_calls['history_res'].append(res)
+                self._track_calls['history_res'].append(res_trunc)
                 self._track_calls['history_time_total'].append(self._time_total_tmp)
                 self._track_calls['history_time_call'].append(self._time_cumul_call_tmp)
                 self._track_calls['history_func'].append(repr(self.control_fun))
@@ -696,6 +695,7 @@ class pcModel_base(cModel_base):
                 self._track_calls['history_resfull'].append(res_tmp)
                 if(self.measured is not None):
                     self._track_calls['history_measured'].append(self.measured)
+        res = res_trunc if trunc_res  else res_tmp
         return res
 
 
