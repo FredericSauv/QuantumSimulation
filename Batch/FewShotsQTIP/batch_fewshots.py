@@ -80,7 +80,7 @@ class BatchFS(BatchBase):
     Provides different methods for optimization / estimation
             
     """
-    OPTIONS_SPSA = {'nb_iter': 100, 'disp': False, 'tol': 1e-8, 'a':1, 'b':1, 's':1, 't':1/6}
+    OPTIONS_SPSA = {'nb_iter': 100, 'disp': False, 'tol': 1e-8, 'A':0, 'a':1, 'b':1, 's':1, 't':1/6}
     
     def setup_QTIP_model(self, model_config):
         """ Setup the model in QuTip allowing to compute the dynamics and FoM
@@ -1353,7 +1353,7 @@ if __name__ == '__main__':
     if(testing):
         BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_test_SPSA.txt', output_folder = '_tmp/_configs/_test_SPSA', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
-        batch = BatchFS('_tmp/_configs/_test_SPSA/config_res0.txt')
+        batch = BatchFS('_tmp/_configs/_test_SPSA/config_res30.txt')
         batch.run_procedures(save_freq = 1)
 
 
