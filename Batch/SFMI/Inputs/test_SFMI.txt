@@ -1,7 +1,6 @@
 # New simulatio of a 1D BH chain
 # Include different types of optimizers
-model {'L':5,'Nb':5,'sps':None,'mu':0,'T':5.136511734353454,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['f2t2:neg_smooth:0.05'],'fom_print':True,'track_callf':True,'ctl_shortcut':'owbds01_pwl15','_FLAG':'1T'}
-{'fom':['f2t2:neg'],'_FLAG':'1TNoC'} {'T':10.273023468706908,'_FLAG':'2T'} {'T':2.568255867176727,'_FLAG':'05T'} {'T':6.163814081224145,'_FLAG':'12T'} {'fom':['f2t2:neg'],'T':10.273023468706908,'_FLAG':'2T05NoC'} {'fom':['f2t2:neg'],'T':2.568255867176727,'_FLAG':'05TNoC'} {'fom':['f2t2:neg'],'T':6.163814081224145,'_FLAG':'12TNoC'}
+model {'L':5,'Nb':5,'sps':None,'mu':0,'T':5.136511734353454,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['f2t2:neg_smooth:0.05'],'fom_print':True,'track_callf':True,'ctl_shortcut':'owbds01_pwl15','_FLAG':'1T'} {'fom':['f2t2:neg'],'_FLAG':'1TNoC'} {'T':10.273023468706908,'_FLAG':'2T'} {'T':2.568255867176727,'_FLAG':'05T'} {'T':6.163814081224145,'_FLAG':'12T'} {'fom':['f2t2:neg'],'T':10.273023468706908,'_FLAG':'2T05NoC'} {'fom':['f2t2:neg'],'T':2.568255867176727,'_FLAG':'05TNoC'} {'fom':['f2t2:neg'],'T':6.163814081224145,'_FLAG':'12TNoC'}
 
 test_update {'fom':['f2t2','f2t2:neg_smooth:0.05','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False}
 
