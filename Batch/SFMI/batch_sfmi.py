@@ -25,7 +25,6 @@ import GPy
 
 if __name__ == '__main__':
     sys.path.append('../../../QuantumSimulation')
-
 else:
     sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
 from QuantumSimulation.Utility.Optim.batch_base import BatchBaseParamControl
@@ -392,16 +391,21 @@ class BatchSFMI(BatchBaseParamControl):
                     'nb_polish':nb_polish, 'nb_more':nb_more, 'nb_to_keep':nb_to_keep})
             if(test_config.get('gradients',False)):
                 logger.info('Test gradients at the final value, with eps = 1e-6')
-                grad_final = np.zeros(self.n_params)
+                nb_output = len(self.f_test(x_exp)) # not clean
+                grad_final = np.zeros((self.n_params, nb_output))
                 for i in range(self.n_params):
                     perturb_local = np.zeros(self.n_params)
                     perturb_local[i] = 1
                     eps = 1e-6
+                    #x_clip = np.clip(x_exp, params_min, params_max)
                     x_p = np.clip(x_exp + eps * perturb_local, params_min, params_max)
                     x_m = np.clip(x_exp - eps * perturb_local, params_min, params_max)
-                    f_p = self.f_test(x_p)
-                    f_m = self.f_test(x_m)
-                    grad_final[i] = (f_p - f_m)/(x_p[i] - x_m[i])
+                    if np.allclose(x_p, x_m):
+                        grad_final[i,:] = np.zeros(nb_output)
+                    else:
+                        f_p = self.f_test(x_p)
+                        f_m = self.f_test(x_m)
+                        grad_final[i,:] = (f_p - f_m)/(x_p[i] - x_m[i])
                 dico_res.update({'final_grad':grad_final})            
         
         else: #case when there is no params, i.e. nothing to optimize
