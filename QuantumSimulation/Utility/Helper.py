@@ -430,6 +430,7 @@ def is_x_in_y(x, y, tol=0):
 def is_x_not_in_y(x, y, tol=0):
     """ depending on the shape of test if x == y, x in [y[0], y[1]] """
     return not(is_x_in_y(x, y, tol))
+
 #==============================================================================
 #                   FUNCTIONS
 # Not really used.. May be deleted
@@ -1074,13 +1075,15 @@ def merge_and_stats_TS(listTS, dico=True, rule = 'lower'):
 
 def stats_array2dico(stats):
     res = {'index':stats[:,0], 'avg': stats[:,1],'min':stats[:,2], 'max': stats[:,3]
-        ,'std':stats[:,4], 'avg_pstd': stats[:,5],'avg_mstd':stats[:,6], 'n': stats[:,7]}
+        ,'std':stats[:,4], 'avg_pstd': stats[:,5],'avg_mstd':stats[:,6], 'n': stats[:,7],
+        'q25': stats[:,8],'q75': stats[:,9], 'median':stats[:,10]}
     return res
 
 def get_stats(list_val, dico_output = False):
     """ from a list of value get the stats defined in this order:
         [avg, mini, maxi, std, avg_pstd, avg_mstd, n]
     """
+    median = np.median(list_val)
     avg = np.average(list_val)
     mini = np.min(list_val)
     maxi = np.max(list_val)
@@ -1088,15 +1091,20 @@ def get_stats(list_val, dico_output = False):
     avg_pstd = avg + std
     avg_mstd = avg - std
     n = len(list_val)
+    q75 = np.quantile(list_val, 0.75)
+    q25 = np.quantile(list_val, 0.25)
     if(dico_output):
-        res = {'avg':avg,'min':mini,'max':maxi,'std':std,'avg_pstd':avg_pstd,'avg_mstd':avg_mstd, 'n':n, 'index':None}
+        res = {'avg':avg,'min':mini,'max':maxi,'std':std,'avg_pstd':avg_pstd,
+               'avg_mstd':avg_mstd, 'n':n, 'index':None, 'q25':q25, 'q75':q75, 'median':median}
     else:
-        res = [avg, mini, maxi, std, avg_pstd, avg_mstd, n]
+        res = [avg, mini, maxi, std, avg_pstd, avg_mstd, n, q25, q75, median]
     return res
     
     
 def find_from_index_TS(index, TS, rule='lower'):
-    """ from a TS get the 
+    """ from a N x 2 TS extract an element of TS[:,1] based on an index of TS[:,0]
+    if index is found in TS[:,0] return associated 
+    if not return the "closest" according to some rules
     """
     if(is_iter(index)):
         return [find_from_index_TS(ind, TS, rule) for ind in index]    
