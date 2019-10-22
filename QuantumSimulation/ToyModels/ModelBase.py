@@ -572,7 +572,7 @@ class pcModel_base(cModel_base):
             self._track_calls = {'history_nev':[], 'history_res':[],'history_resfull':[],
                     'history_func':[], 'best_fun':np.inf, 'best_fun_full':None, 
                     'history_params':[], 'history_time_total':[], 'history_time_call':[],
-                    'history_res_full':[], 'history_measured':[]}
+                    'history_measured':[]}
 
     @property
     def n_params(self):
