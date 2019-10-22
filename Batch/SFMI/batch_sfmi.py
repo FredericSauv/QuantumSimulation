@@ -36,7 +36,8 @@ from QuantumSimulation.ToyModels.BH import BH1D
 class BatchSFMI(BatchBaseParamControl):
     """Implement few shots simulations for batching.
     Provides different methods for optimization / estimation
-    TODO: move the logic of the optimization in a parent class
+    TODO: Move the logic of the optimization in a parent class
+    TODO: Refactor the update of dico_res
     """
     OPTIM_SCIPY = ['DE', 'NM', 'BFGS', 'LBFGSB','SPSA', 'RANDOM']
     OPTIONS_NM = {'disp':True, 'maxiter':200, 'ftol':1e-6, 'maxfev':200, 
@@ -191,129 +192,205 @@ class BatchSFMI(BatchBaseParamControl):
             test_update_config = config.get('test_update', {})
             test_config.update(test_update_config)        
         self._build_control(test_config)  ### TOCHECKKK
-        optim_config = config['optim']
 
-        if(model_config.get('debug', False) or optim_config.get('debug', False)): pdb.set_trace()
+
+        if(model_config.get('debug', False)): pdb.set_trace()
         np.random.seed(config.get('_RDM_SEED', None))
         if model_config.get('FAKE', False):
             self.f, self.f_test, self.x_tgt = self.setup_MOCK_model(model_config, test_config)
         else:
             self.f, self.f_test, self.x_tgt = self.setup_QSPIN_model(model_config, test_config)
         
-        #setting up the optimizer
-        type_optim = optim_config.get('type_optim', 'BO')
-        #nb_init = optim_config.get('nb_init',0)
-        #nb_iter = optim_config.get('nb_iter', 0)
         time_start = time.time()
         dico_res = {}
-
-        if(type_optim in self.OPTIM_SCIPY):
-            init = np.array([np.random.uniform(*d) for d in self.domain])
+        if (self.n_params > 0): # Main case: there are some parameters to optimize
+            optim_config = config['optim']
+            #setting up the optimizer
+            type_optim = optim_config.get('type_optim', 'BO')
             params_min, params_max = np.array(self.domain)[:,0], np.array(self.domain)[:,1]
-            if(type_optim == 'RANDOM'):
-                options = self.OPTIONS_NM.copy()
-                to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
-                options.update(to_update) 
-                X_init = np.transpose([np.atleast_1d(np.random.uniform(*d, options['maxiter'])) for d in self.domain])    
-                Y_init = self.f(X_init)
-                index_best = np.argmin(np.average(Y_init, 1)) #take the
-                optim = {'x':X_init[index_best], 'message':'RANDOM'}
 
-            if(type_optim == 'NM'):
-                """ Implementation of a Nedler Meat optimization  
-                scipy.optimize.minimize(fun, x0, args=(), method='Nelder-Mead', tol=None, 
-                callback=None, options={'func': None, 'maxiter': None, 'maxfev': None, 
-                'disp': False, 'return_all': False, 'initial_simplex': None, 'xatol': 0.0001, 
-                'fatol': 0.0001, 'adaptive': False})"""
-                options = self.OPTIONS_NM.copy()
-                to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
-                options.update(to_update)
-                init_simplex = np.transpose([np.random.uniform(*d, self.n_params+1) for d in self.domain])
-                options['initial_simplex'] = init_simplex
-                if(optim_config.pop('max_time', None) is not None): logger.warning('NM: max_time is not used')
-                optim = scipy.optimize.minimize(self.f, x0 = init_simplex[0, :], args = () , 
-                            method='Nelder-Mead', options = options, callback = None)
-            
-            elif(type_optim == 'SPSA'):
-                """ Implementation of SPONTANEOUS PERTURBATION STOCHASTIC 
-                APPROXIMATION """
-                config_spsa = optim_config.get('config_spsa',0)
-                options = self.OPTIONS_SPSA[config_spsa].copy()
-                to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
-                options.update(to_update)
+            if(type_optim in self.OPTIM_SCIPY):
+                init = np.array([np.random.uniform(*d) for d in self.domain])
+                if(type_optim == 'RANDOM'):
+                    options = self.OPTIONS_NM.copy()
+                    to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
+                    options.update(to_update) 
+                    X_init = np.transpose([np.atleast_1d(np.random.uniform(*d, options['maxiter'])) for d in self.domain])    
+                    Y_init = self.f(X_init)
+                    index_best = np.argmin(np.average(Y_init, 1)) #take the
+                    optim = {'x':X_init[index_best], 'message':'RANDOM'}
+    
+                if(type_optim == 'NM'):
+                    """ Implementation of a Nedler Meat optimization  
+                    scipy.optimize.minimize(fun, x0, args=(), method='Nelder-Mead', tol=None, 
+                    callback=None, options={'func': None, 'maxiter': None, 'maxfev': None, 
+                    'disp': False, 'return_all': False, 'initial_simplex': None, 'xatol': 0.0001, 
+                    'fatol': 0.0001, 'adaptive': False})"""
+                    options = self.OPTIONS_NM.copy()
+                    to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
+                    options.update(to_update)
+                    init_simplex = np.transpose([np.random.uniform(*d, self.n_params+1) for d in self.domain])
+                    options['initial_simplex'] = init_simplex
+                    if(optim_config.pop('max_time', None) is not None): logger.warning('NM: max_time is not used')
+                    optim = scipy.optimize.minimize(self.f, x0 = init_simplex[0, :], args = () , 
+                                method='Nelder-Mead', options = options, callback = None)
                 
-                params = init
-                alpha = lambda k: options['a']/np.power(k+1+options['A'], options['s'])
-                beta = lambda k: options['b']/np.power(k+1, options['t']) 
-                optim = {}
-                for k in range(int(options['maxiter']/2)):
-                    a_k = alpha(k)
-                    b_k = beta(k)
-                    perturb = np.sign(np.random.uniform(0,1, self.n_params) - 0.5)
-                    x_p = np.clip(params + b_k * perturb, params_min, params_max)
-                    x_m = np.clip(params - b_k * perturb, params_min, params_max)
-                    f_p = self.f(x_p)
-                    f_m = self.f(x_m)
-                    g_k = (f_p - f_m)/(x_p - x_m)
-                    params = np.clip(params - a_k * g_k, params_min, params_max)
-                    if np.max(np.abs(a_k * g_k)) < options['tol']:
-                        optim['message'] = 'Break because less than tol'
-                        break
-                optim['x'] = params
-                optim['message'] = optim.get('message', 'SPSA: Stopped because nbfev reached')
+                elif(type_optim == 'SPSA'):
+                    """ Implementation of SPONTANEOUS PERTURBATION STOCHASTIC 
+                    APPROXIMATION """
+                    config_spsa = optim_config.get('config_spsa',0)
+                    options = self.OPTIONS_SPSA[config_spsa].copy()
+                    to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
+                    options.update(to_update)
+                    
+                    params = init
+                    alpha = lambda k: options['a']/np.power(k+1+options['A'], options['s'])
+                    beta = lambda k: options['b']/np.power(k+1, options['t']) 
+                    optim = {}
+                    for k in range(int(options['maxiter']/2)):
+                        a_k = alpha(k)
+                        b_k = beta(k)
+                        perturb = np.sign(np.random.uniform(0,1, self.n_params) - 0.5)
+                        x_p = np.clip(params + b_k * perturb, params_min, params_max)
+                        x_m = np.clip(params - b_k * perturb, params_min, params_max)
+                        f_p = self.f(x_p)
+                        f_m = self.f(x_m)
+                        g_k = (f_p - f_m)/(x_p - x_m)
+                        params = np.clip(params - a_k * g_k, params_min, params_max)
+                        if np.max(np.abs(a_k * g_k)) < options['tol']:
+                            optim['message'] = 'Break because less than tol'
+                            break
+                    optim['x'] = params
+                    optim['message'] = optim.get('message', 'SPSA: Stopped because nbfev reached')
                 
-
-            
-            elif(type_optim == 'DE'):
-                """ Implementation of a differential evolution optimizer (need bounds)
-                scipy.optimize.differential_evolution(func, bounds, args=(), strategy='best1bin',
-                maxiter=None, popsize=15, tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=None, 
-                callback=None, disp=False, polish=True, init='latinhypercube') """
-                init = None
-                options = self.OPTIONS_DE.copy()
-                to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
-                options.update(to_update)
-                bounds = self.domain
+                elif(type_optim == 'DE'):
+                    """ Implementation of a differential evolution optimizer (need bounds)
+                    scipy.optimize.differential_evolution(func, bounds, args=(), strategy='best1bin',
+                    maxiter=None, popsize=15, tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=None, 
+                    callback=None, disp=False, polish=True, init='latinhypercube') """
+                    init = None
+                    options = self.OPTIONS_DE.copy()
+                    to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
+                    options.update(to_update)
+                    bounds = self.domain
+                    
+                    #workaround to terminate optims when a certain time has been reached
+                    # use a callback with two mock arguments 
+                    mt = options.get('max_time', None)
+                    #TODO: Add fev in the callback
+                    #mfev = options.get('maxfev', None)
+                    #if(mt is not None) or (maxfev is not None):
+                    if mt is not None:
+                        time_limit = time.time() + int(options.pop('max_time'))
+                        options['callback'] = lambda x, convergence: time.time() > time_limit
+                    optim = scipy.optimize.differential_evolution(self.f, bounds, **options)
+                    
+                    if(options.get('callback') is not None):
+                        optim['maxtime'] = options.get('callback')(None, None)
+    
+                elif(type_optim == 'BFGS'):
+                    options = self.OPTIONS_BFGS.copy()
+                    to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
+                    optim = scipy.optimize.minimize(self.f, x0=init, method='BFGS', 
+                                options=options)
+    
+                elif(type_optim == 'LBFGSB'):
+                    options = self.OPTIONS_LBFGSB
+                    to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
+                    optim = scipy.optimize.minimize(self.f, x0=init, method='L-BFGS-B',
+                                bounds = self.domain, options=options)
+                    
+                cum_time = time.time() - time_start
+                x_exp = optim['x']
+                x_seen = x_exp
+                test = self.f_test(x_exp)
+                abs_diff = model_config.get('res_tgt', 1) - test
+                dico_res.update({'test':test, 
+                            'x':x_seen, 'x_exp':x_exp, 'abs_diff':abs_diff,
+                            'time_suggest':cum_time, 'time_fit':0, 
+                            'message_optim':optim['message'], 'x_init':init})      
                 
-                #workaround to terminate optims when a certain time has been reached
-                # use a callback with two mock arguments 
-                mt = options.get('max_time', None)
-                #TODO: Add fev in the callback
-                #mfev = options.get('maxfev', None)
-                #if(mt is not None) or (maxfev is not None):
-                if mt is not None:
-                    time_limit = time.time() + int(options.pop('max_time'))
-                    options['callback'] = lambda x, convergence: time.time() > time_limit
-                optim = scipy.optimize.differential_evolution(self.f, bounds, **options)
+            elif(type_optim == 'CRAB'):
+                raise NotImplementedError()
                 
-                if(options.get('callback') is not None):
-                    optim['maxtime'] = options.get('callback')(None, None)
-
+            elif(type_optim == 'GRAPE'):
+                not NotImplementedError()
+                 
+            #Bayesian Optimization 2 flavors 'BO' and 'BO_NOOPTIM'
+            # 'BO' classical bayesian optimization
+            # 'BO_NOOPTIM' all the x are randomly generated and GP is fitted 
+            #              x_best is decided based on this model
+            elif 'BO' in type_optim: 
+                ### Main
+                self.time_all_bo, self.time_fit_bo, self.time_suggest_bo = 0, 0, 0
+                self.set_up_BO(optim_config)
+                self.max_time_bo = self.bo_args['max_time_bo']  #Need to be done here as it shouldnot been reset
+    
+                if(self.save_extra_bo):
+                    dico_res.update(tag='init0_', save_full = self.save_extra_full)
+                self.BO.run_optimization(max_iter = self.bo_args['nb_iter_bo'], 
+                                         eps = 0, max_time = self.max_time_bo)
+                self.update_BO_time()
+                if(self.save_extra_bo):
+                    dico_res.update(self.get_info_BO(i_beg = None, i_end = None, 
+                                tag='explor0_', save_full = self.save_extra_full))
+        
+                nb_exploit = self.bo_args['nb_exploit']
+                if nb_exploit>0:
+                    self.set_up_BO_exploit()
+                    logger.info('Exploitation (i.e. ucb with k=0) for {}'.format(nb_exploit))
+                    self.BO.run_optimization(nb_exploit, max_time = self.max_time_bo)
+                    self.update_BO_time()
+                    if(self.save_extra_bo):
+                        dico_res.update(self.get_info_BO(tag='exploit0_', save_full = self.save_extra_full))
                 
-            elif(type_optim == 'BFGS'):
-                options = self.OPTIONS_BFGS.copy()
-                to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
-                optim = scipy.optimize.minimize(self.f, x0=init, method='BFGS', 
-                            options=options)
-
+                ### Extra steps
+                nb_polish = self.bo_args['nb_polish']
+                nb_to_keep = self.bo_args['nb_to_keep']
+                nb_more = self.bo_args['nb_more']
+                nb_iter_polish = self.bo_args['nb_iter_polish']
+                polish_step = 0
+                X_keep_track = np.c_[(self.BO.X, np.zeros(len(self.BO.X)))]
+                Y_keep_track = np.c_[(self.BO.Y, np.zeros(len(self.BO.Y)))]
+                self.save_hp_values()
+                while nb_polish > 0 and self.max_time_bo > 0:
+                    more = nb_more[polish_step]
+                    new_iter = nb_iter_polish[polish_step]
+                    keep = nb_to_keep[polish_step]
+                    logger.info('Polish, nb to keep {}, X times more shots {} '.format(keep, nb_more))
+                    nb_polish -= 1  
+                    polish_step += 1
+                    self.set_up_BO(optim_config, nb_restrict_data = keep, restrict_domain = True, adapt_shots=more)   
+                    if(self.save_extra_bo):
+                        dico_res.update(self.get_info_BO(save_full = self.save_extra_full))
+                    self.BO.run_optimization(max_iter = new_iter, eps = 0, max_time = self.max_time_bo)
+                    if(self.save_extra_bo):
+                        dico_res.update(self.get_info_BO(tag='explor' + str(polish_step) + '_', 
+                                                         save_full = self.save_extra_full))
+                    if nb_exploit>0:
+                        self.set_up_BO_exploit()
+                        logger.info('Exploitation (i.e. ucb with k=0) for {}'.format(nb_exploit))
+                        self.BO.run_optimization(nb_exploit, max_time=self.max_time_bo)
+                        self.update_BO_time()
+                        if(self.save_extra_bo):
+                            dico_res.update(self.get_info_BO(tag='exploit' + str(polish_step) + '_', 
+                                                             save_full = self.save_extra_full))
+    
+                                    
+                    X_keep_track = np.r_[(X_keep_track, np.c_[(self.BO.X, polish_step*np.ones(len(self.BO.X)))])]
+                    if(self.BO.Y.shape[1] == (Y_keep_track.shape[1]-1)):
+                        Y_keep_track = np.r_[(Y_keep_track, np.c_[(self.BO.Y, polish_step*np.ones(len(self.BO.Y)))])]
+                    else:
+                        to_add_tmp = [Y_keep_track] * (Y_keep_track.shape[1]-1)
+                        to_add_tmp.append(polish_step*np.ones(len(self.BO.Y)))
                 
-            elif(type_optim == 'LBFGSB'):
-                options = self.OPTIONS_LBFGSB
-                to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
-                optim = scipy.optimize.minimize(self.f, x0=init, method='L-BFGS-B',
-                            bounds = self.domain, options=options)
-                
-            cum_time = time.time() - time_start
-            x_exp = optim['x']
-            x_seen = x_exp
-            test = self.f_test(x_exp)
-            abs_diff = model_config.get('res_tgt', 1) - test
-            dico_res.update({'test':test, 
-                        'x':x_seen, 'x_exp':x_exp, 'abs_diff':abs_diff,
-                        'time_suggest':cum_time, 'time_fit':0, 
-                        'message_optim':optim['message'], 'x_init':init})      
-            
-            if(type_optim in ['SPSA','BFGS','LBFGSB']):
+                dico_res.update(self.get_info_BO(tag=''))            
+                dico_res.update({'params_BO_names': self.BO.model.model.parameter_names(), 
+                    'abs_diff':1- dico_res['test'], 
+                    'time_allbo':self.time_all_bo, 'time_fit':self.time_fit_bo, 
+                    'time_suggest':self.time_suggest_bo, 'polish_step':polish_step, 
+                    'nb_polish':nb_polish, 'nb_more':nb_more, 'nb_to_keep':nb_to_keep})
+            if(test_config.get('gradients',False)):
                 logger.info('Test gradients at the final value, with eps = 1e-6')
                 grad_final = np.zeros(self.n_params)
                 for i in range(self.n_params):
@@ -322,95 +399,19 @@ class BatchSFMI(BatchBaseParamControl):
                     eps = 1e-6
                     x_p = np.clip(x_exp + eps * perturb_local, params_min, params_max)
                     x_m = np.clip(x_exp - eps * perturb_local, params_min, params_max)
-                    f_p = self.f(x_p)
-                    f_m = self.f(x_m)
+                    f_p = self.f_test(x_p)
+                    f_m = self.f_test(x_m)
                     grad_final[i] = (f_p - f_m)/(x_p[i] - x_m[i])
-                dico_res.update({'final_grad':grad_final})
+                dico_res.update({'final_grad':grad_final})            
         
-        
-        
-        elif(type_optim == 'CRAB'):
-            raise NotImplementedError()
+        else: #case when there is no params, i.e. nothing to optimize
+            test = self.f_test(np.zeros(self.n_params))
+            abs_diff = model_config.get('res_tgt', 1) - test
+            dico_res.update({'test':test,  'x':None, 'x_exp':None, 
+                        'abs_diff':abs_diff, 'time_suggest':0, 'time_fit':0, 
+                        'message_optim':'ONLY TESTING', 'x_init':None})      
             
-        elif(type_optim == 'GRAPE'):
-            not NotImplementedError()
-             
-        #Bayesian Optimization 2 flavors 'BO' and 'BO_NOOPTIM'
-        # 'BO' classical bayesian optimization
-        # 'BO_NOOPTIM' all the x are randomly generated and GP is fitted 
-        #              x_best is decided based on this model
-        elif 'BO' in type_optim: 
-            ### Main
-            self.time_all_bo, self.time_fit_bo, self.time_suggest_bo = 0, 0, 0
-            self.set_up_BO(optim_config)
-            self.max_time_bo = self.bo_args['max_time_bo']  #Need to be done here as it shouldnot been reset
-
-            if(self.save_extra_bo):
-                dico_res.update(tag='init0_', save_full = self.save_extra_full)
-            self.BO.run_optimization(max_iter = self.bo_args['nb_iter_bo'], 
-                                     eps = 0, max_time = self.max_time_bo)
-            self.update_BO_time()
-            if(self.save_extra_bo):
-                dico_res.update(self.get_info_BO(i_beg = None, i_end = None, 
-                            tag='explor0_', save_full = self.save_extra_full))
-    
-            nb_exploit = self.bo_args['nb_exploit']
-            if nb_exploit>0:
-                self.set_up_BO_exploit()
-                logger.info('Exploitation (i.e. ucb with k=0) for {}'.format(nb_exploit))
-                self.BO.run_optimization(nb_exploit, max_time = self.max_time_bo)
-                self.update_BO_time()
-                if(self.save_extra_bo):
-                    dico_res.update(self.get_info_BO(tag='exploit0_', save_full = self.save_extra_full))
-            
-            ### Extra steps
-            nb_polish = self.bo_args['nb_polish']
-            nb_to_keep = self.bo_args['nb_to_keep']
-            nb_more = self.bo_args['nb_more']
-            nb_iter_polish = self.bo_args['nb_iter_polish']
-            polish_step = 0
-            X_keep_track = np.c_[(self.BO.X, np.zeros(len(self.BO.X)))]
-            Y_keep_track = np.c_[(self.BO.Y, np.zeros(len(self.BO.Y)))]
-            self.save_hp_values()
-            while nb_polish > 0 and self.max_time_bo > 0:
-                more = nb_more[polish_step]
-                new_iter = nb_iter_polish[polish_step]
-                keep = nb_to_keep[polish_step]
-                logger.info('Polish, nb to keep {}, X times more shots {} '.format(keep, nb_more))
-                nb_polish -= 1  
-                polish_step += 1
-                self.set_up_BO(optim_config, nb_restrict_data = keep, restrict_domain = True, adapt_shots=more)   
-                if(self.save_extra_bo):
-                    dico_res.update(self.get_info_BO(save_full = self.save_extra_full))
-                self.BO.run_optimization(max_iter = new_iter, eps = 0, max_time = self.max_time_bo)
-                if(self.save_extra_bo):
-                    dico_res.update(self.get_info_BO(tag='explor' + str(polish_step) + '_', 
-                                                     save_full = self.save_extra_full))
-                if nb_exploit>0:
-                    self.set_up_BO_exploit()
-                    logger.info('Exploitation (i.e. ucb with k=0) for {}'.format(nb_exploit))
-                    self.BO.run_optimization(nb_exploit, max_time=self.max_time_bo)
-                    self.update_BO_time()
-                    if(self.save_extra_bo):
-                        dico_res.update(self.get_info_BO(tag='exploit' + str(polish_step) + '_', 
-                                                         save_full = self.save_extra_full))
-
-                                
-                X_keep_track = np.r_[(X_keep_track, np.c_[(self.BO.X, polish_step*np.ones(len(self.BO.X)))])]
-                if(self.BO.Y.shape[1] == (Y_keep_track.shape[1]-1)):
-                    Y_keep_track = np.r_[(Y_keep_track, np.c_[(self.BO.Y, polish_step*np.ones(len(self.BO.Y)))])]
-                else:
-                    to_add_tmp = [Y_keep_track] * (Y_keep_track.shape[1]-1)
-                    to_add_tmp.append(polish_step*np.ones(len(self.BO.Y)))
-            
-            dico_res.update(self.get_info_BO(tag=''))            
-            dico_res.update({'params_BO_names': self.BO.model.model.parameter_names(), 
-                'abs_diff':1- dico_res['test'], 
-                'time_allbo':self.time_all_bo, 'time_fit':self.time_fit_bo, 
-                'time_suggest':self.time_suggest_bo, 'polish_step':polish_step, 
-                'nb_polish':nb_polish, 'nb_more':nb_more, 'nb_to_keep':nb_to_keep})
-                         
-                
+                    
         cum_time = time.time() - time_start        
         dico_res.update({'time_all':cum_time,'x_tgt':self.x_tgt, 
             'call_f':self.call_f, 'call_f_single':self.call_f_single,
@@ -422,7 +423,10 @@ class BatchSFMI(BatchBaseParamControl):
             dico_res.update({'tracker':self.model._track_calls})
         if hasattr(self.model_test, '_track_calls'):
             dico_res.update({'tracker_test':self.model_test._track_calls})
- 
+        # Look at the gradients w.r.t to the parameters 
+
+            
+
         return dico_res 
 
     @classmethod
@@ -820,19 +824,17 @@ def _get_some_res(field, list_res, criterion = np.max):
 def _stats_one_field(field, list_res, dico_output = False, index=0):
     #TODO: Think better about the case when there are arrays of results
     field_values = np.array([res.get(field) for res in list_res])
-    if(np.ndim(field_values) > 1):
-        field_values = field_values[:,index]
     mask_none = np.array([f is not None for f in field_values])
     f = field_values[mask_none]
     N = len(f)
     if(len(f) > 0):
-        field_avg = np.average(f)
-        field_std = np.std(f)
-        field_min = np.min(f)
-        field_max = np.max(f)
-        field_median = np.median(f)
-        field_q25 = np.quantile(f, 0.25)
-        field_q75 = np.quantile(f, 0.75)
+        field_avg = np.average(f,axis=0)
+        field_std = np.std(f,axis=0)
+        field_min = np.min(f,axis=0)
+        field_max = np.max(f,axis=0)
+        field_median = np.median(f,axis=0)
+        field_q25 = np.quantile(f, 0.25,axis=0)
+        field_q75 = np.quantile(f, 0.75,axis=0)
     else:
         field_avg = np.nan
         field_std = np.nan
