@@ -10,6 +10,8 @@ import qutip as qt
 import numpy as np
 import matplotlib.pyplot as plt
 from functools import reduce
+import utilities as ut
+
 
 ############ Init, utility
 zero = qt.qubits.qubit_states(1,[0])
@@ -102,11 +104,11 @@ def gen_proj_onequbit(nb_qubits, which_qubit, proj):
     list_op[which_qubit] = proj.copy()
     return qt.tensor(list_op)
 
-ghz_2q = get_ghz(2)
-ghz_2q_mixed = 0.90 * qt.ket2dm(get_ghz(2)) + 0.1 * qt.ket2dm(qt.rand_ket_haar(4, [[2, 2], [1, 1]])) 
-ghz_2q_phase = get_ghz(2, np.pi/2)
-ghz_3q = get_ghz(3)
-ghz_4q = get_ghz(4)
+ghz_2q = ut.get_ghz(2)
+ghz_2q_mixed = 0.90 * qt.ket2dm(ut.get_ghz(2)) + 0.1 * qt.ket2dm(qt.rand_ket_haar(4, [[2, 2], [1, 1]])) 
+ghz_2q_phase = ut.get_ghz(2, np.pi/2)
+ghz_3q = ut.get_ghz(3)
+ghz_4q = ut.get_ghz(4)
 steps = np.linspace(0, 4, 5000)
 
 
