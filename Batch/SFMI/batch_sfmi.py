@@ -389,6 +389,8 @@ class BatchSFMI(BatchBaseParamControl):
                     'time_allbo':self.time_all_bo, 'time_fit':self.time_fit_bo, 
                     'time_suggest':self.time_suggest_bo, 'polish_step':polish_step, 
                     'nb_polish':nb_polish, 'nb_more':nb_more, 'nb_to_keep':nb_to_keep})
+                x_exp = dico_res['x_exp']
+                
             if(test_config.get('gradients',False)):
                 logger.info('Test gradients at the final value, with eps = 1e-6')
                 nb_output = len(self.f_test(x_exp)) # not clean
