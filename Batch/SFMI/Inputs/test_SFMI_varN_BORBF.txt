@@ -1,0 +1,18 @@
+# New simulations of a 1D BH chain
+# A few tests: increase b in SPSA, 2 elements in the fom, longer DE, longer NM, more exploitation in EI
+model {'L':5,'Nb':5,'sps':None,'mu':0,'T':5.136511734353454,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom':['f2t2:neg','f2t2:neg'],'fom_print':True,'track_callf':True,'ctl_shortcut':'owbds01_pwl15','_FLAG':'1Tfid'} {'T':10.273023468706908,'_FLAG':'2Tfid'} {'T':2.568255867176727,'_FLAG':'05Tfid'} {'T':6.163814081224145,'_FLAG':'12Tfid'} {'fom':['varN','f2t2:neg'],'_FLAG':'1TvarN'} {'fom':['varN','f2t2:neg'],'T':10.273023468706908,'_FLAG':'2TvarN'} {'fom':['varN','f2t2:neg'],'T':2.568255867176727,'_FLAG':'05TvarN'} {'fom':['varN','f2t2:neg'],'T':6.163814081224145,'_FLAG':'12TvarN'} {'fom':['varN100','f2t2:neg'],'_FLAG':'1TvarN100'} {'fom':['varN100','f2t2:neg'],'T':10.273023468706908,'_FLAG':'2TvarN100'} {'fom':['varN100','f2t2:neg'],'T':2.568255867176727,'_FLAG':'05TvarN100'} {'fom':['varN100','f2t2:neg'],'T':6.163814081224145,'_FLAG':'12TvarN100'} {'fom':['varN1000','f2t2:neg'],'_FLAG':'1TvarN1000'} {'fom':['varN1000','f2t2:neg'],'T':10.273023468706908,'_FLAG':'2TvarN1000'} {'fom':['varN1000','f2t2:neg'],'T':2.568255867176727,'_FLAG':'05TvarN1000'} {'fom':['varN1000','f2t2:neg'],'T':6.163814081224145,'_FLAG':'12TvarN1000'} {'fom':['varN10000','f2t2:neg'],'_FLAG':'1TvarN10000'} {'fom':['varN10000','f2t2:neg'],'T':10.273023468706908,'_FLAG':'2TvarN10000'} {'fom':['varN10000','f2t2:neg'],'T':2.568255867176727,'_FLAG':'05TvarN10000'} {'fom':['varN10000','f2t2:neg'],'T':6.163814081224145,'_FLAG':'12TvarN10000'} {'fom':['varN100000','f2t2:neg'],'_FLAG':'1TvarN100000'} {'fom':['varN100000','f2t2:neg'],'T':10.273023468706908,'_FLAG':'2TvarN100000'} {'fom':['varN100000','f2t2:neg'],'T':2.568255867176727,'_FLAG':'05TvarN100000'} {'fom':['varN100000','f2t2:neg'],'T':6.163814081224145,'_FLAG':'12TvarN100000'}
+
+test_update {'fom':['f2t2','f2t2:neg_smooth:0.05','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False}
+
+optim {'type_optim':'BO','save_extra_bo':True,'kernel_type':'RBF','nb_anchors':5,'type_acq':'LCB','max_time':83000,'type_lik':None,'nb_init':150,'nb_iter':600,'num_cores':4,'optimize_restarts':1,'acquisition_weight_lindec':True,'acq_weight':5,'exploitation_steps':250,'_FLAG':'BO_LCBlindec','hp_constrains':{'Mat52.lengthscale':[0.01,25.],'Mat52.variance':[0.1,25.0],'white.variance':[1e-09,10.]},'hp_update_interval':10} {'acq_weight':2,'_FLAG':'BO_LCBlindec2'} {'acq_weight':7,'_FLAG':'BO_LCBlindec7'} {'acq_weight':2,'acquisition_weight_lindec':True,'_FLAG':'BO_LCB2'} {'acq_weight':4,'acquisition_weight_lindec':True,'_FLAG':'BO_LCB4'} {'acq_weight':6,'acquisition_weight_lindec':True,'_FLAG':'BO_LCB6'} {'type_optim':'BO','type_acq':'EI','type_lik':None,'acquisition_weight_lindec':False,'_FLAG':'BO_EI','hp_constrains':{'Mat52.lengthscale':[0.01,25.],'Mat52.variance':[0.1,25.0],'white.variance':[1e-09,10.]},'hp_update_interval':10}
+
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
+
