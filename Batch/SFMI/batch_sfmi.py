@@ -38,13 +38,13 @@ class BatchSFMI(BatchBaseParamControl):
     TODO: Move the logic of the optimization in a parent class
     TODO: Refactor the update of dico_res
     """
-    OPTIM_SCIPY = ['DE', 'NM', 'BFGS', 'LBFGSB','SPSA', 'RANDOM']
+    OPTIM_SCIPY = ['DE', 'NM', 'BFGS', 'LBFGSB','SPSA', 'RANDOM','SPSANC']
     OPTIONS_NM = {'disp':True, 'maxiter':200, 'ftol':1e-6, 'maxfev':200, 
                               'adaptative':False, 'max_time':None}
     OPTIONS_DE = {'disp':True, 'maxiter':200, 'popsize':10, 'tol':0.0001}
     OPTIONS_BFGS = {'maxiter': 100, 'disp': False, 'return_all': False}
     OPTIONS_LBFGSB = {'maxiter': 100, 'disp': False, 'return_all': False}
-    OPTIONS_SPSA = [{'maxiter': 100, 'disp': False, 'tol': 1e-8, 'a':1, 'b':1, 's':1, 't':1/6},
+    OPTIONS_SPSA = [{'maxiter': 100, 'disp': False, 'tol': 1e-8, 'a':1, 'b':1, 's':1, 't':1/6,'A':0},
         {'maxiter': 100, 'disp': False, 'tol': 1e-8, 'A':0, 'a':0.5, 'b':0.5, 's':1, 't':1/6},
         {'maxiter': 100, 'disp': False, 'tol': 1e-8, 'A':0, 'a':0.1, 'b':0.1, 's':1, 't':1/6},
         {'maxiter': 100, 'disp': False, 'tol': 1e-8, 'A':0.01*100, 'a':1, 'b':1, 's':0.602, 't':0.101}]
@@ -255,7 +255,36 @@ class BatchSFMI(BatchBaseParamControl):
                         f_p = self.f(x_p)
                         f_m = self.f(x_m)
                         g_k = (f_p - f_m)/(x_p - x_m)
-                        params = np.clip(params - a_k * g_k, params_min, params_max)
+                        params = np.clip(params + a_k * g_k, params_min, params_max)
+                        if np.max(np.abs(a_k * g_k)) < options['tol']:
+                            optim['message'] = 'Break because less than tol'
+                            break
+                    optim['x'] = params
+                    optim['message'] = optim.get('message', 'SPSA: Stopped because nbfev reached')
+                
+                #with no clipping
+                elif(type_optim == 'SPSANC'):
+                    """ Implementation of SPONTANEOUS PERTURBATION STOCHASTIC 
+                    APPROXIMATION """
+                    config_spsa = optim_config.get('config_spsa',0)
+                    options = self.OPTIONS_SPSA[config_spsa].copy()
+                    to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
+                    options.update(to_update)
+                    
+                    params = init
+                    alpha = lambda k: options['a']/np.power(k+1+options['A'], options['s'])
+                    beta = lambda k: options['b']/np.power(k+1, options['t']) 
+                    optim = {}
+                    for k in range(int(options['maxiter']/2)):
+                        a_k = alpha(k)
+                        b_k = beta(k)
+                        perturb = np.sign(np.random.uniform(0,1, self.n_params) - 0.5)
+                        x_p = params + b_k * perturb
+                        x_m = params - b_k * perturb
+                        f_p = self.f(x_p)
+                        f_m = self.f(x_m)
+                        g_k = (f_p - f_m)/(x_p - x_m)
+                        params = params + a_k * g_k
                         if np.max(np.abs(a_k * g_k)) < options['tol']:
                             optim['message'] = 'Break because less than tol'
                             break
