@@ -641,7 +641,9 @@ class BatchBaseParamControl(BatchBase):
             pwlr = "{'name_func':'PWL','TLast':T,'T0':0,'F0':1,'FLast':0,'F_bounds':%s,'nb_steps':%s}"
             logis = "{'name_func':'LogisticFunc','L':2,'k':%s,'x0':0}"
             logisflex = "{'name_func':'LogisticFunc','L':%s,'k':%s,'x0':%s}"
-
+            intquad = "{'name_func':'InterpQuad','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}"
+            intcub = "{'name_func':'InterpCub','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}"
+            
             
             if(shortcut[:11] == 'owbds01_pwc'):
                 nb_params = int(shortcut[11:])
@@ -662,6 +664,16 @@ class BatchBaseParamControl(BatchBase):
                 nb_params = int(shortcut[13:])
                 dico_atom = {'ow':ow_r,'bd':bds,'pwlr':pwlr %('(0,1)',nb_params+1)}
                 dico_expr = {'final':'**(#ow,**(#bd,#pwlr))'}
+
+            elif(shortcut[:15] == 'owbds01_intquad'):
+                nb_params = int(shortcut[15:])
+                dico_atom = {'ow':ow,'bd':bds,'pwl':intquad %('(0,1)',nb_params+1)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwl))'}
+                        
+            elif(shortcut[:14] == 'owbds01_intcub'):
+                nb_params = int(shortcut[14:])
+                dico_atom = {'ow':ow,'bd':bds,'pwl':intcub %('(0,1)',nb_params+1)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwl))'}
 
             ### RDMIZED FREQ
             elif(shortcut[:13] == 'owbds01_1crab'):

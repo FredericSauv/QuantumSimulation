@@ -17,6 +17,7 @@ else:
 import numpy as np
 from numpy import array, inf #used for eval within the module
 import numpy.polynomial.chebyshev as cheb
+from scipy.interpolate import interp1d
 import matplotlib.pylab as plt
 import pdb 
 import logging
@@ -1022,6 +1023,44 @@ class PWL(pFunc_base):
             res = F[idx] + (F[idx+1] - F[idx]) * (X - T[idx])/(T[idx+1] - T[idx])
         return res
 
+class InterpQuad(pFunc_base):
+    """ Quadratic interpolator as implemented in scipy
+    TODO: generalize to other interpolators
+    """     
+    _LIST_PARAMETERS = ['F', 'T']
+    _NB_ELEM_PER_PARAMS = ['a', 'a']
+
+    def _check_integrity(self):
+        """ Additional feature: build and maintain the underlying scipy interpolator"""
+        pFunc_base._check_integrity(self)
+        F, T = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
+        self._interpolator = interp1d(x=T, y=F, kind='quadratic', fill_value="extrapolate")
+        
+    @ut.extend_dim_method(0, True)
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """ use the interpolator"""
+        res = self._interpolator(X)
+        return res
+
+class InterpCub(pFunc_base):
+    """ Quadratic interpolator as implemented in scipy
+    TODO: generalize to other interpolators
+    """     
+    _LIST_PARAMETERS = ['F', 'T']
+    _NB_ELEM_PER_PARAMS = ['a', 'a']
+
+    def _check_integrity(self):
+        """ Additional feature: build and maintain the underlying scipy interpolator"""
+        pFunc_base._check_integrity(self)
+        F, T = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
+        self._interpolator = interp1d(x=T, y=F, kind='cubic', fill_value="extrapolate")
+        
+    @ut.extend_dim_method(0, True)
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """ use the interpolator"""
+        res = self._interpolator(X)
+        return res
+
 class ExpRampFunc(pFunc_base):
     """ params : {'a' = ymax, 'T':T, 'l' = l}
         f(t) = ampl * (1 - exp(t/ T * l)) / (1 - exp(l)) 
@@ -1207,7 +1246,7 @@ def random_from_bound(bound):
 # Some testing
 #==============================================================================
 if __name__ == '__main__':
-
+        
 # --------------------------------------------------------------------------- #
 #   Step Func
 # --------------------------------------------------------------------------- #
@@ -1217,6 +1256,16 @@ if __name__ == '__main__':
     sf_dico = {'Tstep': x, 'F':y, 'F0':0, 'F0_bounds':(-10, 10), 'Tstep_bounds':(-10, 10)}
     sf1 = StepFunc(**sf_dico)
     sf1.plot_function(x)
+
+# --------------------------------------------------------------------------- #
+#   Interpol
+# --------------------------------------------------------------------------- #
+    x = np.arange(0, 1, 0.1)
+    y = np.random.sample(len(x))
+    interpol_dico = {'T': x, 'F':y,'T_bounds':(0,1.),'F_bounds':(0,1.)}
+    int1 = InterpQuad(**interpol_dico)
+    x_test = np.arange(-0.1, 1.1,0.01)
+    int1.plot_function(x_test)
 
     
 # --------------------------------------------------------------------------- #

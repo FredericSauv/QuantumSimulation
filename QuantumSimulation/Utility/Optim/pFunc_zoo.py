@@ -48,6 +48,8 @@ class pFunc_factory():
     _LIST_CUSTOM_FUNC = {} 
     _LIST_CUSTOM_FUNC['StepFunc'] = ('StepFunction', pf.StepFunc, [['Tstep'],['T', 'nb_steps']], ['F', 'F0'])
     _LIST_CUSTOM_FUNC['PWL'] = ('StepFunction', pf.PWL, [['Tstep'],['T', 'nb_steps']], ['F', 'F0', 'T0', 'TLast'])
+    _LIST_CUSTOM_FUNC['InterpQuad'] = ('IntegratorQuadratic', pf.InterpQuad, [['Tstep'],['T', 'nb_steps']], ['F', 'F0', 'T0', 'TLast','FLast'])
+    _LIST_CUSTOM_FUNC['InterpCub'] = ('IntegratorCub', pf.InterpCub, [['Tstep'],['T', 'nb_steps']], ['F', 'F0', 'T0', 'TLast','FLast'])    
     _LIST_CUSTOM_FUNC['FourierFunc'] = ('Fourier basis', pf.FourierFunc, [['Om'], ['T', 'nb_H']],['c0', 'phi', 'A', 'B', 'freq_type'])
     _LIST_CUSTOM_FUNC['ConstantFunc'] = ('Constant function', pf.ConstantFunc, [['c0']],[])
     _LIST_CUSTOM_FUNC['OwriterYWrap']= ('wrapper: overwritting', pf.OwriterYWrap, ['ow'], [])
@@ -81,6 +83,8 @@ class pFunc_factory():
     _LIST_SHORTCUT['omsinfour'] = ("{'name_func':'FourierFunc','T':T,'freq_type':'CRAB_FREEOM','B_bounds':%s,'nb_H':%s}", ['B_bounds', 'nb_H'])
     _LIST_SHORTCUT['pwc'] = ("{'name_func':'StepFunc','T':T,'F_bounds':%s,'nb_steps':%s}", ['F_bounds', 'nb_steps'])
     _LIST_SHORTCUT['pwl'] = ("{'name_func':'PWL','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}", ['F_bounds', 'nb_steps'])
+    _LIST_SHORTCUT['intcub'] = ("{'name_func':'InterpCub','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}", ['F_bounds', 'nb_steps'])
+    _LIST_SHORTCUT['intquad'] = ("{'name_func':'InterpQuad','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}", ['F_bounds', 'nb_steps'])
     _LIST_SHORTCUT['pwlr'] = ("{'name_func':'PWL','TLast':T,'T0':0,'F0':1,'FLast':0,'F_bounds':%s,'nb_steps':%s}", ['F_bounds', 'nb_steps'])
     _LIST_SHORTCUT['logis'] = ("{'name_func':'LogisticFunc','L':2,'k':%s,'x0':0}", [])
     _LIST_SHORTCUT['logisflex'] = ("{'name_func':'LogisticFunc','L':%s,'k':%s,'x0':%s}", [])
@@ -576,8 +580,8 @@ class pFunc_factory():
         name_func = dico_fun['name_func']
         if(name_func == 'StepFunc'):
             func = self._build_custom_StepFunc(dico_fun)
-        elif(name_func == 'PWL'):
-            func = self._build_custom_PWL(dico_fun)
+        elif(name_func in ['PWL','InterpQuad', 'InterpCub']):
+            func = self._build_custom_PWL(name_func, dico_fun)
         elif(name_func == 'FourierFunc'):
             func = self._build_custom_FourierFunc(dico_fun)
         elif(name_func == 'BoundWrap'):
@@ -675,9 +679,12 @@ class pFunc_factory():
         self._add_bounds(dico_constructor, dico_source)
         return constructor(**dico_constructor)
     
-    def _build_custom_PWL(self, dico_source, **extra_args):
-        """ custom rules to build a StepFunc """
-        info_func = self._LIST_CUSTOM_FUNC['PWL']
+    def _build_custom_PWL(self, name_integrator, dico_source, **extra_args):
+        """ custom rules to build either a PWL/integrators 
+        with the possibility to pass a T0, TLast, F0, FLast
+        TODO: Integgrate pwl (they could all rely on scipy interpolator)
+        """
+        info_func = self._LIST_CUSTOM_FUNC[name_integrator]
         constructor = info_func[1]
         T = dico_source.get('T')
         if(T is None):
@@ -714,7 +721,6 @@ class pFunc_factory():
                 F_bounds[-1] = False
             constructed.set_params(F_bounds=F_bounds)
         return constructed
-
 
     def _add_bounds(self, dico_target, dico_source):
         """ look (in dico_source) for potentially missing bounds (in dico_target)
@@ -788,11 +794,10 @@ class pFunc_factory():
 # chebyshev with fixed trend and only even coefficients
 #==============================================================================    
 if __name__ == '__main__':
-    
+    ## Try parsing dicos
     expr = '**(#a,*(#b,#c))'
     db = {'a':'func_a','b':'func_b', 'c':'func_c'}
     res = pFunc_factory.parse_compound(expr, db)
-    
     
     dico_atom = {'ow':"{'name_func':'OwriterYWrap', 'ow':[(-100,0,0),(5,100,1)]}",
                 'bd':"{'name_func':'BoundWrap', 'bounds_min':0, 'bounds_max':1}",
@@ -800,6 +805,10 @@ if __name__ == '__main__':
     dico_expr = {'final':'**(#ow,**(#bd,#pw))'}
     res2 = pFunc_factory.parse(dico_atom, dico_expr)
 
-
     factory = pFunc_factory(None)
     res3 = factory.eval_string(res2['final'])
+    
+    
+    # Build from shortcut string
+    # func_factory = pFunc_factory(rdm_obj=None, context={'T':5})
+    # built_control = func_factory.eval_string('owbds01_pwl15')
