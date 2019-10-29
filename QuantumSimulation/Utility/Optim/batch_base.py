@@ -501,6 +501,10 @@ class BatchBase:
         """
         listFileName = ut.findFile(nameFile, allPrefix, folderName)
         results = [cls.eval_from_onefile(f, replace_func = replace_func) for f in listFileName]
+        filter_none = [r is None for r in results]
+        if np.any(filter_none):
+            logger.warning('{} empty files'.format(np.sum(filter_none)))
+            results = [r for r, f in zip(results, filter_none) if not(f) ]
         if returnName:
             return results, listFileName
         else:
