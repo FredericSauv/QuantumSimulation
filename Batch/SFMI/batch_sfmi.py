@@ -254,8 +254,8 @@ class BatchSFMI(BatchBaseParamControl):
                         x_m = np.clip(params - b_k * perturb, params_min, params_max)
                         f_p = self.f(x_p)
                         f_m = self.f(x_m)
-                        g_k = (f_p - f_m)/(x_p - x_m)
-                        params = np.clip(params + a_k * g_k, params_min, params_max)
+                        g_k = (f_p - f_m)/(x_p - x_m) ## Careful
+                        params = np.clip(params - a_k * g_k, params_min, params_max)
                         if np.max(np.abs(a_k * g_k)) < options['tol']:
                             optim['message'] = 'Break because less than tol'
                             break
@@ -284,7 +284,7 @@ class BatchSFMI(BatchBaseParamControl):
                         f_p = self.f(x_p)
                         f_m = self.f(x_m)
                         g_k = (f_p - f_m)/(x_p - x_m)
-                        params = params + a_k * g_k
+                        params = params - a_k * g_k
                         if np.max(np.abs(a_k * g_k)) < options['tol']:
                             optim['message'] = 'Break because less than tol'
                             break
