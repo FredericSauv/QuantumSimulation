@@ -10,12 +10,12 @@ import itertools as it
 
 # generate string for simulations
 list_nbparams = [(5,'5p'), (10,'10p'),(15,'15p'),(20,'20p')]
-list_noise =[('fid:neg','fid'), ('varN','varN'), ('varN10','varN10'), ('varN100','varN100'), ('varN1000','varN1000'), ('varN10000','varN10000')]
+list_noise =[('f2t2:neg','fid'), ('varN','varN'), ('varN10','varN10'), ('varN100','varN100'), ('varN1000','varN1000'), ('varN10000','varN10000')]
 list_time = [(2.568255867176727,'05T'),(5.136511734353454,'1T'),(6.163814081224145,'12T'),(10.273023468706908,'2T')]
 list_time = [(2.568255867176727,'05T')]
 
 
-placeholder = "'ctl_shortcut':'owbds01_intcub{0}','fom':[{2},'f2t2:neg'],'T':{4},'_FLAG':'{5}{3}_{1}'"
+placeholder = "'ctl_shortcut':'owbds01_intcub{0}','fom':['{2}','f2t2:neg'],'T':{4},'_FLAG':'{5}{3}_{1}'"
 
 combins = it.product(list_nbparams,list_noise,list_time)
 combins_string = ["{"+ placeholder.format(c[0][0],c[0][1],c[1][0],c[1][1],c[2][0],c[2][1]) + "}" for c in combins]

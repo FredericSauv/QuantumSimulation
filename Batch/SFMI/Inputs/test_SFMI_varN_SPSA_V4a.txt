@@ -4,7 +4,7 @@ model {'L':5,'Nb':5,'sps':None,'mu':0,'T':5.136511734353454,'dt':0.01,'flag_inte
 
 test_update {'fom':['f2t2','f2t2:neg_smooth:0.05','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False,'gradients':True}
 
-optim {'type_optim':'SPSA','maxfev':200000,'max_time':83000,'maxiter':10000,'_FLAG':'SPSA10K','config_spsa':0} {'_FLAG':'SPSA10K_01','config_spsa':0,'b':0.1} {'_FLAG':'SPSA10K_005','config_spsa':0,'b':0.05}  {'_FLAG':'SPSA1K_02','config_spsa':0,'b':0.2} {'_FLAG':'SPSA1K_01','config_spsa':0,'b':0.1} {'maxiter':1000,'config':3,'_FLAG':'SPSA1KC3','A':10} {'maxiter':1000,'config':3,'_FLAG':'SPSA1KC3_01','A':10,'b':0.1} {'maxiter':10000,'_FLAG':'SPSA10K'} {'_FLAG':'SPSA10K_01','maxiter':10000,'config_spsa':0,'b':0.1} {'maxiter':10000,'config':3,'_FLAG':'SPSA10KC3A100','A':100} {'maxiter':10000,'config':3,'_FLAG':'SPSA10KC3_01','A':100,'b':0.1}
+optim {'type_optim':'SPSA','maxfev':200000,'max_time':83000,'maxiter':10000,'_FLAG':'SPSA10K','config_spsa':0} {'_FLAG':'SPSA10K_01','config_spsa':0,'b':0.1} {'_FLAG':'SPSA10K_005','config_spsa':0,'b':0.05} {'_FLAG':'SPSA1K_02','config_spsa':0,'b':0.2} {'_FLAG':'SPSA1K_01','config_spsa':0,'b':0.1} {'maxiter':1000,'config':3,'_FLAG':'SPSA1KC3','A':10} {'maxiter':1000,'config':3,'_FLAG':'SPSA1KC3_01','A':10,'b':0.1} {'maxiter':10000,'_FLAG':'SPSA10K'} {'_FLAG':'SPSA10K_01','maxiter':10000,'config_spsa':0,'b':0.1} {'maxiter':10000,'config':3,'_FLAG':'SPSA10KC3A100','A':100} {'maxiter':10000,'config':3,'_FLAG':'SPSA10KC3_01','A':100,'b':0.1}
 
 _RDM_RUNS 30
 _RDM_FIXSEED True
