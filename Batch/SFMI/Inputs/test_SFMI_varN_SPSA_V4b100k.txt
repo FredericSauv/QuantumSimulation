@@ -4,7 +4,7 @@ model {'L':5,'Nb':5,'sps':None,'mu':0,'T':5.136511734353454,'dt':0.01,'flag_inte
 
 test_update {'fom':['f2t2','f2t2:neg_smooth:0.05','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False,'gradients':True}
 
-optim {'type_optim':'SPSA','maxfev':200000,'max_time':83000,'maxiter':10000,'_FLAG':'SPSA10K','config_spsa':0,'s':0.602,'t':0.101} {'_FLAG':'SPSA10K_01','b':0.1} {'_FLAG':'SPSA10K_005','b':0.05} {'_FLAG':'SPSA10K_05','b':0.5} {'_FLAG':'SPSA10K_01','b':0.1} {'config':3,'_FLAG':'SPSA10KC3','A':100} {'config':3,'_FLAG':'SPSA10KC3_01','A':100,'b':0.1} {'config':3,'_FLAG':'SPSA10KC3_05','A':100,'b':0.5} {'config':3,'_FLAG':'SPSA10KC3_005','A':100,'b':0.05}
+optim {'type_optim':'SPSA','maxfev':200000,'max_time':83000,'maxiter':100000,'_FLAG':'SPSA100K','config_spsa':0,'s':0.602,'t':0.101} {'_FLAG':'SPSA100K_01','b':0.1} {'_FLAG':'SPSA100K_005','b':0.05} {'_FLAG':'SPSA100K_05','b':0.5} {'_FLAG':'SPSA100K_01','b':0.1} {'config':3,'_FLAG':'SPSA100KC3','A':1000} {'config':3,'_FLAG':'SPSA100KC3_01','A':1000,'b':0.1} {'config':3,'_FLAG':'SPSA100KC3_05','A':1000,'b':0.5} {'config':3,'_FLAG':'SPSA100KC3_005','A':1000,'b':0.05}
 
 # {'maxiter':100000,'_FLAG':'SPSA100K'} {'maxiter':100000,'_FLAG':'SPSA100K_01','b':0.1} {'maxiter':100000,'_FLAG':'SPSA100K_005','b':0.05} {'maxiter':100000,'_FLAG':'SPSA100K_05','b':0.5} {'maxiter':100000,'_FLAG':'SPSA100K_01','b':0.1} {'maxiter':100000,'config':3,'_FLAG':'SPSA100KC3','A':1000} {'maxiter':100000,'config':3,'_FLAG':'SPSA100KC3_01','A':1000,'b':0.1} {'maxiter':100000,'config':3,'_FLAG':'SPSA100KC3_05','A':1000,'b':0.5} {'maxiter':100000,'config':3,'_FLAG':'SPSA100KC3_005','A':1000,'b':0.05}
 
