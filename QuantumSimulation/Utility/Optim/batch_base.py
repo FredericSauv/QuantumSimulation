@@ -6,6 +6,7 @@ Created on Thu Jul 27 13:51:45 2017
 """
 import logging
 import sys
+import collections
 logger = logging.getLogger(__name__)
 def log_uncaught_exceptions(*exc_info): 
     logging.critical('Unhandled exception:', exc_info=exc_info) 
@@ -540,6 +541,32 @@ class BatchBase:
                 if r == k_u] for k_u in res_keys_unique}
         return res
 
+    @classmethod
+    def group_res(cls, key_path , nameFile = None, allPrefix = 'res_', 
+                    folderName = None, replace_func = None):
+        """ return a dict <key:flags:list<str:>>
+
+        Arguments
+        ---------
+        key_path: <list>
+            Defines how to group results: given as a path in the 
+            dict structure of the results to get a value used for the grouping 
+        nameFile, allPrefix, folderName: cf. read_res()
+        
+        Output:
+        -------
+            a dictionary where key is the concatenation of the unique set of 
+            keys found and value is a list of all the files corresponding to this 
+            key
+        """
+        listFileName = ut.findFile(nameFile, allPrefix, folderName)
+        results = [(f, cls.get_keys_from_onefile(f, key_path, replace_func = replace_func))
+                    for f in listFileName]
+        
+        groupped_res = collections.defaultdict(list)
+        for k, v in results:
+            groupped_res[v].append(k)
+        return groupped_res
 
 
 #==============================================================================
@@ -893,11 +920,18 @@ class BatchBaseParamControl(BatchBase):
         return pFunc_base.pFunc_base.eval_with_pFunc(expr)
 
     @classmethod
-    def eval_from_onefile(cls, name, replace_func = None):
+    def eval_from_onefile(cls, name_file, replace_func = None):
         """ Get results from a file. Open a file and evaluate (with eval) its first element"""
-        res = ut.eval_from_file(name, evfunc = pFunc_base.eval_with_pFunc,replace_func = replace_func)
+        res = ut.eval_from_file(name_file, evfunc = pFunc_base.eval_with_pFunc,replace_func = replace_func)
         return res
     
+    @classmethod
+    def get_keys_from_onefile(cls, name_file, path_keys, replace_func = None):
+        """ Get concatenated keys from one res (passed as the name of the file)"""
+        res = ut.eval_from_file(name_file, evfunc = pFunc_base.eval_with_pFunc,
+                                replace_func = replace_func)
+        res_keys = "_".join([ut.extract_from_nested(res, k) for k in path_keys]) 
+        return res_keys
 
 #==============================================================================
 #                   Testing

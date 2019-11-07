@@ -139,22 +139,24 @@ def findFile(nameFile = None, prefix = '', folderName = None):
     the current directory or in a specified folder. Return a list with the names 
     of the files found (taking into account the path if a folder was specified)
     """
+    if not(hasattr(nameFile, '__iter__')):
+        nameFile = list([nameFile])
     if (folderName is None):
         list_all_files = os.listdir()
-        if(nameFile is None):
+        if(nameFile == [None]):
             list_files = [f for f in list_all_files if f.startswith(prefix)]
         else:
-            list_files = [f for f in list_all_files if (f == nameFile)]
+            list_files = [f for f in list_all_files if (f in nameFile)]
     else:
         list_all_files = os.listdir(folderName)
-        if(nameFile is None):
+        if(nameFile == [None]):
             if(prefix in [None, '']):
                 list_files = [os.path.join(folderName, f) for f in list_all_files]
             else:
                 len_pref = len(prefix)
                 list_files = [os.path.join(folderName, f) for f in list_all_files if (f[:len_pref] == prefix)]
         else:
-            list_files = [os.path.join(folderName, f) for f in list_all_files if (f == nameFile)]
+            list_files = [os.path.join(folderName, f) for f in list_all_files if (os.path.join(folderName, f) in nameFile)]
 
     
     return list_files
@@ -632,7 +634,8 @@ def getRecasted(dico, key, default = None):
 
 def concat2String(*args, symbol = '_'):
     """ Create a string from n args using a delimiter between each args
-        >> concat2String('A', 'B', 'CD') -> 'A_B_CD'
+        >> concat2String('A', 'B', 'CD') -> 'A_B_CD'.
+    TO DEPRECIATE: it is just equivalent to symbol.join(args)
     """
     res = str(args[0])
     if len(args) > 1:
