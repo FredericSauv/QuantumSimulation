@@ -664,12 +664,18 @@ class BatchBaseParamControl(BatchBase):
             omfour = "{'name_func':'FourierFunc','T':T,'freq_type':'CRAB_FREEOM','A_bounds':%s,'B_bounds':%s,'nb_H':%s}"
             omsinfour = "{'name_func':'FourierFunc','T':T,'freq_type':'CRAB_FREEOM','B_bounds':%s,'nb_H':%s}"
             pwc = "{'name_func':'StepFunc','T':T,'F_bounds':%s,'nb_steps':%s}"
-            pwl = "{'name_func':'PWL','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}"
-            pwlr = "{'name_func':'PWL','TLast':T,'T0':0,'F0':1,'FLast':0,'F_bounds':%s,'nb_steps':%s}"
+            pwl = "{'name_func':'PWL','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s,'randomize':False}"
+            pwlr = "{'name_func':'PWL','TLast':T,'T0':0,'F0':1,'FLast':0,'F_bounds':%s,'nb_steps':%s,'randomize':False}"
             logis = "{'name_func':'LogisticFunc','L':2,'k':%s,'x0':0}"
             logisflex = "{'name_func':'LogisticFunc','L':%s,'k':%s,'x0':%s}"
-            intquad = "{'name_func':'InterpQuad','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}"
-            intcub = "{'name_func':'InterpCub','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}"
+            intquad = "{'name_func':'InterpQuad','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s,'randomize':False}"
+            intcub = "{'name_func':'InterpCub','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s,'randomize':False}"
+            
+            #randomized version
+            randintcub = _make_random(intcub)
+            randintquad = _make_random(intquad)
+            randpwl = _make_random(pwl)
+            randpwlr = _make_random(pwlr)
             
             
             if(shortcut[:11] == 'owbds01_pwc'):
@@ -701,7 +707,27 @@ class BatchBaseParamControl(BatchBase):
                 nb_params = int(shortcut[14:])
                 dico_atom = {'ow':ow,'bd':bds,'pwl':intcub %('(0,1)',nb_params+1)}
                 dico_expr = {'final':'**(#ow,**(#bd,#pwl))'}
+                        
+            elif(shortcut[:19] == 'owbds01_randintquad'):
+                nb_params = int(shortcut[19:])
+                dico_atom = {'ow':ow,'bd':bds,'pwl':randintquad%('(0,1)',nb_params+1)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwl))'}
+                        
+            elif(shortcut[:18] == 'owbds01_randintcub'):
+                nb_params = int(shortcut[18:])
+                dico_atom = {'ow':ow,'bd':bds,'pwl':randintcub %('(0,1)',nb_params+1)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwl))'}               
+                    
+            elif(shortcut[:15] == 'owbds01_randpwl'):
+                nb_params = int(shortcut[15:])
+                dico_atom = {'ow':ow,'bd':bds,'pwl':randpwl %('(0,1)',nb_params+1)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwl))'}
 
+            elif(shortcut[:17] == 'owbds01r_randpwlr'):
+                nb_params = int(shortcut[17:])
+                dico_atom = {'ow':ow_r,'bd':bds,'pwlr':randpwlr %('(0,1)',nb_params+1)}
+                dico_expr = {'final':'**(#ow,**(#bd,#pwlr))'}
+                        
             ### RDMIZED FREQ
             elif(shortcut[:13] == 'owbds01_1crab'):
                 # Custom Crab parametrization f(t) = g(t) * (1 + alpha(t)* erf((four series)))
@@ -932,6 +958,9 @@ class BatchBaseParamControl(BatchBase):
                                 replace_func = replace_func)
         res_keys = "_".join([ut.extract_from_nested(res, k) for k in path_keys]) 
         return res_keys
+
+def _make_random(string):
+    return string.replace("'randomize':False", "'randomize':True")
 
 #==============================================================================
 #                   Testing

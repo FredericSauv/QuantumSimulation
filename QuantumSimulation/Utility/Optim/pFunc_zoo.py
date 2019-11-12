@@ -692,7 +692,13 @@ class pFunc_factory():
             TLast = dico_source['TLast']
             nb_step = dico_source['nb_steps']
             dt = float((TLast-T0)/(nb_step))
-            T = np.r_[np.arange(T0, TLast, dt), TLast]
+            if dico_source.get('randomize', False):
+                steps = np.random.uniform(low=0.5, high=1.5, size = nb_step-1)
+                steps += np.arange(nb_step-1)
+                steps *= dt
+                T = np.r_[T0, steps, TLast]
+            else:    
+                T = np.r_[np.arange(T0, TLast, dt), TLast]
         else:
             nb_step = len(T)
         F = dico_source.get('F', np.zeros_like(T))
@@ -807,6 +813,11 @@ if __name__ == '__main__':
 
     factory = pFunc_factory(None)
     res3 = factory.eval_string(res2['final'])
+    
+    factory = pFunc_factory(None,{'T':5.136511734353454})
+    test_func_string = "Composition(list_func=[self.build_atom_func({'name_func':'OwriterYWrap','ow':[(-inf,0,0),(T,inf,1)]}),Composition(list_func=[self.build_atom_func({'name_func':'BoundWrap','bounds_min':0,'bounds_max':1}),self.build_atom_func({'name_func':'InterpCub','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':(0,1),'nb_steps':6})])])"
+    test_func = factory.eval_string(test_func_string)
+    test_func.theta = np.random.uniform(size=5)
     
     
     # Build from shortcut string
