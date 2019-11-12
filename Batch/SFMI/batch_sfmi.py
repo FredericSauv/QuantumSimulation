@@ -597,6 +597,7 @@ class BatchSFMI(BatchBaseParamControl):
         acquisition_weight_lindec = optim_config.get('acquisition_weight_lindec', True)
         model_update_interval= optim_config.get('model_update_interval', 1)
         hp_update_interval= optim_config.get('hp_update_interval', 1)
+        hp_update_first= optim_config.get('hp_update_first', True)
         num_cores = optim_config.get('num_cores', 1)
         max_iters = optim_config.get('max_iters', 1000) # used when updating the hyper-parameters
         optimize_restarts = optim_config.get('optimize_restarts',5) # for the hyperparameters fitting
@@ -680,10 +681,11 @@ class BatchSFMI(BatchBaseParamControl):
                 'Y':Y_init, 'domain': bounds_bo, 'optim_num_anchor':nb_anchors, 
                 'optim_num_samples':optim_num_samples, 'num_cores':num_cores, 
                 'max_iters':max_iters, 'optimize_restarts':optimize_restarts,
-                'hp_update_interval':hp_update_interval, 'nb_iter_bo':nb_iter_bo,
-                'max_time_bo':max_time_bo, 'nb_polish':nb_polish, 'nb_to_keep':nb_to_keep,
-                'nb_more':nb_more, 'nb_exploit':nb_exploit, 'hp_restart':hp_restart, 
-                'nb_iter_polish':nb_iter_polish,'ARD':ARD, 'kernel':kernel}
+                'hp_update_interval':hp_update_interval, 'hp_update_first':hp_update_first, 
+                'nb_iter_bo':nb_iter_bo,'max_time_bo':max_time_bo, 'nb_polish':nb_polish, 
+                'nb_to_keep':nb_to_keep,'nb_more':nb_more, 'nb_exploit':nb_exploit, 
+                'hp_restart':hp_restart, 'nb_iter_polish':nb_iter_polish,'ARD':ARD, 
+                'kernel':kernel}
         
         if type_acq == 'EI':
             bo_args.update({'acquisition_type':'EI'})
@@ -782,7 +784,12 @@ class BatchSFMI(BatchBaseParamControl):
             if np.any([k in name for name in self.BO.model.model.parameter_names()]):
                 if v == 'positive':
                     self.BO.model.model[str_param].constrain_positive()
-                elif len(v) == 2:
+                elif (hasattr(v, '__iter__')) and (v[:5] == 'fixed'):
+                    val = float(v[5:])
+                    self.BO.model.model[str_param] = val
+                    self.BO.model.model[str_param].fix()
+                    
+                elif (hasattr(v, '__iter__')) and (len(v) == 2):
 #                    v_min, v_max = v[0], v[1]
 #                    if('variance' in k) and self.BO.normalize_Y:
 #                        scale = np.square(self.BO.args_norm['std'])                        
