@@ -1,6 +1,6 @@
 # New simulations of a 1D BH chain
 # Play with the number of params
-model {'L':5,'Nb':5,'sps':None,'mu':0,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom_print':True,'track_callf':True,'ctl_shortcut':'owbds01_intcub10','fom':['f2t2:neg','f2t2:neg'],'T':6.163814081224145,'_FLAG':'12Tfid_10p'} {ctl_shortcut':'owbds01_randintcub10','_FLAG':'12Tfid_10p_rand'}
+model {'L':5,'Nb':5,'sps':None,'mu':0,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom_print':True,'track_callf':True,'ctl_shortcut':'owbds01_intcub10','fom':['f2t2:neg','f2t2:neg'],'T':6.163814081224145,'_FLAG':'12Tfid_10p'} {'ctl_shortcut':'owbds01_randintcub10','_FLAG':'12Tfid_10p_rand'}
 
 test_update {'fom':['f2t2','f2t2:neg_smooth:0.05','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False,'gradients':True}
 
