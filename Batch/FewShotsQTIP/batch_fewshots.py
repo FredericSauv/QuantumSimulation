@@ -73,14 +73,18 @@ else:
 #        return input_dict
 
 
-#TODO: rethink how the result dico is populated
+#TODO: rethink how the result dico is populated 
+#TODO: refactor with batch_sfmi
 X, Y, Z, I, zero, one = sigmax(), sigmay(), sigmaz(), identity(2), basis(2,0), basis(2,1)
 class BatchFS(BatchBase):
     """Implement few shots simulations for batching.
     Provides different methods for optimization / estimation
             
     """
-    OPTIONS_SPSA = {'nb_iter': 100, 'disp': False, 'tol': 1e-8, 'A':0, 'a':1, 'b':1, 's':1, 't':1/6}
+    OPTIONS_SPSA = [{'nb_iter': 100, 'disp': False, 'tol': 1e-8, 'a':1, 'b':1, 's':1, 't':1/6,'A':0},
+        {'nb_iter': 100, 'disp': False, 'tol': 1e-8, 'A':0, 'a':0.5, 'b':0.5, 's':1, 't':1/6},
+        {'nb_iter': 100, 'disp': False, 'tol': 1e-8, 'A':0, 'a':0.1, 'b':0.1, 's':1, 't':1/6},
+        {'nb_iter': 100, 'disp': False, 'tol': 1e-8, 'A':0.01*100, 'a':1, 'b':1, 's':0.602, 't':0.101}]
     
     def setup_QTIP_model(self, model_config):
         """ Setup the model in QuTip allowing to compute the dynamics and FoM
@@ -631,6 +635,7 @@ class BatchFS(BatchBase):
         model_config['aggregate'] = optim_config.get('aggregate', 'no') # ARgh
         np.random.seed(config['_RDM_SEED'])
         self.f, self.f_test, self.x_tgt = self.setup_QTIP_model(model_config)
+        params_min, params_max = np.array(self.domain)[:,0], np.array(self.domain)[:,1]
         
         #setting up the optimizer
         type_optim = optim_config.get('type_optim', 'BO')
@@ -667,32 +672,103 @@ class BatchFS(BatchBase):
         elif(type_optim == 'GRAPE'):
             not NotImplementedError()
         
+#        elif(type_optim == 'SPSA'):
+#            """ Implementation of SPONTANEOUS PERTURBATION STOCHASTIC 
+#            APPROXIMATION HERE MAXIMIZATION"""
+#            init = np.array([np.random.uniform(*d) for d in self.domain])
+#            options = self.OPTIONS_SPSA.copy()
+#            to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
+#            options.update(to_update)
+#            
+#            params = init
+#            alpha = lambda k: options['a']/np.power(k+1, options['s'])
+#            beta = lambda k: options['a']/np.power(k+1, options['t'])
+#            optim = {}
+#            for k in range(0, int(options['nb_iter']/2)):
+#                a_k = alpha(k)
+#                b_k = beta(k)
+#                perturb = np.sign(np.random.uniform(0,1, self.n_params) - 0.5)
+#                f_p = self.f(params + b_k * perturb)
+#                f_m = self.f(params - b_k * perturb)
+#                g_k = (f_p - f_m)/(2*b_k)
+#                params = params + a_k * g_k * perturb
+#                if np.abs(a_k * g_k) < options['tol']:
+#                    optim['message'] = 'Break because less than tol'
+#                    break
+#            optim['x'] = params
+#            optim['message'] = optim.get('message', 'SPSA: Stopped because nbfev reached')
+#        
+
+
         elif(type_optim == 'SPSA'):
             """ Implementation of SPONTANEOUS PERTURBATION STOCHASTIC 
-            APPROXIMATION HERE MAXIMIZATION"""
-            init = np.array([np.random.uniform(*d) for d in self.domain])
-            options = self.OPTIONS_SPSA.copy()
+            APPROXIMATION """
+            config_spsa = optim_config.get('config_spsa',0)
+            options = self.OPTIONS_SPSA[config_spsa].copy()
             to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
             options.update(to_update)
-            
+            init = np.array([np.random.uniform(*d) for d in self.domain])
             params = init
-            alpha = lambda k: options['a']/np.power(k+1, options['s'])
-            beta = lambda k: options['a']/np.power(k+1, options['t'])
+            alpha = lambda k: options['a']/np.power(k+1+options['A'], options['s'])
+            beta = lambda k: options['b']/np.power(k+1, options['t']) 
             optim = {}
-            for k in range(0, int(options['nb_iter']/2)):
+            for k in range(int(options['nb_iter']/2)):
                 a_k = alpha(k)
                 b_k = beta(k)
                 perturb = np.sign(np.random.uniform(0,1, self.n_params) - 0.5)
-                f_p = self.f(params + b_k * perturb)
-                f_m = self.f(params - b_k * perturb)
-                g_k = (f_p - f_m)/(2*b_k)
-                params = params + a_k * g_k * perturb
-                if np.abs(a_k * g_k) < options['tol']:
+                x_p = np.clip(params + b_k * perturb, params_min, params_max)
+                x_m = np.clip(params - b_k * perturb, params_min, params_max)
+                f_p = self.f(x_p)
+                f_m = self.f(x_m)
+                g_k = (f_p - f_m)/(x_p - x_m) ## Careful
+                params = np.clip(params + a_k * g_k, params_min, params_max)
+                if np.max(np.abs(a_k * g_k)) < options['tol']:
                     optim['message'] = 'Break because less than tol'
                     break
             optim['x'] = params
             optim['message'] = optim.get('message', 'SPSA: Stopped because nbfev reached')
+            
+            cum_time = time.time() - time_start
+            x_exp = optim['x']
+            x_seen = x_exp
+            test = self.f_test(x_exp)
+            abs_diff = model_config.get('res_tgt', 1) - test
+            dico_res = {'test':test, 'x':x_seen, 'x_exp':x_exp, 'abs_diff':abs_diff,
+                'time_suggest':cum_time, 'time_fit':0, 'message_optim':optim['message'], 
+                'x_init':init, 'p_tgt':self.p_tgt, 'f_tgt':self.f_tgt, 
+                'nb_output':self.nb_output, 'fid_zero_field':self.fid_zero,
+                'phi_0': Qobj2array(self.phi_0), 'phi_tgt':Qobj2array(self.phi_tgt),
+                'domain': self.domain,'nb_s':self.n_meas}
         
+        #with no clipping
+        elif(type_optim == 'SPSANC'):
+            """ Implementation of SPONTANEOUS PERTURBATION STOCHASTIC 
+            APPROXIMATION """
+            config_spsa = optim_config.get('config_spsa',0)
+            options = self.OPTIONS_SPSA[config_spsa].copy()
+            to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
+            options.update(to_update)
+            init = np.array([np.random.uniform(*d) for d in self.domain])
+            params = init
+            alpha = lambda k: options['a']/np.power(k+1+options['A'], options['s'])
+            beta = lambda k: options['b']/np.power(k+1, options['t']) 
+            optim = {}
+            for k in range(int(options['nb_iter']/2)):
+                a_k = alpha(k)
+                b_k = beta(k)
+                perturb = np.sign(np.random.uniform(0,1, self.n_params) - 0.5)
+                x_p = params + b_k * perturb
+                x_m = params - b_k * perturb
+                f_p = self.f(x_p)
+                f_m = self.f(x_m)
+                g_k = (f_p - f_m)/(x_p - x_m)
+                params = params + a_k * g_k
+                if np.max(np.abs(a_k * g_k)) < options['tol']:
+                    optim['message'] = 'Break because less than tol'
+                    break
+            optim['x'] = params
+            optim['message'] = optim.get('message', 'SPSA: Stopped because nbfev reached')
+
             cum_time = time.time() - time_start
             x_exp = optim['x']
             x_seen = x_exp
@@ -1353,7 +1429,7 @@ if __name__ == '__main__':
     if(testing):
         BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_test_SPSA.txt', output_folder = '_tmp/_configs/_test_SPSA', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
-        batch = BatchFS('_tmp/_configs/_test_SPSA/config_res30.txt')
+        batch = BatchFS('_tmp/_configs/_test_SPSA/config_res350.txt')
         batch.run_procedures(save_freq = 1)
 
 
