@@ -1,0 +1,20 @@
+# New simulations of a 1D BH chain
+# Play with the number of params
+model {'L':5,'Nb':5,'sps':None,'mu':0,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom_print':True,'track_callf':True,'ctl_shortcut':'owbds01_intcub10','fom':['f2t2:neg','f2t2:neg'],'T':6.163814081224145,'_FLAG':'12Tfid_10p'} {'warp_args':'uniform_-0.25_0.25','_FLAG':'12Tfid_10p_warp025'} {'warp_args':'uniform_-0.05_0.05','_FLAG':'12Tfid_10p_warp005'} {'warp_args':'uniform_-0.5_0.5','_FLAG':'12Tfid_10p_warp05'} {'warp_args':'uniform_-1_1','_FLAG':'12Tfid_10p_warp1'} {'warp_args':'uniform_-2.5_2.5','_FLAG':'12Tfid_10p_warp25'}
+
+
+test_update {'fom':['f2t2','f2t2:neg_smooth:0.05','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False,'gradients':True}
+
+optim {'type_optim':'BO','save_extra_bo':True,'nb_anchors':5,'type_acq':'LCB','type_lik':None,'nb_init':75,'nb_iter':750,'num_cores':4,'optimize_restarts':1,'acquisition_weight_lindec':True,'acq_weight':5,'exploitation_steps':75,'_FLAG':'BO','hp_constrains':{'Mat52.lengthscale':[0.01,25.],'Mat52.variance':[0.1,25.0],'white.variance':[1e-09,10.]},'hp_update_interval':10}
+
+
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
+

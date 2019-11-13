@@ -96,6 +96,8 @@ class BatchSFMI(BatchBaseParamControl):
         self.p_tgt = None
         self.f_tgt = None 
         self.fid_zero = None
+        self.warping_input = False # should change
+        self.noise_iput = False # should change
         
         def f(x, verbose = verbose, trunc_res = True, **args_call):
             """ evaluate the mock function"""
@@ -143,15 +145,38 @@ class BatchSFMI(BatchBaseParamControl):
         self.p_tgt = None
         self.f_tgt = None 
         self.fid_zero = None
-                    
-        def f(x, verbose = verbose, trunc_res = True, **args_call):
+        # new features possibility to distort input either by stocchastic noise
+        # or some deterministic warping
+        # Note1 warp is used by f_test but not stocchastic noise (it may change
+        #       - maybe should use model_test)
+        # Note2 if they are both non None first noise then warp
+        if model_config.get('warp_args'): 
+            self.warping_input = True 
+            self.warping_string = model_config['warp_args']
+            self.alpha = read_string_rv(self.warping_string)
+            self.warper = Warp(self.alpha)
+        else:
+            self.warping_input = False
+            self.warper = None
+            
+        if model_config.get('noise_input'):
+            self.noise_input = True
+            self.noise_input_string = model_config['warp_args']
+            self.noise_input_func = read_string_rv(self.noise_input_string, function = True, size = self.n_params)
+        else:
+            self.noise_input = False
+            self.noise_input_func = None
+            
+        def f(x, verbose = verbose, trunc_res = True, noisy = self.noise_input,
+              warped = self.warping_input,  **args_call):
             """ evaluate the  model with parameters x   """
             if(np.ndim(x)>1) and (np.shape(x)[0] != self.n_params):
                 print(x)
                 print(np.shape(x))
                 res = np.array([f(x_one, verbose, trunc_res, **args_call) for x_one in x])
             else:
-                print(np.shape(x))
+                if noisy: x += self.noise_input_func()
+                if warped: x = self.warper(x)
                 res = self.model(x, trunc_res = trunc_res, **args_call)
                 if(trunc_res): res = np.atleast_1d(res)[0] 
                 self.call_f += 1
@@ -160,13 +185,16 @@ class BatchSFMI(BatchBaseParamControl):
         
     
         #Use for testing the optimal pulse
-        def f_test(x, verbose = verbose, trunc_res = False, **args_call):
+        def f_test(x, verbose = verbose, trunc_res = False, noisy = False,
+              warped = self.warping_input, **args_call):
             """ evaluate the test model with parameters x   """
             if(np.ndim(x)>1) and (np.shape(x)[0] != self.n_params):
                 print(x)
                 print(np.shape(x))
                 res = np.array([f_test(x_one, verbose, trunc_res, **args_call) for x_one in x])
             else:
+                if noisy: x += self.noise_input_func()
+                if warped: x = self.warper(x)
                 res = self.model_test(x, trunc_res = trunc_res, **args_call)
                 if(trunc_res): res = np.atleast_1d(res)[0] 
                 self.call_f_test += 1
@@ -458,8 +486,11 @@ class BatchSFMI(BatchBaseParamControl):
             dico_res.update({'tracker':self.model._track_calls})
         if hasattr(self.model_test, '_track_calls'):
             dico_res.update({'tracker_test':self.model_test._track_calls})
-        # Look at the gradients w.r.t to the parameters 
-
+        if self.warping_input:
+            dico_res.update({'warp_constant':self.alpha})
+        if self.noise_input:
+            dico_res.update({'noise_descr':self.noise_input_string})
+            
             
 
         return dico_res 
@@ -815,6 +846,25 @@ def filter_X(X, Y,  x_best, nb):
 #=======================================#
 # HELPER FUNCTIONS
 #=======================================#
+class Warp():
+    """
+    warb by a function f(t) = K (1- exp^-a t)
+    """
+    def __init__(self, alpha = 1, T = 1):
+        self.alpha = alpha
+        self.T = T
+        if self.alpha == 0:
+            self.K = 1
+        else:
+            self.K = 1/(1-np.exp(-self.alpha*self.T))
+        
+    def __call__(self, t):
+        if self.alpha == 0:
+            res = t
+        else:
+            res = self.K * (1 - np.exp(-self.alpha * t))
+        return res
+
 def get_proba_after_evol(U, phi_0, list_e, n_ro):
      phi_f = U * phi_0
      final_expect = [real_with_test(e.matrix_element(phi_f, phi_f)) for e in list_e]
@@ -927,6 +977,34 @@ def workaroundQObj(string):
     res = res.replace('nan', 'np.nan')
     return res
 
+
+
+def read_string_rv(string, function = False, size = None):
+    """ Generate a random variable according to info contain in the string
+    if function = True return a function generating the rv rather than a single 
+    instance of the rv
+    """
+    bits = string.split("_")
+    if (bits[0] == 'fixed'):
+        value = bits[1]
+        if size is None:
+            func = lambda : value
+        else:
+            func = lambda : np.ones(size=size) * value
+        
+    elif (bits[0] == 'uniform'):
+        low, high = float(bits[1]), float(bits[2])
+        func = lambda : np.random.uniform(low = low, high=high, size = size)
+    elif (bits[0] == 'normal'):
+        loc, scale = float(bits[1]), float(bits[2])
+        func = lambda : np.random.normal(loc = loc, scale=scale, size = size)
+    else:
+        raise NotImplementedError()
+    if function:
+        res = func
+    else:
+        res = func()
+    return res
 
 if __name__ == '__main__':
     # 3 BEHAVIORS DEPENDING ON THE FIRST PARAMETER:
