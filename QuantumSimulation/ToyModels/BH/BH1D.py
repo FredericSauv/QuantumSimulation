@@ -85,6 +85,9 @@ class BH1D(mod.pcModel_qspin):
             #NEW: get the basis.. A little bit convoluted may be an easier way to do that
             # Dim_H x Nbsites
             self._basis_fock = np.array([self._get_basis_to_fock(s) for s in range(Ns)])
+            # store the index of MI (i.e. 11...11)
+            self._index_basis_allone = np.where([np.allclose(b, 1.) for b in self._basis_fock])[0][0]
+            self._index_basis_oneone = [np.where([b[i] == 1. for b in self._basis_fock])[0] for i in range(L)]
         
     def _setup_H(self, **args_model):
         """  Bose Hubbard Hamiltonians:
@@ -144,34 +147,114 @@ class BH1D(mod.pcModel_qspin):
             self._fom_func['varN10000'] = None
             self._fom_func['varN100000'] = None
         else:
+            #bad code on several aspects: 
             def avg_var_occup(V):
+                """ occupation number variance averaged over all the sites"""
                 n_var_sites = [mod.pcModel_qspin._h_variance(op, V) for op in self._op_n_sites]
                 avg_var_occup = np.average(n_var_sites)
                 return avg_var_occup
-            def avg_var_occup_measured(V, nb):
-                proba = np.square(np.abs(np.squeeze(V)))
-                sum_prob = np.sum(proba)
+            
+            def proba_basis(V):
+                """ Return for a given state the probabilities associated to the
+                underlying basis
+                """
+                proba = np.square(np.abs(np.squeeze(V))) 
+                return proba
+            
+            def proj_onto_sites(V, nb):
+                """ Samples of spatial projective measurements, i.e. 
+                projection in terms of particle position return list of arrays 
+                containing the number of particles measured at each site
+                """
+                proba = proba_basis(V) # probabilities of being projected onto one basis element
+                sum_prob = np.sum(proba) # verif probas are fine (i.e. sum to one)
                 if(np.allclose(sum_prob, 1)):
                     proba = proba/sum_prob
                 else:
-                    pdb.set_trace()
-                meas_index = np.random.choice(len(proba), nb, p=proba)
-                meas_occup = np.array([self._basis_fock[i] for i in meas_index])
+                    logger.warning('In avg_var_occup')
+                meas_index = np.random.choice(len(proba), nb, p=proba) # generate outcome of measurement
+                samples = np.array([self._basis_fock[i] for i in meas_index]) #returned in an exploitable form
+                return samples
+            
+            def avg_var_occup_measured(V, nb):
+                meas_occup = proj_onto_sites(V,nb)
                 meas_var = np.var(meas_occup)
                 meas_avg_var = np.mean(meas_var)
                 return meas_avg_var
             
+            def allone_proba(V):
+                """ proba associated to the |11...11> states"""
+                proba = proba_basis(V)
+                assert np.all(proba < 1+1e-6) and np.all(proba > -1e-6)
+                proba = np.clip(proba, 0., 1.)
+                proba_allone = proba[self._index_basis_allone]
+                return proba_allone
+                
+                
+            def allone_frequency(V, nb):
+                """ frequency associated to the |11...11> states obtained over 
+                nb repetitions"""
+                proba_allone = allone_proba(V)
+                freq = np.random.binomial(nb, proba_allone) / nb
+                return freq
+            
+            def averageone_proba(V):
+                """ average (over all the sites) proba associated to seing exactly
+                one particle per site i.e. p = <p(n_i = 1)>_i """
+                proba = proba_basis(V)
+                proba_each_one = [np.sum(proba[ind]) for ind in self._index_basis_oneone]
+                proba_avg = np.average(proba_each_one)
+                assert (proba_avg < 1+1e-6) and (proba_avg > -1e-6)
+                proba_avg = np.clip(proba_avg, 0., 1.)
+                return proba_avg
+            
+            def averageone_frequency(V, nb):
+                """ frequency (over all the sites) proba associated to seing ecatly
+                one particle i.e. p = <p(n_i = 1)>_i """
+                samples = proj_onto_sites(V, nb)
+                freq = np.sum(samples == 1) / (nb * self.L)
+                return freq
+            
+            def eachone_proba(V):
+                """ probas associated to seing exactly one particle per site 
+                i.e. p = [p(n_1 = 1),...,p(n_1 = L)]"""
+                proba = proba_basis(V)
+                proba_each_one = np.array([np.sum(proba[ind]) for ind in self._index_basis_oneone])
+                assert np.all(proba_each_one < 1+1e-6) and np.all(proba_each_one > -1e-6)
+                proba_each_one = np.clip(proba_each_one, 0., 1.)
+                return proba_each_one
+            
+            def eachone_frequency(V, nb):
+                """ frequency (for each site) of seing ecatly one particle"""
+                samples = proj_onto_sites(V, nb)
+                freq = np.average(samples == 1, axis=0)
+                return freq
+            
+            
+            list_freq = [1,2,3,4,5,10,50,100,500,1000,5000,10000,50000,100000,500000]
+            # based on variance of the occupation number            
             self._avg_var_occup = avg_var_occup
             self._fom_func['varN'] = self._avg_var_occup
-            
-            # measured variance
             self._avg_varN_measured = avg_var_occup_measured
-            self._fom_func['varN5'] = (lambda x: self._avg_varN_measured(x, 5))
-            self._fom_func['varN10'] = (lambda x: self._avg_varN_measured(x, 10))
-            self._fom_func['varN100'] = (lambda x: self._avg_varN_measured(x, 100))
-            self._fom_func['varN1000'] = (lambda x: self._avg_varN_measured(x, 1000))
-            self._fom_func['varN10000'] = (lambda x: self._avg_varN_measured(x, 10000))
-            self._fom_func['varN100000'] = (lambda x: self._avg_varN_measured(x, 100000))
+            self._fom_func.update({'varN'+str(nb):(lambda x, nb=nb: self._avg_varN_measured(x, nb)) for nb in list_freq})
+            
+            # based on frequency of seeing one boson everywhere
+            self._allone_proba = allone_proba
+            self._fom_func['freqMI'] = self._allone_proba
+            self._allone_frequency = allone_frequency
+            self._fom_func.update({'freqMI'+str(nb):(lambda x, nb=nb: self._allone_frequency(x, nb)) for nb in list_freq})
+
+            # measured average freq of one particle realization
+            self._averageone_proba = averageone_proba
+            self._fom_func['freqAvgOne'] = self._averageone_proba
+            self._averageone_frequency = averageone_frequency
+            self._fom_func.update({'freqAvgOne'+str(nb):(lambda x, nb=nb: self._averageone_frequency(x, nb)) for nb in list_freq})
+            
+            # measured freq one particle realization for each site
+            self._eachone_proba = eachone_proba
+            self._fom_func['freqEachOne'] = self._eachone_proba
+            self._eachone_frequency = eachone_frequency
+            self._fom_func.update({'freqEachOne'+str(nb):(lambda x, nb=nb: self._eachone_frequency(x, nb)) for nb in list_freq})
 
     def _state_to_occup_nb(self, st):
         exp_occup = np.array([op.expt_value(st) for op in self._op_n_sites])
@@ -191,7 +274,8 @@ class BH1D(mod.pcModel_qspin):
             repr_fock = self._state_to_occup_nb(repr_vector)
             
         return repr_fock
-            
+
+
 
 
 ### ======================= ###
