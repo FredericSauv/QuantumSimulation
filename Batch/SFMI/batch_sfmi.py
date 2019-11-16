@@ -136,6 +136,20 @@ class BatchSFMI(BatchBaseParamControl):
         self.n_params = self.model.n_params
         self.nb_output = 1        
         self.n_meas = 1 ## Re think
+        ## new tricky cases for fom: 'freqAvgOneZZZ' 'freqMIYYY' 'freqEachOneXXX'
+        main_fom = model_config['fom'][0].split(':')[0]
+        if ('freqAvgOne' in main_fom) and (len(main_fom)>10):
+            self.n_meas = int(main_fom[10:])
+            self.n_meas_total = self.n_meas * self.model.L
+        elif ('freqMI' in main_fom) and (len(main_fom)>6):
+            self.n_meas = int(main_fom[6:])
+            self.n_meas_total = self.n_meas
+        elif ('freqEachOne' in main_fom) and (len(main_fom)>11):
+            self.n_meas = int(main_fom[11:])
+            self.n_meas_total = self.n_meas
+            self.nb_output = self.L
+    
+
         self.domain = self.model.params_bounds
         self.phi_0 = self.model.state_init
         self.phi_tgt = self.model.state_tgt
@@ -670,8 +684,15 @@ class BatchSFMI(BatchBaseParamControl):
             nb_init_bo = nb_init
             nb_iter_bo = nb_iter
             max_time_bo = optim_config.get('max_time', 23.5*3600)
-            
-        #f_fact = n_meas if type_lik == 'binomial' else 1
+        
+
+        if(type_lik=='binomial'):
+            f_BO = lambda x, **kw : (self.n_meas_total * self.f(x, **kw)).astype(int)
+            #f_fact = n_meas 
+        else:
+            f_BO = self.f            
+            #f_fact = 1
+        
         #if is_acq_target:
         #    f_wrap = lambda x: self.f(x) 
         #    self.warp_f = lambda x:x
@@ -679,7 +700,7 @@ class BatchSFMI(BatchBaseParamControl):
         #   f_wrap = lambda x: 1-self.f(x)
         #self.warp_f = lambda x:1-x
         #f_BO = lambda x: f_fact * f_wrap(x)
-        f_BO = self.f
+        #f_BO = self.f
         self.warp_f = lambda x:x
         
         if optim_config.get('X_init', None) is not None:
