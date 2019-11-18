@@ -743,9 +743,10 @@ class BatchSFMI(BatchBaseParamControl):
         
         if type_acq == 'EI':
             bo_args.update({'acquisition_type':'EI'})
-        elif type_acq == 'LCB':
-            bo_args.update({'acquisition_type':'LCB', 'acquisition_weight':acq_weight, 
+        elif type_acq in ['LCB', 'LCB_pspace']:
+            bo_args.update({'acquisition_type':type_acq, 'acquisition_weight':acq_weight, 
                             'acquisition_weight_lindec':acquisition_weight_lindec})
+        
         elif type_acq == 'EI_target':
             bo_args.update({'acquisition_type':'EI_target', 'acquisition_ftarget': self.p_tgt})
         
