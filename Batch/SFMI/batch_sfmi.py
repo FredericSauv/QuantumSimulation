@@ -648,7 +648,9 @@ class BatchSFMI(BatchBaseParamControl):
         optimize_restarts = optim_config.get('optimize_restarts',5) # for the hyperparameters fitting
         self.hp_constrains = optim_config.get('hp_constrains', None)
         switch_to_gauss = optim_config.get('switch_to_gauss', None)
+        # distinction between n_meas and n_meas_total in some cases
         n_meas = self.n_meas if hasattr(self, 'n_meas') else 1
+        n_meas_total = self.n_meas_total if hasattr(self, 'n_meas_total') else n_meas
                 
         # some redundancy here 
         aggregate = optim_config.get('aggregate', 'no')
@@ -687,7 +689,7 @@ class BatchSFMI(BatchBaseParamControl):
         
 
         if(type_lik=='binomial'):
-            f_BO = lambda x, **kw : (self.n_meas_total * self.f(x, **kw)).astype(int)
+            f_BO = lambda x, **kw : (n_meas_total * self.f(x, **kw)).astype(int)
             #f_fact = n_meas 
         else:
             f_BO = self.f            
@@ -761,7 +763,7 @@ class BatchSFMI(BatchBaseParamControl):
         if type_lik == 'binomial':
             logger.info('FTARGET is used by BO')
             bo_args.update({ 'model_type':'GP_CUSTOM_LIK', 'inf_method':'Laplace', 
-                'likelihood':'Binomial_' + str(n_meas), 'normalize_Y':False})
+                'likelihood':'Binomial_' + str(n_meas_total), 'normalize_Y':False})
             if type_acq != 'LCB_target_oneq':
                 bo_args.update({'acquisition_ftarget':self.f_tgt})
         
