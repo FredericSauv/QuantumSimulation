@@ -561,6 +561,8 @@ class pcModel_base(cModel_base):
         cModel_base.__init__(self, **args_model)
         # flag indicating if we  track the calls to the control_fun
         self.track = args_model.pop('track_callf', False)
+        self.track_index = args_model.pop('track_callf_index', 0) # which element of the fom to use for tracking
+        
         self.track_freq = args_model.pop('track_freq', 0)
         self._timer = time
         if self.track:
@@ -673,7 +675,7 @@ class pcModel_base(cModel_base):
         if(self._fom_print):
             logger.info(res_tmp)
         res_trunc = np.atleast_1d(res_tmp)[0]
-
+        res_trunc_tracker = np.atleast_1d(res_tmp)[self.track_index]
         # 
         if self.track:
             best = self._track_calls['best_fun']
@@ -681,13 +683,13 @@ class pcModel_base(cModel_base):
             #add only time used for simul
             self._time_cumul_call_tmp += (now - _track_time_call)  
             self._time_total_tmp = now - self._init_time
-            if ((self.track_freq == 0) and (best > res_trunc)) or ((self.track_freq > 0) 
+            if ((self.track_freq == 0) and (best > res_trunc_tracker)) or ((self.track_freq > 0) 
                 and (self._aggregated_nb_call % self.track_freq)==0):
                 # updated only when result is the best so far
-                self._track_calls['best_fun'] = res_trunc
+                self._track_calls['best_fun'] = res_trunc_tracker
                 self._track_calls['best_fun_full'] = res_tmp
                 self._track_calls['history_nev'].append(self._aggregated_nb_call)
-                self._track_calls['history_res'].append(res_trunc)
+                self._track_calls['history_res'].append(res_trunc_tracker)
                 self._track_calls['history_time_total'].append(self._time_total_tmp)
                 self._track_calls['history_time_call'].append(self._time_cumul_call_tmp)
                 self._track_calls['history_func'].append(repr(self.control_fun))
