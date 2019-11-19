@@ -1,0 +1,17 @@
+# New simulations of a 1D BH chain
+# Play with the number of params
+model {'L':5,'Nb':5,'sps':None,'mu':0,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom_print':True,'track_callf':True,'track_callf_index':1,'ctl_shortcut':'owbds01_intcub5','fom':['freqMI1:neg','f2t2:neg'],'T':7.704767601530182,'_FLAG':'freqMI1'} {'fom':['freqMI10:neg','f2t2:neg'],'_FLAG':'freqMI10'} {'fom':['freqMI100:neg','f2t2:neg'],'_FLAG':'freqMI100'} {'fom':['freqAvgOne1:neg','f2t2:neg'],'_FLAG':'freqAvgOne1'} {'fom':['freqAvgOne10:neg','f2t2:neg'],'_FLAG':'freqAvgOne10'} {'fom':['freqAvgOne100:neg','f2t2:neg'],'_FLAG':'freqAvgOne100'}
+
+test_update {'fom':['f2t2','f2t2:neg_smooth:0.05','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False,'gradients':True}
+
+optim {'type_optim':'BO','save_extra_bo':True,'nb_anchors':5,'type_acq':'LCB','type_lik':None,'nb_init':100,'nb_iter':700,'num_cores':4,'optimize_restarts':1,'acquisition_weight_lindec':True,'acq_weight':5,'exploitation_steps':50,'_FLAG':'BO_LCBlin','hp_update_interval':10} {'acq_weight':8,'_FLAG':'BO_LCBlin8'} {'type_lik':'binomial','type_acq':'LCB_pspace','acquisition_weight_lindec':True,'acq_weight':5,'_FLAG':'BO_bin_LCBlin5'} {'type_acq':'LCB_pspace','type_lik':'binomial','acquisition_weight_lindec':True,'acq_weight':2,'_FLAG':'BO_bin_LCBlin2'} {'type_acq':'LCB_pspace','type_lik':'binomial','acquisition_weight_lindec':True,'acq_weight':8,'_FLAG':'BO_bin_LCBlin8'} {'type_acq':'LCB_pspace','type_lik':'binomial','acquisition_weight_lindec':False,'acq_weight':8,'_FLAG':'BO_bin_LCB8'} {'type_acq':'LCB_pspace','type_lik':'binomial','acquisition_weight_lindec':False,'acq_weight':2,'_FLAG':'BO_bin_LCB2'} {'type_acq':'LCB_pspace','type_lik':'binomial','acquisition_weight_lindec':False,'acq_weight':5,'_FLAG':'BO_bin_LCB5'} {'type_optim':'RANDOM','maxiter':10000,'_FLAG':'RANDOM'} {'type_optim':'SPSA','maxfev':200000,'max_time':83000,'_FLAG':'SPSA','maxiter':10000,'config_spsa':0,'s':0.602,'t':0.101,'b':0.1,'tol':0} {'type_optim':'NM','init_obj':None,'maxfev':2000,'max_time':83000,'maxiter':5000,'_FLAG':'NM'} {'type_optim':'DE','maxiter':50,'popsize':10,'init_obj':None,'_FLAG':'DE'}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
+

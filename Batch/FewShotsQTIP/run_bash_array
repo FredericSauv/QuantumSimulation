@@ -7,7 +7,7 @@
 # TO BE CHECKED EACH TIME THEY ARE COPIED
 NAME_SETUP="FewShotsQTIP"
 NAME_BATCH_PY="batch_fewshots.py"
-CONDA_ENVT="py36q"
+CONDA_ENVT="py37q"
 EXTRA_PY="fidcompnoisy.py"
 
 input_file=$1

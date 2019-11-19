@@ -175,7 +175,7 @@ class BatchSFMI(BatchBaseParamControl):
             
         if model_config.get('noise_input'):
             self.noise_input = True
-            self.noise_input_string = model_config['warp_args']
+            self.noise_input_string = model_config['noise_input']
             self.noise_input_func = read_string_rv(self.noise_input_string, function = True, size = self.n_params)
         else:
             self.noise_input = False
