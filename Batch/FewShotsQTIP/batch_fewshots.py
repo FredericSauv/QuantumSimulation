@@ -462,7 +462,9 @@ class BatchFS(BatchBase):
             self.e_tgt = [real_with_test(e.matrix_element(self.phi_tgt, self.phi_tgt)) for e in all_e]
             self.p_tgt = np.array([(1 + e)/2 for e in self.e_tgt])
             self.fid_zero = None #we are not interested by this figure for this model
-            
+            self._sampling_1_distrib = np.abs(self.e_tgt) / np.sum(np.abs(self.e_tgt))
+
+
             
 
             
@@ -1114,9 +1116,10 @@ class BatchFS(BatchBase):
         
         if type_acq == 'EI':
             bo_args.update({'acquisition_type':'EI'})
-        elif type_acq == 'LCB':
-            bo_args.update({'acquisition_type':'LCB', 'acquisition_weight':acq_weight, 
+        elif type_acq in ['LCB', 'LCB_pspace']:
+            bo_args.update({'acquisition_type':type_acq, 'acquisition_weight':acq_weight, 
                             'acquisition_weight_lindec':acquisition_weight_lindec})
+        
         elif type_acq == 'EI_target':
             bo_args.update({'acquisition_type':'EI_target', 'acquisition_ftarget': self.p_tgt})
         
@@ -1240,19 +1243,50 @@ def get_proba_after_evol(U, phi_0, list_e, n_ro):
      assert np.any(proba > -1e-5), "proba > 1: {}".format(proba)
      proba = np.clip(proba, 0, 1)
      return proba
+
+
  
 def get_measurement_from_proba(proba, N, aggregate, p_tgt=None):
-    if (N == np.inf): 
-        res = proba 
-        n_call = 1
+    """ """
+    if aggregate == 'sampling1':
+        assert p_tgt is not None, 'Sampling1: requires to set up a p_tgt'
+        assert len(proba) == len(p_tgt), 'Sampling1: p_tgt length ({0}) should be the same as proba {1}'.format(len(p_tgt), len(proba))
+        res = get_measurement_from_sampling_strat1(proba, N, p_tgt)
+        n_call = N
     else:
-        res = rdm.binomial(N, proba) / N
-        n_call = len(res)*N
-    if aggregate == 'fid':
-        res = 1/8 * (1 + np.dot(2*p_tgt-1,2*res-1))
-    elif aggregate == 'close':
-        res = np.average(np.abs(p_tgt-res))
+        if (N == np.inf): 
+            res = proba 
+            n_call = 1
+            
+        else:
+            res = rdm.binomial(N, proba) / N
+            n_call = len(res)*N
+        if aggregate == 'fid':
+            res = 1/8 * (1 + np.dot(2*p_tgt-1,2*res-1))
+        elif aggregate == 'close':
+            res = np.average(np.abs(p_tgt-res))
     return res, n_call
+
+def get_measurement_from_sampling_strat1(proba, N, p_tgt):
+    """ Return the frequency of success for measurements drawn from the following strat1
+        (0) alpha_i = 2 p_tgt[i] - 1 (expected value instead of proba - for the target state) 
+        (1) choose the observable(s) i to measure following the distrib |alpha_i| sum |alpha_i|
+        (2) proba of success is given by proba[i] if alpha_i >= 0 and 1-proba[i] if 
+        (3) Count total nb of successes and return the frequency
+        To think: distrib_observables (and other things) is computed each time the function is called
+        , not necessary. It could be stored
+    """
+
+    alpha_observables = 2 * p_tgt -1
+    distrib_observables = np.abs(alpha_observables) / np.sum(np.abs(alpha_observables))
+    nb_observables = len(alpha_observables)
+    sampling_observables =  np.random.choice(nb_observables, N, p=distrib_observables)
+    nb_samples_each = [np.sum(sampling_observables == i) for i in range(nb_observables)]
+    proba_success = [p if a>=0 else 1-p for p, a in  zip(proba, alpha_observables)]
+    nb_success = np.sum(np.random.binomial(nb_samples_each, proba_success))
+    res = nb_success / N
+    return res
+
 
 def make_iter_if_not_iter(x, nb_elements):
     if  hasattr(x, '__iter__'):
@@ -1427,11 +1461,12 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_test_SPSA.txt', output_folder = '_tmp/_configs/_test_SPSA', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/_test_sampling1.txt', output_folder = '_tmp/_configs/_test_sampling1', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
-        batch = BatchFS('_tmp/_configs/_test_SPSA/config_res350.txt')
+        batch = BatchFS('_tmp/_configs/_test_sampling1/config_res0.txt')
         batch.run_procedures(save_freq = 1)
-
+        batch = BatchFS('_tmp/_configs/_test_sampling1/config_res1.txt')
+        batch.run_procedures(save_freq = 1)
 
         #pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ], [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])        
         #keys_collect = [['config', 'model', '_FLAG'], ['config', 'optim', '_FLAG']]
