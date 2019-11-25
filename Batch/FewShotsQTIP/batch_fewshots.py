@@ -496,8 +496,15 @@ class BatchFS(BatchBase):
                         self.call_f += n_call
                     res = np.squeeze(np.average(np.atleast_2d(measurement),0))+0
                     if(verbose): print(x, res, proba)
+                    if (self.track_freq>0) and (self.call_f_single % self.track_freq == 0):
+                        self._track_calls['history_f'].append(res)
+                        self._track_calls['history_nev'].append(self.call_f)
+                        self._track_calls['history_time'].append(time.time() - self._init_time)
                 return np.atleast_1d(res)
-        
+            
+            
+            
+
         
         
             #Use for testing the optimal pulse
@@ -639,6 +646,12 @@ class BatchFS(BatchBase):
         self.f, self.f_test, self.x_tgt = self.setup_QTIP_model(model_config)
         params_min, params_max = np.array(self.domain)[:,0], np.array(self.domain)[:,1]
         
+        #dataholders to track progress in the optim
+        self.track_freq = optim_config.get('track_freq',0)                    
+        if self.track_freq >0:
+            self._init_time = time.time()
+            self._track_calls = {'history_nev':[], 'history_f':[],'history_time':[]}
+
         #setting up the optimizer
         type_optim = optim_config.get('type_optim', 'BO')
         logger.info('p_tgt: {0}'.format(self.p_tgt))
@@ -893,6 +906,9 @@ class BatchFS(BatchBase):
         cum_time = time.time() - time_start        
         dico_res.update({'time_all':cum_time,'x_tgt':self.x_tgt, 'call_f':self.call_f, 
                          'call_f_single':self.call_f_single,'call_f_test': self.call_f_test})
+        if hasattr(self, '_track_calls'):
+            dico_res.update({'tracker':self._track_calls})
+
         return dico_res 
 
     @classmethod
