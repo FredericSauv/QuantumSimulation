@@ -1,6 +1,6 @@
 # New simulations of a 1D BH chain
 # Play with the number of params
-model {'L':5,'Nb':5,'sps':None,'mu':0,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom_print':True,'track_callf':True,'track_freq':100,'track_callf_index':1,'ctl_shortcut':'owbds01_intcub5','fom':['freqMI1:neg','f2t2:neg'],'T':7.704767601530182,'_FLAG':'freqMI1'} {'fom':['freqMI5:neg','f2t2:neg'],'_FLAG':'freqMI5'} {'fom':['freqMI10:neg','f2t2:neg'],'_FLAG':'freqMI10'} {'fom':['freqMI50:neg','f2t2:neg'],'_FLAG':'freqMI50'} {'fom':['freqMI100:neg','f2t2:neg'],'_FLAG':'freqMI100'} {'fom':['freqMI1000:neg','f2t2:neg'],'_FLAG':'freqMI1000'} {'fom':['freqMI500:neg','f2t2:neg'],'_FLAG':'freqMI500'} 
+model {'L':5,'Nb':5,'sps':None,'mu':0,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom_print':True,'track_callf':True,'track_freq':100,'track_callf_index':1,'ctl_shortcut':'owbds01_intcub5','fom':['freqMI1:neg','f2t2:neg'],'T':7.704767601530182,'_FLAG':'freqMI1'} {'fom':['freqMI5:neg','f2t2:neg'],'_FLAG':'freqMI5'} {'fom':['freqMI10:neg','f2t2:neg'],'_FLAG':'freqMI10'} {'fom':['freqMI50:neg','f2t2:neg'],'_FLAG':'freqMI50'} {'fom':['freqMI100:neg','f2t2:neg'],'_FLAG':'freqMI100'} {'fom':['freqMI1000:neg','f2t2:neg'],'_FLAG':'freqMI1000'} {'fom':['freqMI500:neg','f2t2:neg'],'_FLAG':'freqMI500'}
 
 test_update {'fom':['f2t2','f2t2:neg_smooth:0.05','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False,'gradients':True}
 
