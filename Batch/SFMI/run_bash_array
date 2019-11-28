@@ -7,7 +7,7 @@
 # TO BE CHECKED EACH TIME THEY ARE COPIED
 NAME_SETUP="SFMI"
 NAME_BATCH_PY="batch_sfmi.py"
-CONDA_ENVT="py36q"
+CONDA_ENVT="py37q"
 EXTRA_PY="fidcompnoisy.py"
 
 input_file=$1
