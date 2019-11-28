@@ -1,0 +1,18 @@
+# 30 simulations with alphas randomly drawn from N(0,1)
+# T=1.2xTref
+
+model {'L':5,'Nb':5,'mu':0,'sps':None,'kblock':None,'pblock':None,'verbose':True}
+
+control {'T':6.163814081224145,'nb_params':5, 'alpha_std':1}
+
+bo {'acquisition_type': 'LCB','initial_design_numdata': 25, 'acquisition_weight':5,'maximize':True}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
+
