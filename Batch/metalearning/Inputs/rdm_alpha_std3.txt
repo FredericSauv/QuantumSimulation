@@ -1,11 +1,11 @@
 # 30 simulations with alphas randomly drawn from N(0,1)
 # T=1.2xTref
 
-model {'L':5,'Nb':5,'mu':0,'sps':None,'kblock':None,'pblock':None,'verbose':True}
+model {'L':5,'Nb':5,'mu':0,'sps':None,'kblock':None,'pblock':None,'verbose':True,'_FLAG':'12tL5'}
 
-control {'T':6.163814081224145,'nb_params':5,'alpha_std':3}
+control {'T':6.163814081224145,'nb_params':5,'alpha_std':3,'_FLAG':'alphastd3'}
 
-bo {'acquisition_type':'LCB','acquisition_weight':4,'maximize':True,'nb_iter':200,'initial_design_numdata':25}
+bo {'acquisition_type':'LCB','acquisition_weight':4,'maximize':True,'nb_iter':200,'initial_design_numdata':25,'_FLAG':'lcb200'}
 
 _RDM_RUNS 30
 _RDM_FIXSEED True
