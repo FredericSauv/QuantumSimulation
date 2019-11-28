@@ -20,10 +20,10 @@ if(__name__ == '__main__'):
     from QuantumSimulation.Utility import Helper as ut
     from QuantumSimulation.Utility.Misc.RandomGenerator import  RandomGenerator as rdm
     from QuantumSimulation.Utility.Misc.MP import MPCapability as mp
-    from QuantumSimulation.Utility.BayesOptim import BayesianOptimization
+    #from QuantumSimulation.Utility.BayesOptim import BayesianOptimization
 
 else:
-    from ..BayesOptim import BayesianOptimization 
+    #from ..BayesOptim import BayesianOptimization 
     from .. import Helper as ut
     from ..Misc.RandomGenerator import RandomGenerator as rdm
     from ..Misc.MP import MPCapability as mp
@@ -332,52 +332,53 @@ class learner_Opt(learner_base):
         Run a bayesian optimization using the library Bayesian Optimization
             (https://github.com/fmfn/BayesianOptimization) built on 
         """        
-        #Init BO
-        model = options['model']
-        nb_params = options['nb_params']
-        name_params = [str(i) for i in range(nb_params)]
-        bounds_bo = {name_params[i]: options['bounds_params'][i] for i in range(nb_params)}
-        options['random_state'] = self.rdm_gen
-        options['name_params'] = name_params
-        cost = ut.ArrayToDicoInputWrapper(model, **args_call)
-        bo = BayesianOptimization(cost, bounds_bo, **options)
-        acq = options['acq']
-        
-        #Initialization phase
-        init = options['init_params']
-        if(ut.is_int(init)):
-            nb_points_init = init
-            bo.maximize(init_points = nb_points_init, n_iter=0, acq=acq, kappa=0) 
-        else:
-            # pdb.set_trace()
-            nb_points_init = len(init)
-            to_explore = {name_params[i]: [init[j][i] for j in range(nb_points_init)] for i in range(nb_params)}
-            bo.explore(to_explore)
-
-        # Exploration-Exploitation phase
-        kappa = self._process_kappa(options)        
-        bo_args = {'n_iter':options['maxiter'], 'acq': options['acq'], 'kappa':kappa}    
-        bo.maximize(init_points=0, **bo_args)
-
-        # Exploitation phase
-        bo_args_Maximize = {'n_iter':15, 'acq': 'ucb', 'kappa':0.0001} 
-        bo.maximize(init_points=0, **bo_args_Maximize)
-
-        # generate results      
-        index_max = np.argmax(bo.Y)
-        optim_params = bo.X[index_max]
-        optim_value = model(optim_params)
-        niter = bo_args['n_iter']
-        nfev = niter + nb_points_init
-        resultTest = {'x': optim_params, 'fun': optim_value, 'nfev':nfev, 'nit':niter, 'sucess':True}
-        resultTest['gp_kernel_init'] = str(bo.gp.kernel)
-        resultTest['gp_kernel_optim'] = str(bo.gp.kernel_)
-        resultTest['gp'] = bo.gp.kernel_
-        resultTest['nb_processes'] = bo.mp.n_workers
-        resultTest['nb_cpus'] = bo.mp.n_cpus
-        
-        # Close pool of processors used (if it exists)
-        return resultTest
+#        #Init BO
+#        model = options['model']
+#        nb_params = options['nb_params']
+#        name_params = [str(i) for i in range(nb_params)]
+#        bounds_bo = {name_params[i]: options['bounds_params'][i] for i in range(nb_params)}
+#        options['random_state'] = self.rdm_gen
+#        options['name_params'] = name_params
+#        cost = ut.ArrayToDicoInputWrapper(model, **args_call)
+#        bo = BayesianOptimization(cost, bounds_bo, **options)
+#        acq = options['acq']
+#        
+#        #Initialization phase
+#        init = options['init_params']
+#        if(ut.is_int(init)):
+#            nb_points_init = init
+#            bo.maximize(init_points = nb_points_init, n_iter=0, acq=acq, kappa=0) 
+#        else:
+#            # pdb.set_trace()
+#            nb_points_init = len(init)
+#            to_explore = {name_params[i]: [init[j][i] for j in range(nb_points_init)] for i in range(nb_params)}
+#            bo.explore(to_explore)
+#
+#        # Exploration-Exploitation phase
+#        kappa = self._process_kappa(options)        
+#        bo_args = {'n_iter':options['maxiter'], 'acq': options['acq'], 'kappa':kappa}    
+#        bo.maximize(init_points=0, **bo_args)
+#
+#        # Exploitation phase
+#        bo_args_Maximize = {'n_iter':15, 'acq': 'ucb', 'kappa':0.0001} 
+#        bo.maximize(init_points=0, **bo_args_Maximize)
+#
+#        # generate results      
+#        index_max = np.argmax(bo.Y)
+#        optim_params = bo.X[index_max]
+#        optim_value = model(optim_params)
+#        niter = bo_args['n_iter']
+#        nfev = niter + nb_points_init
+#        resultTest = {'x': optim_params, 'fun': optim_value, 'nfev':nfev, 'nit':niter, 'sucess':True}
+#        resultTest['gp_kernel_init'] = str(bo.gp.kernel)
+#        resultTest['gp_kernel_optim'] = str(bo.gp.kernel_)
+#        resultTest['gp'] = bo.gp.kernel_
+#        resultTest['nb_processes'] = bo.mp.n_workers
+#        resultTest['nb_cpus'] = bo.mp.n_cpus
+#        
+#        # Close pool of processors used (if it exists)
+#        return resultTest
+        pass
 
     def _run_BO2(self, options, **args_call):
         """ Bayesian optimization using GPYOpt 

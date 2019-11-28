@@ -1,1 +1,1 @@
-from . import Helper, BayesOptim, Optim, Misc
+from . import Helper, Optim, Misc
