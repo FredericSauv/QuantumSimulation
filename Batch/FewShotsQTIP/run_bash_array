@@ -34,7 +34,7 @@ sed "s@^_OUT_FOLDER.*\$@_OUT_FOLDER '${output_python_path}'@" "${input_file}" >"
 # the output path. Then assign to the variable N the number of configs found
 # configs are stored as /Config/config_res0 /Config/config_res1 etc..
 module load anaconda3/personal  
-source activate py36q
+source activate py37q
 config_store_folder="$output_path/Config"
 config_store_name="${config_store_folder}/config_${prefix_res}"
 export PYTHONPATH="${HOME}/Testing/GPyOpt"
