@@ -53,7 +53,7 @@ class BatchQsim(BatchBaseParamControl):
         
         # generate res
         dict_res = {'X':np.array(myBopt.X),'Y':np.array(myBopt.Y), 'x_opt':myBopt.x_opt, 
-                    'fx_opt':myBopt.fx_opt, 'SEED':seed, 'call_f':s._f_calls}
+                    'fx_opt':myBopt.fx_opt, 'SEED':seed, 'call_f':s._f_calls,'alpha':s.control_fun.alpha}
         
         return dict_res        
 
