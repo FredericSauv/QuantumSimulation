@@ -65,15 +65,17 @@ class BatchQsim(BatchBaseParamControl):
         for k, v in collection_res.items():
             fx_opt = _stats_one_field('fx_opt', v, False, index)
             call_f = _stats_one_field('call_f', v, False)
-            Y = _stats_one_field('Y', v, False)
+            Y = _stats_one_field('Y', v, False,0,True)
             processed.update({k:{'fx_opt': fx_opt, 'call_f':call_f, 'Y':Y}})
         return processed
 
-def _stats_one_field(field, list_res, dico_output = False, index=0):
+def _stats_one_field(field, list_res, dico_output = False, index=0, extend=False):
     #TODO: Think better about the case when there are arrays of results
     field_values = np.array([res.get(field) for res in list_res])
     mask_none = np.array([f is not None for f in field_values])
     f = field_values[mask_none]
+    if(extend): f = _extend(f)
+    
     N = len(f)
     if(len(f) > 0):
         field_avg = np.average(f,axis=0)
@@ -97,7 +99,11 @@ def _stats_one_field(field, list_res, dico_output = False, index=0):
         res = [field_avg, field_median, field_std, field_min, field_max, N, field_q25, field_q75]
     return res
 
-
+def _extend(list_f):
+    """ ensure that each element has the same length, if not extend it by replicating its last value"""
+    l_max = np.max([len(el) for el in list_f])
+    list_ext=[np.array(el) if len(el) == l_max else np.r_[el, np.ones((l_max-len(el),1))*el[-1]] for el in list_f]
+    return list_ext
 
 if __name__ == '__main__':
     # 3 BEHAVIORS DEPENDING ON THE FIRST PARAMETER:
