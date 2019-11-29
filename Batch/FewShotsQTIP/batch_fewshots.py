@@ -1224,7 +1224,12 @@ class BatchFS(BatchBase):
             if np.any([k in name for name in self.BO.model.model.parameter_names()]):
                 if v == 'positive':
                     self.BO.model.model[str_param].constrain_positive()
-                elif len(v) == 2:
+                elif (hasattr(v, '__iter__')) and (v[:5] == 'fixed'):
+                    val = float(v[5:])
+                    self.BO.model.model[str_param] = val
+                    self.BO.model.model[str_param].fix()
+                    
+                elif (hasattr(v, '__iter__')) and (len(v) == 2):
 #                    v_min, v_max = v[0], v[1]
 #                    if('variance' in k) and self.BO.normalize_Y:
 #                        scale = np.square(self.BO.args_norm['std'])                        
