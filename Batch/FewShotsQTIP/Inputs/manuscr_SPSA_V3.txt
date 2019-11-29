@@ -1,0 +1,21 @@
+# Model three qubits with a GHZ target. 
+# First use of ARD=True
+model {'model':5,'noise_type':'SHOT2BASIS','noise_n_meas':1,'_FLAG':'1s'} {'model':5,'noise_type':'SHOT2BASIS','noise_n_meas':2,'_FLAG':'2s'} {'model':5,'noise_type':'SHOT2BASIS','noise_n_meas':3,'_FLAG':'3s'} {'noise_n_meas':5,'_FLAG':'5s'} {'noise_n_meas':10,'_FLAG':'10s'} {'noise_n_meas':25,'_FLAG':'25s'} {'noise_n_meas':50,'_FLAG':'50s'} {'noise_n_meas':100,'_FLAG':'100s'} {'noise_n_meas':500,'_FLAG':'500s'} {'noise_n_meas':1000,'_FLAG':'1000s'} {'noise_n_meas':10000,'_FLAG':'10000s'} {'noise_n_meas':100000,'_FLAG':'100000s'}
+
+optim {'type_optim':'SPSA','aggregate':True,'save_extra':True,'maxfev':200000,'max_time':83000,'_FLAG':'SPSA_1000','nb_iter':1000,'config_spsa':0,'s':0.602,'t':0.101,'b':0.628,'tol':0,'nb_init':0} {'_FLAG':'SPSA_10000','nb_iter':10000} {'_FLAG':'SPSA_100000','nb_iter':100000} {'_FLAG':'SPSA_1000000','nb_iter':1000000} {'_FLAG':'SPSA_10000000','nb_iter':10000000}
+
+
+
+
+# {'type_optim':'SPSA','aggregate':True,'save_extra':True,'nb_iter':100,'num_cores':4,'_FLAG':'SPSA_100','tol':0,'nb_init':0} {'nb_iter':50,'_FLAG':'SPSA_50'} {'nb_iter':200,'_FLAG':'SPSA_200'} {'nb_iter':300,'_FLAG':'SPSA_300'} {'nb_iter':400,'_FLAG':'SPSA_400'} {'nb_iter':500,'_FLAG':'SPSA_500'} {'nb_iter':750,'_FLAG':'SPSA_750'} {'nb_iter':25,'_FLAG':'SPSA_25'} {'nb_iter':10,'_FLAG':'SPSA_10'} {'nb_iter':1,'_FLAG':'SPSA_1'} {'nb_iter':1000,'_FLAG':'SPSA_1000'} {'nb_iter':10000,'_FLAG':'SPSA_10000'} {'nb_iter':100000,'_FLAG':'SPSA_100000'} 
+
+
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
