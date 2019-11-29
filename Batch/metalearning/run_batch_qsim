@@ -44,7 +44,7 @@ End=$((Beg+N-1))
 
 cp -r "$HOME/Testing/QuantumSimulation/QuantumSimulation" "${output_path}/QuantumSimulation"
 cp ${NAME_BATCH_PY} "${output_path}/${NAME_BATCH_PY}"
-cp "${EXTRA_PY}" "${output_path}/${EXTRA_PY}" .
+cp "${EXTRA_PY}" "${output_path}/${EXTRA_PY}"
 cd "${output_path}"
 
 # Create Array job
