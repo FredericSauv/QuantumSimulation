@@ -7,7 +7,7 @@ from quspin.operators import hamiltonian # Hamiltonians and operators
 from quspin.basis import boson_basis_1d # Hilbert space boson basis
 from scipy.interpolate import interp1d
 import numpy as np 
-import pdb
+import pdb, csv
 
 
 DEFAULT_MODEL = {'L':5,'Nb':5,'sps':None,'kblock':None,'pblock':None}
@@ -158,3 +158,16 @@ class Control():
         if self.alpha != 0:
             res = self._K * (1 - np.exp(-self.alpha * res))
         return np.clip(res, 0,1)
+    
+    
+def read_results(file_path):
+    """ read a file containing the results which is a single string containg 
+    a dictionary which is evaluated"""
+    with open(file_path, 'r', newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter = ' ')
+        line = reader.__next__()
+        assert (len(line)==1), 'not the right format/size' 
+        evaluated = eval(line[0])
+    return evaluated
+    
+    
