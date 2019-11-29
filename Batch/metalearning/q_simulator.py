@@ -69,11 +69,11 @@ class Simulator():
 
     def __call__(self, params=None):
         """ Update the parameters of the control and simulate the system"""
-        self._f_calls += 1
         if params is None: params = self.control_fun.parameters
         if np.ndim(params)>1:
             res = np.array([self.__call__(p) for p in params])
         else:
+            self._f_calls += 1
             self.control_fun.parameters = params
             res = self.Simulate(fom='f2t2')
             if self._verbose: print(params, res)
