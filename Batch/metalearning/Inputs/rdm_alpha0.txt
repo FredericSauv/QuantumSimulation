@@ -5,7 +5,7 @@ model {'L':5,'Nb':5,'mu':0,'sps':None,'kblock':None,'pblock':None,'verbose':True
 
 control {'T':6.163814081224145,'nb_params':5,'alpha':0,'_FLAG':'alpha0'}
 
-bo {'acquisition_type':'LCB','acquisition_weight':4,'maximize':True,'nb_iter':200,'initial_design_numdata':25,'_FLAG':'lcb200'}
+bo {'acquisition_type':'LCB','acquisition_weight':4,'maximize':True,'nb_iter':300,'initial_design_numdata':25,'_FLAG':'lcb200'}
 
 _RDM_RUNS 30
 _RDM_FIXSEED True
