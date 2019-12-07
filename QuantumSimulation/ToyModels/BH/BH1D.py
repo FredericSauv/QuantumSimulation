@@ -231,7 +231,7 @@ class BH1D(mod.pcModel_qspin):
                 return freq
             
             
-            list_freq = [1,2,3,4,5,10,50,100,500,1000,5000,10000,50000,100000,500000]
+            list_freq = [1,2,3,4,5,10,25,50,100,500,1000,5000,10000,50000,100000,500000]
             # based on variance of the occupation number            
             self._avg_var_occup = avg_var_occup
             self._fom_func['varN'] = self._avg_var_occup
