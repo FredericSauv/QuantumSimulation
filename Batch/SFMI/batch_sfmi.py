@@ -5,10 +5,7 @@ Created on Thu Jul 27 13:51:45 2017
 @author: fs
 """
 
-import logging 
-import time
-import sys
-import pdb
+import logging, time, sys, pdb, copy
 logger = logging.getLogger(__name__)
 
 import numpy as np
@@ -125,6 +122,24 @@ class BatchSFMI(BatchBaseParamControl):
         
         return f, f_test, self.x_tgt
     
+    def _get_nb_meas(self, main_fom):
+        """ custom (aka not clean) parsing of the fom string"""
+        n_meas_each = 1
+        n_meas = 1
+        n_output = 1
+        if ('freqAvgOne' in main_fom) and (len(main_fom)>10):
+            n_meas = int(main_fom[10:])
+            n_meas_each = self.model.L
+            n_output = 1
+        elif ('freqMI' in main_fom) and (len(main_fom)>6):
+            n_meas = int(main_fom[6:])
+            n_meas_each = 1
+            n_output = 1
+        elif ('freqEachOne' in main_fom) and (len(main_fom)>11):
+            n_meas = int(main_fom[11:])
+            n_meas_each = 1
+            n_output = self.L
+        return n_meas, n_meas_each, n_output
     
     def setup_QSPIN_model(self, model_config, test_config):
         """ Setup the model in QuTip allowing to compute the dynamics and FoM
@@ -134,21 +149,9 @@ class BatchSFMI(BatchBaseParamControl):
         self.model = BH1D.BH1D(**model_config)
         self.model_test = BH1D.BH1D(**test_config)
         self.n_params = self.model.n_params
-        self.nb_output = 1        
-        self.n_meas = 1 ## Re think
-        ## new tricky cases for fom: 'freqAvgOneZZZ' 'freqMIYYY' 'freqEachOneXXX'
-        main_fom = model_config['fom'][0].split(':')[0]
-        if ('freqAvgOne' in main_fom) and (len(main_fom)>10):
-            self.n_meas = int(main_fom[10:])
-            self.n_meas_total = self.n_meas * self.model.L
-        elif ('freqMI' in main_fom) and (len(main_fom)>6):
-            self.n_meas = int(main_fom[6:])
-            self.n_meas_total = self.n_meas
-        elif ('freqEachOne' in main_fom) and (len(main_fom)>11):
-            self.n_meas = int(main_fom[11:])
-            self.n_meas_total = self.n_meas
-            self.nb_output = self.L
-    
+        self.main_fom = model_config['fom'][0].split(':')[0]
+        self.n_meas, self.n_meas_each, self.nb_output = self._get_nb_meas(self.main_fom)
+        self.n_meas_total = self.n_meas * self.n_meas_each
 
         self.domain = self.model.params_bounds
         self.phi_0 = self.model.state_init
@@ -193,7 +196,7 @@ class BatchSFMI(BatchBaseParamControl):
                 if warped: x = self.warper(x)
                 res = self.model(x, trunc_res = trunc_res, **args_call)
                 if(trunc_res): res = np.atleast_1d(res)[0] 
-                self.call_f += 1
+                self.call_f += self.n_meas
                 if(verbose): print(x, res)
             return np.atleast_1d(res)
         
@@ -211,7 +214,7 @@ class BatchSFMI(BatchBaseParamControl):
                 if warped: x = self.warper(x)
                 res = self.model_test(x, trunc_res = trunc_res, **args_call)
                 if(trunc_res): res = np.atleast_1d(res)[0] 
-                self.call_f_test += 1
+                self.call_f_test += self.n_meas
                 if(verbose): print(x, res)
             return np.atleast_1d(res)
         
@@ -419,6 +422,8 @@ class BatchSFMI(BatchBaseParamControl):
                 nb_to_keep = self.bo_args['nb_to_keep']
                 nb_more = self.bo_args['nb_more']
                 nb_iter_polish = self.bo_args['nb_iter_polish']
+                kernel_list = self.bo_args['kernel_list']
+                acq_list = self.bo_args['acq_list']
                 polish_step = 0
                 X_keep_track = np.c_[(self.BO.X, np.zeros(len(self.BO.X)))]
                 Y_keep_track = np.c_[(self.BO.Y, np.zeros(len(self.BO.Y)))]
@@ -427,10 +432,24 @@ class BatchSFMI(BatchBaseParamControl):
                     more = nb_more[polish_step]
                     new_iter = nb_iter_polish[polish_step]
                     keep = nb_to_keep[polish_step]
-                    logger.info('Polish, nb to keep {}, X times more shots {} '.format(keep, nb_more))
+                    kern = kernel_list[polish_step]
+                    aw = acq_list[polish_step]
+                    logger.info('Polish, nb to keep {}, X times more shots {} '.format(keep, more))
                     nb_polish -= 1  
                     polish_step += 1
-                    self.set_up_BO(optim_config, nb_restrict_data = keep, restrict_domain = True, adapt_shots=more)   
+                    # change underlying fom
+                    n_meas_old = self.n_meas
+                    n_meas_new = more * n_meas_old
+                    self.main_fom = self.main_fom.replace(str(n_meas_old), str(n_meas_new))
+                    fom0 = self.model.fom[0].split(':')
+                    fom0[0] = self.main_fom
+                    fom0 = ":".join(fom0)
+                    self.model.fom[0] = fom0
+                        
+                    #change BO
+                    self.n_meas = n_meas_new
+                    self.n_meas_total = self.n_meas * self.n_meas_each
+                    self.set_up_BO(optim_config, nb_restrict_data = keep, restrict_domain = True, adapt_shots=more, ow_kernel= kern, ow_acq_weight = aw)   
                     if(self.save_extra_bo):
                         dico_res.update(self.get_info_BO(save_full = self.save_extra_full))
                     self.BO.run_optimization(max_iter = new_iter, eps = 0, max_time = self.max_time_bo)
@@ -548,7 +567,8 @@ class BatchSFMI(BatchBaseParamControl):
         self.BO.evaluator = self.BO._evaluator_chooser()    
         
 
-    def set_up_BO(self, optim_config, nb_restrict_data = None, restrict_domain = False, adapt_shots=1):
+    def set_up_BO(self, optim_config, nb_restrict_data = None, restrict_domain = False, 
+                  adapt_shots=1,ow_kernel=None,ow_acq_weight=None):
         """ set up the BO object. At the end the model is initiated
         Restrict domain // Implement rules for the adaptation of the number of shots // 
         Deal with the fixing of the constraints and the forcing the use of grad
@@ -559,7 +579,13 @@ class BatchSFMI(BatchBaseParamControl):
         """
         MAX_INCREASE = 5000
         self.save_extra_bo = optim_config.get('save_extra_bo', False)        
-        self.save_extra_full = optim_config.get('save_extra_bo', False)
+        self.save_extra_full = optim_config.get('save_extra_full', False)
+        if ow_kernel is not None:
+            optim_config['kernel_type'] = ow_kernel
+            logger.info('kernel owritten: {}'.format(ow_kernel))
+        if ow_acq_weight is not None:
+            optim_config['acq_weight'] = ow_acq_weight
+            logger.info('acq_weight owritten: {}'.format(ow_acq_weight))
         if nb_restrict_data is not None:
             (_,_), (x_exp, _) = self.BO.get_best()
             X_to_keep, Y_to_keep = filter_X(self.BO.X, self.BO.Y, x_exp, nb_restrict_data)
@@ -578,7 +604,6 @@ class BatchSFMI(BatchBaseParamControl):
             if adapt_shots == 1:
                 optim_config.update({'X_init':X_to_keep, 'Y_init':Y_to_keep})
             else:
-                self.n_meas *= adapt_shots
                 optim_config.update({'X_init':X_to_keep, 'Y_init':None})
 
             self.bo_args, f_BO = self.get_BO_args(optim_config)
@@ -722,11 +747,15 @@ class BatchSFMI(BatchBaseParamControl):
             nb_more = 0
             hp_restart = False
             nb_iter_polish = 0
+            kernel_list = None
+            acq_list = None
         else:
             polish_dico = optim_config['polish']
             nb_polish = polish_dico.get('nb_polish',0)
             nb_to_keep = make_iter_if_not_iter(polish_dico.get('nb_to_keep', nb_init), nb_polish)
             nb_more = make_iter_if_not_iter(polish_dico.get('nb_more', 1), nb_polish)
+            kernel_list = make_iter_if_not_iter(polish_dico.get('kernel_list', kernel_type), nb_polish)
+            acq_list = make_iter_if_not_iter(polish_dico.get('acq_list', acq_weight), nb_polish)
             nb_iter_polish = make_iter_if_not_iter(polish_dico.get('nb_iter', nb_iter_bo), nb_polish)
             hp_restart = polish_dico.get('hp_restart', False)
         nb_exploit = optim_config.get('exploitation_steps',0)
@@ -739,7 +768,7 @@ class BatchSFMI(BatchBaseParamControl):
                 'nb_iter_bo':nb_iter_bo,'max_time_bo':max_time_bo, 'nb_polish':nb_polish, 
                 'nb_to_keep':nb_to_keep,'nb_more':nb_more, 'nb_exploit':nb_exploit, 
                 'hp_restart':hp_restart, 'nb_iter_polish':nb_iter_polish,'ARD':ARD, 
-                'kernel':kernel}
+                'kernel':kernel,'kernel_list':kernel_list, 'acq_list':acq_list}
         
         if type_acq == 'EI':
             bo_args.update({'acquisition_type':'EI'})
