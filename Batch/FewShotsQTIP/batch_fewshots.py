@@ -1130,8 +1130,8 @@ class BatchFS(BatchBase):
             nb_polish = polish_dico.get('nb_polish',0)
             nb_to_keep = make_iter_if_not_iter(polish_dico.get('nb_to_keep', nb_init), nb_polish)
             nb_more = make_iter_if_not_iter(polish_dico.get('nb_more', 1), nb_polish)
-            kernel_list = make_iter_if_not_iter(polish_dico.get('kernel_list', kernel_type), nb_polish)
-            acq_list = make_iter_if_not_iter(polish_dico.get('acq_list', acq_weight), nb_polish)
+            kernel_list = make_list_if_not_list(polish_dico.get('kernel_list', kernel_type), nb_polish)
+            acq_list = make_list_if_not_list(polish_dico.get('acq_list', acq_weight), nb_polish)
             nb_iter_polish = make_iter_if_not_iter(polish_dico.get('nb_iter', nb_iter_bo), nb_polish)
             hp_restart = polish_dico.get('hp_restart', False)
         nb_exploit = optim_config.get('exploitation_steps',0)
@@ -1328,6 +1328,14 @@ def get_measurement_from_sampling_strat1(proba, N, p_tgt):
 def make_iter_if_not_iter(x, nb_elements):
     if  hasattr(x, '__iter__'):
         assert len(x) == nb_elements, "pb len nb_more = {} while nb_polish is {} ".format(len(nb_elements))
+        x_iter = x
+    else:
+        x_iter = [x] * nb_elements
+    return x_iter
+
+def make_list_if_not_list(x, nb_elements):
+    if  type(x) == list:
+        assert len(x) == nb_elements, "Mismatch of len = {} vs {} ".format(len(x), nb_elements)
         x_iter = x
     else:
         x_iter = [x] * nb_elements
