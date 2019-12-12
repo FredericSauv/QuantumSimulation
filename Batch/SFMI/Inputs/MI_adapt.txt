@@ -1,0 +1,18 @@
+# New simulations of a 1D BH chain
+# Play with the number of params
+model {'L':5,'Nb':5,'sps':None,'mu':0,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom_print':True,'track_callf':True,'track_freq':100,'track_callf_index':1,'track_freq':25,'ctl_shortcut':'owbds01_intcub5','T':7.704767601530182,'fom':['freqAvgOne5:neg','f2t2:neg','freqAvgOne:neg'],'_FLAG':'freqAvgOne5'} {'fom':['freqAvgOne10:neg','f2t2:neg','freqAvgOne:neg'],'_FLAG':'freqAvgOne10'}
+
+test_update {'fom':['f2t2','freqAvgOne:neg','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False,'gradients':True}
+
+optim {'type_optim':'BO','save_extra_bo':True,'nb_anchors':5,'type_acq':'LCB_pspace','type_lik':'binomial','kernel_type':'Exponential','nb_init':100,'nb_iter':500,'num_cores':4,'optimize_restarts':1,'acquisition_weight_lindec':False,'acq_weight':7,'exploitation_steps':100,'_FLAG':'BO_bin_500','hp_update_interval':10} {'nb_iter':1000,'_FLAG':'BO_bin_1000'} {'nb_iter':250,'_FLAG':'BO_bin_250'} {'nb_iter':1500,'_FLAG':'BO_bin_1500'} {'switch_to_gauss':24,'nb_iter':1000,'polish':{'nb_more':[5],'nb_polish':1,'nb_iter':[500],'nb_to_keep':[100],'kernel_list':['Matern52'],'acq_list':[5]},'_FLAG':'BO_1000_5times500'} {'switch_to_gauss':49,'nb_iter':1000,'polish':{'nb_more':[5],'nb_polish':1,'nb_iter':[1000],'nb_to_keep':[100],'kernel_list':['Matern52'],'acq_list':[5]},'_FLAG':'BO_1000_5times1000'} {'switch_to_gauss':49,'nb_iter':1000,'polish':{'nb_more':[10],'nb_polish':1,'nb_iter':[500],'nb_to_keep':[100],'kernel_list':['Matern52'],'acq_list':[5]},'_FLAG':'BO_1000_10times500'} {'switch_to_gauss':49,'nb_iter':1000,'polish':{'nb_more':[10],'nb_polish':1,'nb_iter':[1000],'nb_to_keep':[100],'kernel_list':['Matern52'],'acq_list':[5]},'_FLAG':'BO_1000_10times1000'} {'switch_to_gauss':49,'nb_iter':1000,'polish':{'nb_more':[20],'nb_polish':1,'nb_iter':[500],'nb_to_keep':[100],'kernel_list':['Matern52'],'acq_list':[5]},'_FLAG':'BO_1000_20times500'} {'switch_to_gauss':49,'nb_iter':1000,'polish':{'nb_more':[20],'nb_polish':1,'nb_iter':[1000],'nb_to_keep':[100],'kernel_list':['Matern52'],'acq_list':[5]},'_FLAG':'BO_1000_20times1000'} {'switch_to_gauss':49,'nb_iter':1500,'polish':{'nb_more':[5],'nb_polish':1,'nb_iter':[500],'nb_to_keep':[150],'kernel_list':['Matern52'],'acq_list':[5]},'_FLAG':'BO_1500_5times500'} {'switch_to_gauss':49,'nb_iter':1500,'polish':{'nb_more':[5],'nb_polish':1,'nb_iter':[1000],'nb_to_keep':[150],'kernel_list':['Matern52'],'acq_list':[5]},'_FLAG':'BO_1500_5times1000'} {'switch_to_gauss':49,'nb_iter':1500,'polish':{'nb_more':[10],'nb_polish':1,'nb_iter':[500],'nb_to_keep':[150],'kernel_list':['Matern52'],'acq_list':[5]},'_FLAG':'BO_1500_10times500'} {'switch_to_gauss':49,'nb_iter':1500,'polish':{'nb_more':[10],'nb_polish':1,'nb_iter':[1000],'nb_to_keep':[150],'kernel_list':['Matern52'],'acq_list':[5]},'_FLAG':'BO_1500_10times1000'} {'switch_to_gauss':49,'nb_iter':1500,'polish':{'nb_more':[20],'nb_polish':1,'nb_iter':[500],'nb_to_keep':[150],'kernel_list':['Matern52'],'acq_list':[5]},'_FLAG':'BO_1500_20times500'} {'switch_to_gauss':49,'nb_iter':1500,'polish':{'nb_more':[20],'nb_polish':1,'nb_iter':[1000],'nb_to_keep':[150],'kernel_list':['Matern52'],'acq_list':[5]},'_FLAG':'BO_1500_20times1000'}
+
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
+
