@@ -155,6 +155,7 @@ class model_base:
     def _setup_fom_basic_bricks(self):
         """ populate the dictionary self._fom_func of functions which can be used
             to compute FoM """
+        self._list_fom_func_with_extra = []
         self._fom_func['std'] = np.std
         self._fom_func['max'] = np.max
         self._fom_func['min'] = np.min
@@ -346,7 +347,8 @@ class model_base:
      
     #LOGIC FOR COMPUTING THE FOM
     @ut.extend_dim_method(0, True)
-    def _compute_fom(self, fom = None, st = None, func_assemblate = np.sum):
+    def _compute_fom(self, fom = None, st = None, func_assemblate = np.sum, 
+                     extra_args=None):
         """Compute a (potentially composed) FoM (or list of FOM)
         Parameters
         ----------
@@ -368,11 +370,11 @@ class model_base:
         fom = fom if fom is not None else self.fom
         st = st if fom is not None else self.state
         components = ut.splitString(fom) # default separator = '_'
-        res = func_assemblate([self._compute_atom_fom(c, st) for c in components])
+        res = func_assemblate([self._compute_atom_fom(c, st, extra_args=extra_args) for c in components])
         return res       
 
 
-    def _compute_atom_fom(self, fom, st):        
+    def _compute_atom_fom(self, fom, st, extra_args=None):        
         """Compute an atomic (simplest brick) FoM 
         Parameters
         ----------
@@ -394,15 +396,17 @@ class model_base:
         take the last part of the state (i.e. state at time T), compute the fidelity 
         to target return the neagtive version (neg(x)=1-x) and times it by 0.3  
         """                
-        f2apply = [self._get_fom_func(k) for k in ut.splitString(fom, ":")]
+        f2apply = [self._get_fom_func(k, extra_args=extra_args) for k in ut.splitString(fom, ":")]
         res = ut.compoFunctions(f2apply, st, order = 0) # compo from left to right
         return res 
 
-    def _get_fom_func(self, fom_str):
+    def _get_fom_func(self, fom_str, extra_args=None):
         """ find the fom_func associated to a string, if it can't find it
         treats it a multiplying coeff"""
         f = self._fom_func.get(fom_str)
         f = f if f is not None else partial(op.mul, float(fom_str))
+        if fom_str in self._list_fom_func_with_extra:
+            f = partial(f, extra_args=extra_args)
         return f  
 
 
@@ -730,7 +734,8 @@ class pcModel_qspin(pcModel_base):
     # --------------------------------------------------------------------------- #
     #   SIMULATIONS 
     # --------------------------------------------------------------------------- #
-    def Simulate(self, time = None, H = None, state_init = None, fom = None, store = False, method = 'se', **extra_args):
+    def Simulate(self, time = None, H = None, state_init = None, fom = None, 
+                 store = False, method = 'se', **extra_args):
         """ Main entry point to simulate the system. If fom is not None, it will 
         return it, if not return the state_t of the system.
 
@@ -741,6 +746,7 @@ class pcModel_qspin(pcModel_base):
         """
         if extra_args.pop('debug', None):
             pdb.set_trace()
+        extra_args_fom = extra_args.pop('extra_args_fom', None)
         time = self.t_simul if time is None else time
         fom = self.fom if fom is None else fom
         measures = self.measures
@@ -762,49 +768,49 @@ class pcModel_qspin(pcModel_base):
             H =  self._H  if H is None else H
             res = self.Evolution(time = time, H = H, state_init = state_init, method = method, store = store, **extra_args)
             if (fom not in [None, '']):
-                res = self._compute_fom(fom, res)
+                res = self._compute_fom(fom, res, extra_args = extra_args_fom)
             if(measures not in [None, '']):
-                self.measured = self._compute_fom(measures, res)
+                self.measured = self._compute_fom(measures, res, extra_args = extra_args_fom)
         if(extra_args.get('print')):
             logger.info("FOM="+str(res))
         return res
 
-    def Simulate_Ensemble(self, time, H, state_init, fom = None, store = False, fom_ensemble = 'avgens', **extra_args):
-        """Simulate the system for an ensemble of models (either because there is an ensemble of H or state init)
-
-        Arguments
-        ---------
-            
-
-
-        Note
-        ----
-        * Should implement here the multiprocessing capability
-        * 
-        
-        """
-        configs = itertools.product(H, state_init, [time])
-        configs_index = list(itertools.product(np.arange(len(H)), np.arange(len(state_init))))
-
-        #MP should be here mp.map()
-        #res = [c[0].evolve(c[1], t0=0, times = time, **extra_args) for c in configs]
-
-        res = self.mp.map_custom(evolve, configs)
-        
-        if (fom not in [None, '']):
-            fom_values = [self._compute_fom(fom, r) for r in res]
-            res = self._compute_fom(fom_ensemble, fom_values)
-
-        if (self.measures not in [None, '']):
-            measures = [self._compute_fom(self.measures, r) for r in res]
-            self.measured = self._compute_fom(fom_ensemble, measures)
-
-        if(store):
-            self._state_t_ensemble = res
-            self._indices_ensemble = configs_index
-            self._fom_values_ensemble = fom_values
-
-        return res
+#    def Simulate_Ensemble(self, time, H, state_init, fom = None, store = False, fom_ensemble = 'avgens', **extra_args):
+#        """Simulate the system for an ensemble of models (either because there is an ensemble of H or state init)
+#
+#        Arguments
+#        ---------
+#            
+#
+#
+#        Note
+#        ----
+#        * Should implement here the multiprocessing capability
+#        * 
+#        
+#        """
+#        configs = itertools.product(H, state_init, [time])
+#        configs_index = list(itertools.product(np.arange(len(H)), np.arange(len(state_init))))
+#
+#        #MP should be here mp.map()
+#        #res = [c[0].evolve(c[1], t0=0, times = time, **extra_args) for c in configs]
+#
+#        res = self.mp.map_custom(evolve, configs)
+#        
+#        if (fom not in [None, '']):
+#            fom_values = [self._compute_fom(fom, r) for r in res]
+#            res = self._compute_fom(fom_ensemble, fom_values)
+#
+#        if (self.measures not in [None, '']):
+#            measures = [self._compute_fom(self.measures, r) for r in res]
+#            self.measured = self._compute_fom(fom_ensemble, measures)
+#
+#        if(store):
+#            self._state_t_ensemble = res
+#            self._indices_ensemble = configs_index
+#            self._fom_values_ensemble = fom_values
+#
+#        return res
 
 
     def Evolution(self, time, H, state_init, method, store, **extra_args):

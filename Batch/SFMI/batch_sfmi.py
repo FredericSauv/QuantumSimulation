@@ -122,36 +122,95 @@ class BatchSFMI(BatchBaseParamControl):
         
         return f, f_test, self.x_tgt
     
-    def _get_nb_meas(self, main_fom):
-        """ custom (aka not clean) parsing of the fom string"""
+#    def _get_nb_meas(self, main_fom):
+#        """ custom (aka not clean) parsing of the fom string"""
+#        n_meas_each = 1
+#        n_meas = 1
+#        n_output = 1
+#        if ('freqAvgOne' in main_fom) and (len(main_fom)>10):
+#            n_meas = int(main_fom[10:])
+#            n_meas_each = self.model.L
+#            n_output = 1
+#        elif ('freqMI' in main_fom) and (len(main_fom)>6):
+#            n_meas = int(main_fom[6:])
+#            n_meas_each = 1
+#            n_output = 1
+#        elif ('freqEachOne' in main_fom) and (len(main_fom)>11):
+#            n_meas = int(main_fom[11:])
+#            n_meas_each = 1
+#            n_output = self.L
+#        return n_meas, n_meas_each, n_output
+#    
+    def _setup_nb_meas(self, model_config):    
+        main_fom = model_config['fom'][0].split(':')[0]
         n_meas_each = 1
         n_meas = 1
-        n_output = 1
+        n_output = 1                            
         if ('freqAvgOne' in main_fom) and (len(main_fom)>10):
-            n_meas = int(main_fom[10:])
+            if(type(self.model) == BH1D.BH1D_ensemble):
+                n_meas = self.model.nb_samples
+            else:
+                n_meas = int(main_fom[10:])
             n_meas_each = self.model.L
             n_output = 1
         elif ('freqMI' in main_fom) and (len(main_fom)>6):
-            n_meas = int(main_fom[6:])
+            if(type(self.model) == BH1D.BH1D_ensemble):
+                n_meas = self.model.nb_samples
+            else:
+                n_meas = int(main_fom[6:])
             n_meas_each = 1
             n_output = 1
         elif ('freqEachOne' in main_fom) and (len(main_fom)>11):
-            n_meas = int(main_fom[11:])
+            if(type(self.model) == BH1D.BH1D_ensemble):
+                n_meas = self.model.nb_samples
+            else:
+                n_meas = int(main_fom[11:])
             n_meas_each = 1
             n_output = self.L
-        return n_meas, n_meas_each, n_output
-    
+
+        self.n_meas = n_meas
+        self.n_meas_each = n_meas_each
+        self.nb_output = n_output
+        self.n_meas_total = self.n_meas * self.n_meas_each
+        self.main_fom = main_fom
+
+
+    def _increase_nb_meas(self, more):
+        """ to clean at come point """
+        if(type(self.model) == BH1D.BH1D_ensemble):
+            self.model.nb_samples = self.model.nb_samples * more
+            self.n_meas = self.model.nb_samples
+        else:                            
+            # change underlying fom
+            n_meas_old = self.n_meas
+            n_meas_new = more * n_meas_old
+            self.main_fom = self.main_fom.replace(str(n_meas_old), str(n_meas_new))
+            fom0 = self.model.fom[0].split(':')
+            fom0[0] = self.main_fom
+            fom0 = ":".join(fom0)
+            self.model.fom[0] = fom0
+            self.n_meas = n_meas_new
+        logger.info("The number of meas is now {}".format(self.n_meas))
+        self.n_meas_total = self.n_meas * self.n_meas_each
+
     def setup_QSPIN_model(self, model_config, test_config):
         """ Setup the model in QuTip allowing to compute the dynamics and FoM
         """        
         #print(zero)
         verbose = model_config.get('verbose', False)
-        self.model = BH1D.BH1D(**model_config)
-        self.model_test = BH1D.BH1D(**test_config)
+        if model_config.get('ensemble', None) is not None:
+            self.model = BH1D.BH1D_ensemble(**model_config)
+        else:
+            self.model = BH1D.BH1D(**model_config)
+            
+        if model_config.get('ensemble', None) is not None:
+            self.model_test = BH1D.BH1D_ensemble(**test_config)
+        else:
+            self.model_test = BH1D.BH1D(**test_config)
+            
+            
         self.n_params = self.model.n_params
-        self.main_fom = model_config['fom'][0].split(':')[0]
-        self.n_meas, self.n_meas_each, self.nb_output = self._get_nb_meas(self.main_fom)
-        self.n_meas_total = self.n_meas * self.n_meas_each
+        self._setup_nb_meas(model_config)
 
         self.domain = self.model.params_bounds
         self.phi_0 = self.model.state_init
@@ -197,6 +256,7 @@ class BatchSFMI(BatchBaseParamControl):
                 res = self.model(x, trunc_res = trunc_res, **args_call)
                 if(trunc_res): res = np.atleast_1d(res)[0] 
                 self.call_f += self.n_meas
+                self.call_f_single += 1
                 if(verbose): print(x, res)
             return np.atleast_1d(res)
         
@@ -430,6 +490,7 @@ class BatchSFMI(BatchBaseParamControl):
                 self.save_hp_values()
                 while nb_polish > 0 and self.max_time_bo > 0:
                     more = nb_more[polish_step]
+                    self._increase_nb_meas(more)
                     new_iter = nb_iter_polish[polish_step]
                     keep = nb_to_keep[polish_step]
                     kern = kernel_list[polish_step]
@@ -437,18 +498,10 @@ class BatchSFMI(BatchBaseParamControl):
                     logger.info('Polish, nb to keep {}, X times more shots {} '.format(keep, more))
                     nb_polish -= 1  
                     polish_step += 1
-                    # change underlying fom
-                    n_meas_old = self.n_meas
-                    n_meas_new = more * n_meas_old
-                    self.main_fom = self.main_fom.replace(str(n_meas_old), str(n_meas_new))
-                    fom0 = self.model.fom[0].split(':')
-                    fom0[0] = self.main_fom
-                    fom0 = ":".join(fom0)
-                    self.model.fom[0] = fom0
-                        
+                    
+
+                    
                     #change BO
-                    self.n_meas = n_meas_new
-                    self.n_meas_total = self.n_meas * self.n_meas_each
                     self.set_up_BO(optim_config, nb_restrict_data = keep, restrict_domain = True, adapt_shots=more, ow_kernel= kern, ow_acq_weight = aw)   
                     if(self.save_extra_bo):
                         dico_res.update(self.get_info_BO(save_full = self.save_extra_full))
@@ -524,7 +577,10 @@ class BatchSFMI(BatchBaseParamControl):
         if self.noise_input:
             dico_res.update({'noise_descr':self.noise_input_string})
             
-            
+        if(type(self.model) == BH1D.BH1D_ensemble):
+            self.model.terminate()
+        if(type(self.model_test) == BH1D.BH1D_ensemble):
+            self.model.terminate()
 
         return dico_res 
 

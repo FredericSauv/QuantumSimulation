@@ -8,11 +8,11 @@ Created on Fri Jul  7 11:35:46 2017
 """
 import logging
 logger = logging.getLogger(__name__)
-import sys, pdb
+import sys, pdb, time, copy
 import numpy as np 
 from quspin.operators import hamiltonian # Hamiltonians and operators
 from quspin.basis import boson_basis_1d # Hilbert space boson basis
-import imp
+import multiprocessing as mp
 
 
 if(__name__ == '__main__'):
@@ -26,6 +26,155 @@ else:
 
 #imp.reload(mod)
 
+
+class BH1D_ensemble(): # should it inherit from mod.pcModel_qspin
+    def __init__(self, **args_model):
+        """ Initialize the simulations of the driven BH  """
+        # Ensemble specifications
+        dic_ensemble = args_model.pop('ensemble')
+        self.N_ensemble = dic_ensemble['N'] #different number of particles
+        self.proba_ensemble = dic_ensemble['proba'] # proba associated to each configuration
+        self.nb_ensemble = len(self.N_ensemble) # nb different system in the ensemble
+        self.nb_samples = dic_ensemble.get('nb_samples', 0) # if fom rely on sampling
+        self.nb_workers = self.nb_ensemble # As many worker as ensemble now (may change)
+        
+        # To be compatible
+        self._fom_print = args_model.pop('fom_print', False) # print at this level
+        self._aggregated_nb_call = 0
+        self.L = args_model['L']
+        self.T = args_model['T']
+        self.control_fun = args_model['control_obj']
+        self.n_params = self.control_fun.n_theta
+        self.params_bounds = self.control_fun.theta_bounds
+        self.state_init = args_model['state_init']
+        self.state_tgt = args_model.get('state_tgt')
+        self.track = args_model.pop('track_callf', False)
+        self.track_index = args_model.pop('track_callf_index', 0) # which element of the fom to use for tracking
+        self.track_freq = args_model.pop('track_freq', 0)
+        self._timer = time
+        if self.track:
+            self._init_time = self._timer.time()
+            self._time_cumul_call_tmp = 0 
+            self._time_total_tmp = 0
+            self._track_fom = None
+            self._flag_track_calls_void = False
+            self._track_calls = {'history_nev':[], 'history_res':[],'history_resfull':[],
+                    'history_func':[], 'best_fun':np.inf, 'best_fun_full':None, 
+                    'history_params':[], 'history_time_total':[], 'history_time_call':[],
+                    'history_measured':[]}
+            
+        # define what workers should do 
+        self._pipes = [mp.Pipe() for _ in range(self.nb_workers)] #0: master 1:worker
+        def target_worker(args, pipe):
+            sim = BH1D(**args)
+            for msg, payload in iter(pipe.recv, ("exit",)):
+                if msg == 'work':
+                    try:
+                        to_send = sim(params=payload[0], trunc_res=payload[1], **payload[2], extra_args_fom=payload[3])
+                        pipe.send(("ok", to_send))
+                    except:
+                        pipe.send(("error", sys.exc_info()))
+
+
+        
+        # Create args_model for each of the worker
+        workers_args_model = []
+        for i in range(self.nb_workers):
+            tmp = copy.copy(args_model)
+            tmp['Nb'] = self.N_ensemble[i]
+            workers_args_model.append(tmp)
+        self._workers_args_model = workers_args_model
+        
+        # Initialize and run workers
+        self._processes = []
+        for args_model, pipe in zip(self._workers_args_model, self._pipes):
+            self._processes.append(mp.Process(target=target_worker, args = (args_model, pipe[1])))
+        for p in self._processes:
+            p.start()
+        #To finish
+        self._FLAG_STORE = args_model.get('flag_store', False)
+
+            
+    def _get_samples_per_worker(self):
+        nb_samples = self.nb_samples
+        choices = np.arange(self.nb_ensemble)
+        res_sampl = np.random.choice(choices, size=nb_samples, replace=True, p = self.proba_ensemble)
+        return np.array([np.sum(res_sampl == c) for c in choices])
+    
+    def __call__(self, params, trunc_res = True, **args_call):
+        """ 
+        """
+        self._aggregated_nb_call += 1
+        if self.track:
+            _track_time_call = self._timer.time()
+        if(args_call.pop('debug', False)):
+            pdb.set_trace()
+
+        ## nb_samples to do
+        if self.nb_samples:
+            nb_samples = self._get_samples_per_worker()
+            weights = nb_samples/self.nb_samples
+        else:
+            nb_samples = [None] * self.nb_workers
+            weights = self.proba_ensemble
+            
+        ### send/collect res from workers
+        output = []
+        weights_eff = []
+        for pipe, nb_s, w in zip(self._pipes, nb_samples, weights):
+            if nb_s != 0:
+                pipe[0].send(('work',(params, False, args_call, nb_s)))
+                weights_eff.append(w)
+        
+        for pipe, nb_s in zip(self._pipes, nb_samples):
+            if nb_s != 0:
+                msg, payload = pipe[0].recv()
+                if msg == 'ok':
+                    output.append(payload)
+        
+        ### average
+        res_tmp = np.sum([w*o  for o, w in zip(output,np.array(weights_eff))],0)
+
+        ## Misc
+        if(self._fom_print):
+            logger.info(res_tmp)
+        res_trunc = np.atleast_1d(res_tmp)[0]
+        res_trunc_tracker = np.atleast_1d(res_tmp)[self.track_index]
+        
+        if self.track:
+            best = self._track_calls['best_fun']
+            now = self._timer.time()
+            #add only time used for simul
+            self._time_cumul_call_tmp += (now - _track_time_call)  
+            self._time_total_tmp = now - self._init_time
+            if ((self.track_freq == 0) and (best > res_trunc_tracker)) or ((self.track_freq > 0) 
+                and (self._aggregated_nb_call % self.track_freq)==0):
+                # updated only when result is the best so far
+                self._track_calls['best_fun'] = res_trunc_tracker
+                self._track_calls['best_fun_full'] = res_tmp
+                self._track_calls['history_nev'].append(self._aggregated_nb_call)
+                self._track_calls['history_res'].append(res_trunc_tracker)
+                self._track_calls['history_time_total'].append(self._time_total_tmp)
+                self._track_calls['history_time_call'].append(self._time_cumul_call_tmp)
+                self._track_calls['history_func'].append(repr(self.control_fun))
+                self._track_calls['history_params'].append(params)
+                self._track_calls['history_resfull'].append(res_tmp)
+
+        
+        res = res_trunc if trunc_res  else res_tmp
+        return res
+        
+    def terminate(self):
+        for pipe in self._pipes:
+            pipe[0].send(("exit",))
+        for p in self._processes:
+            p.terminate()
+        #To finish
+
+
+            
+
+    
 class BH1D(mod.pcModel_qspin):
     """ Simulate a 1D - MH model. Implementation of the pcModel_qspin """
     _LIST_ARGS = mod.pcModel_qspin._LIST_ARGS
@@ -86,9 +235,41 @@ class BH1D(mod.pcModel_qspin):
             # Dim_H x Nbsites
             self._basis_fock = np.array([self._get_basis_to_fock(s) for s in range(Ns)])
             # store the index of MI (i.e. 11...11)
-            self._index_basis_allone = np.where([np.allclose(b, 1.) for b in self._basis_fock])[0][0]
+            if(config_bh1D['L'] == config_bh1D['Nb']):
+                self._index_basis_allone = np.where([np.allclose(b, 1.) for b in self._basis_fock])[0][0]
+            else:
+                self._index_basis_allone = -1
             self._index_basis_oneone = [np.where([b[i] == 1. for b in self._basis_fock])[0] for i in range(L)]
         
+    def _create_wag_to_bloch_matrix(self):
+        """ Transformation from wagnier function to bloch functions
+            b_j^t = sqrt(1/2Pi) * sum_q exp^(-ijq)            
+            T[i,q] =  exp(-ijq* 2Pi/self.L)
+        """
+        indexes = np.arange(self.L) 
+        self._w2b_single = np.exp(np.outer(indexes, indexes*2*np.pi/self.L))
+ 
+
+    def _wag_to_bloch_rep(self, wag_state):
+        l = []   
+        for n, w in enumerate(wag_state):
+            for a in range(w):
+                l.append(self._w2b[n])
+        return l
+
+    def _create_wag_to_bloch_basis(self):
+        self._create_wag_to_bloch_matrix(self)
+        list_rep = [self._wag_tobloch_rep(fb) for fb in self._fock_basis]        
+        self._w2b_basis = np.array([_kron_ndims(*lr) for lr in list_rep])
+
+    def _in_bloch(self, state):
+        return np.dot(self._w2b_basis, state)
+
+    def _bloch_basis_verb(self, index):
+        not_padded = np.base_repr(index+1, base = self.L)[::-1]
+        padded = not_padded + '0'*( self.L - len(not_padded))
+        return padded
+
     def _setup_H(self, **args_model):
         """  Bose Hubbard Hamiltonians:
         H = - J(t) Sum_l (b_l b_{l+1}^t + h.c.) + U(t) Sum_l (n_l (n_{l}-1)) + mu Sum_l (n_l)   
@@ -187,7 +368,10 @@ class BH1D(mod.pcModel_qspin):
                 proba = proba_basis(V)
                 assert np.all(proba < 1+1e-6) and np.all(proba > -1e-6)
                 proba = np.clip(proba, 0., 1.)
-                proba_allone = proba[self._index_basis_allone]
+                if self._index_basis_allone == -1:
+                    proba_allone = 0
+                else:
+                    proba_allone = proba[self._index_basis_allone]
                 return proba_allone
                 
                 
@@ -255,6 +439,12 @@ class BH1D(mod.pcModel_qspin):
             self._fom_func['freqEachOne'] = self._eachone_proba
             self._eachone_frequency = eachone_frequency
             self._fom_func.update({'freqEachOne'+str(nb):(lambda x, nb=nb: self._eachone_frequency(x, nb)) for nb in list_freq})
+            
+            self._list_fom_func_with_extra.extend(['freqAvgOneX','freqEachOneX','FreqMIX','varNX'])
+            self._fom_func.update({'freqAvgOneX':lambda x, extra_args: self._averageone_frequency(x, nb=extra_args)})
+            self._fom_func.update({'freqEachOneX':lambda x, extra_args: self._eachone_frequency(x, nb=extra_args)})
+            self._fom_func.update({'freqMIX':lambda x, extra_args: self._allone_frequency(x, nb=extra_args)})
+            self._fom_func.update({'varNX':lambda x, extra_args: self._avg_varN_measured(x, nb=extra_args)})
 
     def _state_to_occup_nb(self, st):
         exp_occup = np.array([op.expt_value(st) for op in self._op_n_sites])
@@ -276,8 +466,13 @@ class BH1D(mod.pcModel_qspin):
         return repr_fock
 
 
-
-
+def _kron_ndims(*args):
+    if len(args)>2: 
+        return _kron_ndims(args[0],args[1:])
+    elif len(args) == 2:
+        return np.kron(args[0], args[1])
+    else:
+        raise NotImplementedError()
 ### ======================= ###
 # TESTING
 ### ======================= ###
