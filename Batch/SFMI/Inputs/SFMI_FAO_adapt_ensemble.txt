@@ -1,6 +1,6 @@
 # New simulations of a 1D BH chain
 # Play with the number of params
-model {'ensemble':{'N':[5,4,6],'proba':[0.8,0.1,0.1],'nb_samples':10}'L':5,'Nb':5,'sps':None,'mu':0,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom_print':True,'track_callf':True,'track_freq':100,'track_callf_index':1,'track_freq':25,'ctl_shortcut':'owbds01_intcub5','T':7.704767601530182,'fom':['freqAvgOneX:neg','f2t2:neg','freqAvgOne:neg'],'_FLAG':'freqAvgOne10'} {'ensemble':{'N':[5,4,6],'proba':[0.8,0.1,0.1],'nb_samples':25},'_FLAG':'freqAvgOne25'}
+model {'ensemble':{'N':[5,4,6],'proba':[0.8,0.1,0.1],'nb_samples':10},'L':5,'Nb':5,'sps':None,'mu':0,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom_print':True,'track_callf':True,'track_freq':100,'track_callf_index':1,'track_freq':25,'ctl_shortcut':'owbds01_intcub5','T':7.704767601530182,'fom':['freqAvgOneX:neg','f2t2:neg','freqAvgOne:neg'],'_FLAG':'freqAvgOne10'} {'ensemble':{'N':[5,4,6],'proba':[0.8,0.1,0.1],'nb_samples':25},'_FLAG':'freqAvgOne25'}
 
 test_update {'fom':['f2t2','freqAvgOne:neg','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False,'gradients':True}
 
