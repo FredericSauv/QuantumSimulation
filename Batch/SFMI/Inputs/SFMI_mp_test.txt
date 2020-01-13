@@ -6,7 +6,7 @@ test_update {'fom':['f2t2','freqAvgOne:neg','f2t2','fluence','smooth','energyinf
 
 optim {'type_optim':'BO','save_extra_bo':True,'nb_anchors':5,'type_acq':'LCB_pspace','type_lik':'binomial','kernel_type':'Exponential','nb_init':10,'nb_iter':10,'num_cores':4,'optimize_restarts':1,'acquisition_weight_lindec':False,'acq_weight':3,'exploitation_steps':10,'_FLAG':'BO_bin_500','hp_update_interval':10}
 
-_RDM_RUNS 1
+_RDM_RUNS 2
 _RDM_FIXSEED True
 _OUT_PREFIX 'res'
 _OUT_FOLDER 'Output/Test'
