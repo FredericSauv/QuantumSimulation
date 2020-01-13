@@ -585,7 +585,7 @@ class BatchSFMI(BatchBaseParamControl):
             print("Closed ensemble used for model")
         if(type(self.model_test) == BH1D.BH1D_ensemble):
             print("Closing ensemble used for model")
-            self.model.terminate()
+            self.model_test.terminate()
             print("Closed ensemble used for model_test")
 
         return dico_res 

@@ -74,8 +74,13 @@ class BH1D_ensemble(): # should it inherit from mod.pcModel_qspin
                         pipe.send(("ok", to_send))
                     except:
                         pipe.send(("error", sys.exc_info()))
-
-
+            print('worker: closing connection')
+            if pipe.closed():
+                print("Already closed: {}".str(pipe))
+            else:
+                print("Closing: {}".str(pipe))
+                pipe.close()
+                print("Closed: {}".str(pipe))
         
         # Create args_model for each of the worker
         workers_args_model = []
@@ -165,12 +170,21 @@ class BH1D_ensemble(): # should it inherit from mod.pcModel_qspin
         return res
         
     def terminate(self):
+        print('Terminate: sending exit')
         for pipe in self._pipes:
+            print(pipe)
             pipe[0].send(("exit",))
+        print('Terminate: exit sent')
+        
+        #print('Terminate: closing pipes')
+        #for p in self._pipes:
+        #    p[0].close() 
+        #print('Terminate: pipe closed')    
         for p in self._processes:
             p.terminate()
         for p in self._processes:
             p.join()
+
         #To finish
 
 
