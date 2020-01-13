@@ -526,6 +526,7 @@ class BatchSFMI(BatchBaseParamControl):
                         to_add_tmp = [Y_keep_track] * (Y_keep_track.shape[1]-1)
                         to_add_tmp.append(polish_step*np.ones(len(self.BO.Y)))
                 
+                print("BO: Main loop ended, filling dico of results")
                 dico_res.update(self.get_info_BO(tag=''))            
                 dico_res.update({'params_BO_names': self.BO.model.model.parameter_names(), 
                     'abs_diff':1- dico_res['test'], 
@@ -535,6 +536,7 @@ class BatchSFMI(BatchBaseParamControl):
                 x_exp = dico_res['x_exp']
                 
             if(test_config.get('gradients',False)):
+                print("BO: Main loop ended, filling dico of results with gradients")
                 logger.info('Test gradients at the final value, with eps = 1e-6')
                 nb_output = len(self.f_test(x_exp)) # not clean
                 grad_final = np.zeros((self.n_params, nb_output))
@@ -578,9 +580,13 @@ class BatchSFMI(BatchBaseParamControl):
             dico_res.update({'noise_descr':self.noise_input_string})
             
         if(type(self.model) == BH1D.BH1D_ensemble):
+            print("Closing ensemble used for model")
             self.model.terminate()
+            print("Closed ensemble used for model")
         if(type(self.model_test) == BH1D.BH1D_ensemble):
+            print("Closing ensemble used for model")
             self.model.terminate()
+            print("Closed ensemble used for model_test")
 
         return dico_res 
 

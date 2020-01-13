@@ -169,6 +169,8 @@ class BH1D_ensemble(): # should it inherit from mod.pcModel_qspin
             pipe[0].send(("exit",))
         for p in self._processes:
             p.terminate()
+        for p in self._processes:
+            p.join()
         #To finish
 
 
