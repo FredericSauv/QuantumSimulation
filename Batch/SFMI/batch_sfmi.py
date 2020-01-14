@@ -149,6 +149,8 @@ class BatchSFMI(BatchBaseParamControl):
         if ('freqAvgOne' in main_fom) and (len(main_fom)>10):
             if(type(self.model) == BH1D.BH1D_ensemble):
                 n_meas = self.model.nb_samples
+                if n_meas == 0:
+                    n_meas =1
             else:
                 n_meas = int(main_fom[10:])
             n_meas_each = self.model.L
@@ -156,6 +158,8 @@ class BatchSFMI(BatchBaseParamControl):
         elif ('freqMI' in main_fom) and (len(main_fom)>6):
             if(type(self.model) == BH1D.BH1D_ensemble):
                 n_meas = self.model.nb_samples
+                if n_meas == 0:
+                    n_meas =1
             else:
                 n_meas = int(main_fom[6:])
             n_meas_each = 1
@@ -163,6 +167,8 @@ class BatchSFMI(BatchBaseParamControl):
         elif ('freqEachOne' in main_fom) and (len(main_fom)>11):
             if(type(self.model) == BH1D.BH1D_ensemble):
                 n_meas = self.model.nb_samples
+                if n_meas == 0:
+                    n_meas =1
             else:
                 n_meas = int(main_fom[11:])
             n_meas_each = 1
@@ -255,7 +261,10 @@ class BatchSFMI(BatchBaseParamControl):
                 if warped: x = self.warper(x)
                 res = self.model(x, trunc_res = trunc_res, **args_call)
                 if(trunc_res): res = np.atleast_1d(res)[0] 
-                self.call_f += self.n_meas
+                if self.n_meas >0:
+                    self.call_f += self.n_meas
+                else:
+                    self.call_f += 1
                 self.call_f_single += 1
                 if(verbose): print(x, res)
             return np.atleast_1d(res)
@@ -274,7 +283,10 @@ class BatchSFMI(BatchBaseParamControl):
                 if warped: x = self.warper(x)
                 res = self.model_test(x, trunc_res = trunc_res, **args_call)
                 if(trunc_res): res = np.atleast_1d(res)[0] 
-                self.call_f_test += self.n_meas
+                if self.n_meas > 0:
+                    self.call_f_test += self.n_meas
+                else:
+                    self.call_f_test += 1
                 if(verbose): print(x, res)
             return np.atleast_1d(res)
         
