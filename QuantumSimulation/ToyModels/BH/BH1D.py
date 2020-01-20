@@ -35,7 +35,7 @@ class BH1D_ensemble(): # should it inherit from mod.pcModel_qspin
         self.N_ensemble = dic_ensemble['N'] #different number of particles
         self.proba_ensemble = dic_ensemble['proba'] # proba associated to each configuration
         self.nb_ensemble = len(self.N_ensemble) # nb different system in the ensemble
-        self.nb_samples = dic_ensemble.get('nb_samples', 0) # if fom rely on sampling
+        self.nb_samples = dic_ensemble.get('nb_samples', 0) # if fom rely on sampling >0 if not 0, or False
         self.nb_workers = self.nb_ensemble # As many worker as ensemble now (may change)
         
         # To be compatible
@@ -64,7 +64,6 @@ class BH1D_ensemble(): # should it inherit from mod.pcModel_qspin
                     'history_measured':[]}
             
         # define what workers should do 
-        self._pipes = [mp.Pipe() for _ in range(self.nb_workers)] #0: master 1:worker
         def target_worker(args, pipe):
             sim = BH1D(**args)
             for msg, payload in iter(pipe.recv, ("exit",)):
@@ -82,7 +81,17 @@ class BH1D_ensemble(): # should it inherit from mod.pcModel_qspin
                 pipe.close()
                 print("Closed: {}".str(pipe))
         
+        self.target_worker = target_worker # store it such that it can be used again
+        self.args_model = copy.copy(args_model)
+        
         # Create args_model for each of the worker
+        self._init_workers(args_model, target_worker)
+        #To finish
+        self._FLAG_STORE = args_model.get('flag_store', False)
+
+    def _init_workers(self, args_model, target_worker):
+        # Create args_model for each of the worker
+        self._pipes = [mp.Pipe() for _ in range(self.nb_workers)] #0: master 1:worker
         workers_args_model = []
         for i in range(self.nb_workers):
             tmp = copy.copy(args_model)
@@ -97,9 +106,8 @@ class BH1D_ensemble(): # should it inherit from mod.pcModel_qspin
         for p in self._processes:
             p.start()
         #To finish
-        self._FLAG_STORE = args_model.get('flag_store', False)
 
-            
+
     def _get_samples_per_worker(self):
         nb_samples = self.nb_samples
         choices = np.arange(self.nb_ensemble)
