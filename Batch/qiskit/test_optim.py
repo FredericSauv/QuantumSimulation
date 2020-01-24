@@ -12,6 +12,30 @@ sys.path.insert(0, '/home/fred/Desktop/GPyOpt/') ## Fork from https://github.com
 import GPyOpt
 import numpy as np
 
+# Global params
+NB_SHOTS = 128
+
+# Wrapper functions
+# all ensure that it can deal with several set of parameters (i.e. ndim(params)==2)
+def f_average(params, shots = NB_SHOTS):
+    """  estimate of the fidelity"""
+    if np.ndim(params) >1 : res = np.array([f_average(p, shots=shots) for p in params])
+    else: 
+        res = qcirc.F(params, shots = shots)
+        print(res)
+        res = 1 - np.atleast_1d(res)
+    return res
+
+
+def f_test(params):
+    if np.ndim(params) > 1 :
+        res = np.array([f_test(p) for p in params])
+    else:
+        res = qcirc.F(params, shots=10000)
+        print(res)
+    return res
+
+# BO setup
 NB_INIT = 50
 NB_ITER = 100
 DOMAIN_DEFAULT = [(0, 2*np.pi) for i in range(6)]
@@ -24,34 +48,16 @@ BO_ARGS_DEFAULT = {'domain': DOMAIN_BO, 'initial_design_numdata':NB_INIT,
                    'optimize_restarts':1, 'optim_num_samples':10000, 'ARD':False}
 
             
-def f_optim(params):
-    """ Wrapper around f: 
-        + ensure that it can deal with several set of parameters
-        + return 1 - f to recast it as a minimization task
-        + ensure that the output is a 1d array
-    """
-    if np.ndim(params) >1 :
-        res = np.array([qcirc.F(p) for p in params])
-    else:
-        res = qcirc.F(params)
-    print(res)
-    return 1 - np.atleast_1d(res)
 
-def f_test(params):
-    if np.ndim(params) >1 :
-        res = np.array([qcirc.F(p, shots=10000) for p in params])
-    else:
-        res = qcirc.F(params, sample_meas=True)
-    print(res)
 
 ### Run optimization        
-Bopt = GPyOpt.methods.BayesianOptimization(f_optim, **BO_ARGS_DEFAULT)    
+Bopt = GPyOpt.methods.BayesianOptimization(f_average, **BO_ARGS_DEFAULT)    
 Bopt.run_optimization(max_iter = NB_ITER, eps = 0)
 
 
 ### Look at results found
 (x_seen, y_seen), (x_exp,y_exp) = Bopt.get_best()
-f_test(x_seen)
-f_test(x_exp)
+print(f_test(x_seen))
+print(f_test(x_exp))
 
 Bopt.plot_convergence()
