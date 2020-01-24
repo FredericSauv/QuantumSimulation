@@ -57,40 +57,38 @@ def append_measurements(circ, measurements):
 def gen_meas_circuits(creator, meas_settings, params):
     """ Return a list of measurable circuit with same parameters but with 
     different measurement settings"""
-    if type(meas_settings) is not list:
-        meas_settings = [meas_settings]
     c_list = [append_measurements(creator(params), m)for m in meas_settings]
     return c_list
 
-def Mean(results):
-    'computes the mean of a list of reqults [0,1]'
-    keys = list(results.keys())
-    running_mean = 0
-    for k in keys:
-        val = results[k]
-        neg_valus = k.count('0')
-        if neg_valus%2 == 0:
-            running_mean+=val
-       
-    return running_mean / sum(list(results.values()))
+def freq_even(results):
+    """ Frequency of +1 eigen values: result 0(1) corresponds to a -1(+1) eigen 
+    state. If even number of 0 then +1
+    """
+    nb_odd, nb_even = 0, 0
+    for k, v in results.items():
+        nb_even += v * (k.count('0')%2 == 0)
+        nb_odd += v * (k.count('0')%2)
+    return nb_even / (nb_odd + nb_even)
 
 def F(experimental_params, flags = False, shots = NB_SHOTS_DEFAULT, 
-      meas_settings = MEAS_DEFAULT, meas_weights = MEAS_WEIGHTS, sample_meas=False):
+      meas_settings = MEAS_DEFAULT, meas_weights = MEAS_WEIGHTS):
     """ Main function: take parameters and return an estimation of the fidelity 
+    Different possible behaviors:
+        +
+        + if shots is an integer assign the same number of shots to each meas setting
+                      a list assign each entry to a measurement setting
+        + if meas_weights is none, returns the frequency associated to each 
+          meas_settings, else returns a dot product of weights.frequencies 
+
     """
-    if sample_meas:
-        proba_sampled = np.abs(meas_weights)/np.sum(np.abs(meas_weights))
-        index_sampled = np.random.choice(range(len(meas_settings)), p=proba_sampled)
-        meas_sampled = meas_settings[index_sampled]
-        circs = gen_meas_circuits(create_circ, [meas_sampled], experimental_params)
-        qjobs = [transpile(c, optimization_level=2) for c in circs]
-    else:
-        circs = gen_meas_circuits(create_circ, meas_settings, experimental_params)
-        qjobs = [transpile(c, optimization_level=2) for c in circs]
+    if type(meas_settings) is not list: meas_settings = [meas_settings]
+    if type(shots) == int: shots = [shots] * len(meas_settings)
+    circs = gen_meas_circuits(create_circ, meas_settings, experimental_params)
+    qjobs = [transpile(c, optimization_level=2) for c in circs]
 
     submitted = []
-    for jj in qjobs:
-        submitted.append(execute(jj, simulator, shots = shots))
+    for jj, ss in zip(qjobs, shots):
+        submitted.append(execute(jj, simulator, shots = ss))
         if flags:
             print('submitted')
 
@@ -105,23 +103,21 @@ def F(experimental_params, flags = False, shots = NB_SHOTS_DEFAULT,
     measurement_results = []
     for j in submitted:
         if flags: print(j.result().get_counts())
-        measurement_results.append(Mean(j.result().get_counts()))
+        measurement_results.append(freq_even(j.result().get_counts()))
 
     #print(measurement_results)
-    if sample_meas:
-        measurement_results = np.array(measurement_results)
-        weight_sampled = meas_weights[index_sampled]
-        Fidelity = measurement_results if weight_sampled >0 else 1 - measurement_results
+    if meas_weights is None:
+        res = measurement_results
     else:
-        Fidelity = np.dot(measurement_results, meas_weights)
+        res = np.dot(measurement_results, meas_weights)
     #print('Fidelity = {}'.format(str(Fidelity)))
-    return np.squeeze(Fidelity)
+    return np.squeeze(res)
 
 
-x_opt = np.array([3., 3., 2., 3., 3., 1.]) * np.pi/2
-x_loc = np.array([1., 0., 4., 0., 3., 0.]) * np.pi/2
-F(x_loc)
-F(x_opt)
-F(x_loc, sample_meas=True)
-F(x_opt, sample_meas=True)
+if __name__ == '__main__':    
+    x_opt = np.array([3., 3., 2., 3., 3., 1.]) * np.pi/2
+    x_loc = np.array([1., 0., 4., 0., 3., 0.]) * np.pi/2
+    print(F(x_loc)) #~0.5
+    print(F(x_opt)) # 1.0
+    
 
