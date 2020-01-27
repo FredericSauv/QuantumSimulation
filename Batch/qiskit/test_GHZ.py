@@ -14,6 +14,9 @@ MEAS_DEFAULT = ['xxx', '1zz', 'z1z', 'zz1', 'yyx', 'xyy', 'yxy']
 MEAS_WEIGHTS = np.array([1., 1., 1., 1., -1., -1., -1.])/4.0
 NB_SHOTS_DEFAULT = 128
 pi = np.pi
+x_opt = np.array([3., 3., 2., 3., 3., 1.]) * np.pi/2
+x_loc = np.array([1., 0., 4., 0., 3., 0.]) * np.pi/2
+
 
 def create_circ(params = np.zeros(6)):
     c = QuantumCircuit(3)
@@ -115,8 +118,7 @@ def F(experimental_params, flags = False, shots = NB_SHOTS_DEFAULT,
 
 
 if __name__ == '__main__':    
-    x_opt = np.array([3., 3., 2., 3., 3., 1.]) * np.pi/2
-    x_loc = np.array([1., 0., 4., 0., 3., 0.]) * np.pi/2
+
     print(F(x_loc)) #~0.5
     print(F(x_opt)) # 1.0
     
