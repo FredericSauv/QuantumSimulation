@@ -7,7 +7,11 @@ Created on Mon Jan 20 10:24:40 2020
 """
 
 from qiskit import QuantumCircuit, ClassicalRegister, execute, Aer, transpile
+from qiskit.providers.aer.noise import NoiseModel
 import numpy as np
+
+
+
 
 simulator = Aer.get_backend('qasm_simulator')
 MEAS_DEFAULT = ['xxx', '1zz', 'z1z', 'zz1', 'yyx', 'xyy', 'yxy']
@@ -16,6 +20,7 @@ NB_SHOTS_DEFAULT = 128
 pi = np.pi
 x_opt = np.array([3., 3., 2., 3., 3., 1.]) * np.pi/2
 x_loc = np.array([1., 0., 4., 0., 3., 0.]) * np.pi/2
+
 
 
 def create_circ(params = np.zeros(6)):
@@ -74,7 +79,8 @@ def freq_even(results):
     return nb_even / (nb_odd + nb_even)
 
 def F(experimental_params, flags = False, shots = NB_SHOTS_DEFAULT, 
-      meas_settings = MEAS_DEFAULT, meas_weights = MEAS_WEIGHTS):
+      meas_settings = MEAS_DEFAULT, meas_weights = MEAS_WEIGHTS, 
+      noise_model = NoiseModel()):
     """ Main function: take parameters and return an estimation of the fidelity 
     Different possible behaviors:
         +
@@ -91,7 +97,7 @@ def F(experimental_params, flags = False, shots = NB_SHOTS_DEFAULT,
 
     submitted = []
     for jj, ss in zip(qjobs, shots):
-        submitted.append(execute(jj, simulator, shots = ss))
+        submitted.append(execute(jj, simulator, shots = ss, noise_model = noise_model))
         if flags:
             print('submitted')
 
