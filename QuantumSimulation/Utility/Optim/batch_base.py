@@ -474,6 +474,8 @@ class BatchBase:
         return res
     
 
+
+
     @classmethod
     def read_res(cls, nameFile = None, allPrefix = 'res_', folderName = None, 
                  returnName = False, replace_func = None):
@@ -567,6 +569,17 @@ class BatchBase:
         for k, v in results:
             groupped_res[v].append(k)
         return groupped_res
+
+
+    
+    @classmethod
+    def get_keys_from_onefile(cls, name_file, path_keys, replace_func = None):
+        """ Get concatenated keys from one res (passed as the name of the file)"""
+        res = ut.eval_from_file(name_file, evfunc = pFunc_base.eval_with_pFunc,
+                                replace_func = replace_func)
+        res_keys = "_".join([ut.extract_from_nested(res, k) for k in path_keys]) 
+        return res_keys
+
 
 
 #==============================================================================
@@ -950,14 +963,6 @@ class BatchBaseParamControl(BatchBase):
         """ Get results from a file. Open a file and evaluate (with eval) its first element"""
         res = ut.eval_from_file(name_file, evfunc = pFunc_base.eval_with_pFunc,replace_func = replace_func)
         return res
-    
-    @classmethod
-    def get_keys_from_onefile(cls, name_file, path_keys, replace_func = None):
-        """ Get concatenated keys from one res (passed as the name of the file)"""
-        res = ut.eval_from_file(name_file, evfunc = pFunc_base.eval_with_pFunc,
-                                replace_func = replace_func)
-        res_keys = "_".join([ut.extract_from_nested(res, k) for k in path_keys]) 
-        return res_keys
 
 def _make_random(string):
     return string.replace("'randomize':False", "'randomize':True")
