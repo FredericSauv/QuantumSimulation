@@ -10,9 +10,9 @@ import numpy.random as rdm
 import scipy.stats as stats
 import scipy.special as spe
 import matplotlib.pylab as plt
-import gpflow
-import torch
-import pyro
+#import gpflow
+#import torch
+#import pyro
 from matplotlib.ticker import MultipleLocator
 
 col_custom = (0.1, 0.2, 0.5)
@@ -262,7 +262,7 @@ def plot_model(model, ideal, sd=None):
     if is_sparse(model) and model.feature.Z.value.shape != model.X.shape:
         ax1.scatter(model.feature.Z.value, np.zeros(model.feature.Z.value.shape),c='r', marker="|")
 
-def plot_extensive(model, ideal, w_acq = 4, save = None, proba = None, best = False, subfig = None, y_bounds = None,y_bounds2 = None, ylabel1 = None, ylabel2=None, xlabel=None):
+def plot_extensive(model, ideal, w_acq = 4, save = None, proba = None, best = False, subfig = None, y_bounds = None,y_bounds2 = None, ylabel1 = None, ylabel2=None, xlabel=None, remove_tick=False, weight_lines = 3, font_size = 20):
     """ Plot for nice figures with acauisition function
     """
     version = 'V7'
@@ -275,15 +275,16 @@ def plot_extensive(model, ideal, w_acq = 4, save = None, proba = None, best = Fa
     y_bounds2 = y_bounds2 if y_bounds2 is not None else [0., 2.]
     
     fig, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'hspace': 0.3,'height_ratios': [3, 1]})
+    
     # First graph plot model with confidence bounds
-    ax1.plot(x_test, a, color = col_custom, linewidth = 0.8, label = r'$model$')
-    ax1.plot(x_test, b, color = col_custom, alpha = 0.5, linewidth = 0.4)
-    ax1.plot(x_test, c, color = col_custom, alpha = 0.5, linewidth = 0.4)
+    ax1.plot(x_test, a, color = col_custom, linewidth = weight_lines, label = r'$model$')
+    ax1.plot(x_test, b, color = col_custom, alpha = 0.5, linewidth = 0.5 * weight_lines)
+    ax1.plot(x_test, c, color = col_custom, alpha = 0.5, linewidth = 0.5 * weight_lines)
     # plot observations
-    ax1.scatter(model.X, model.Y, label = r'$Observations$', marker = 'o', c='red', s=25)
-    ax1.scatter(model.X[-1], model.Y[-1], label = r'$New\;Obs$', marker = 's', c='g', s=80)
+    ax1.scatter(model.X, model.Y, label = r'$Observations$', marker = 'o', c='red', s=35)
     # Add underlying landscape
-    ax1.plot(x_test, p_test, 'r--', label='F')
+    ax1.plot(x_test, p_test, 'r--', label='F', linewidth = weight_lines)
+    ax1.scatter(model.X[-1], model.Y[-1], label = r'$New\;Obs$', marker = 's', c='g', s=100)
     # Add density
     if d is not None:    
         ax1.imshow(np.power(d[np.arange(len(d)-1,-1, -1)]/np.max(d), 1), cmap = 'Blues', 
@@ -296,12 +297,12 @@ def plot_extensive(model, ideal, w_acq = 4, save = None, proba = None, best = Fa
     # Acquisition function
     acq = (a + w_acq * s)
     x_next = x_test[np.argmax(acq)]
-    ax2.plot(x_test, acq, color='r')
-    ax2.vlines(x_next, 0, np.max(acq), colors='r', linestyles='dashed')
+    ax2.plot(x_test, acq, color='r', linewidth = weight_lines)
+    ax2.vlines(x_next, 0, np.max(acq), colors='r', linestyles='dashed', linewidth = weight_lines)
     ax2.xaxis.tick_top()
     ax1.set_xticklabels([], visible= False)
-    ax1.tick_params(axis='both', which='major', labelsize=16)
-    ax2.tick_params(axis='both', which='major', labelsize=16)
+    ax1.tick_params(axis='both', which='major', labelsize=font_size)
+    ax2.tick_params(axis='both', which='major', labelsize=font_size)
     ax2.xaxis.set_minor_locator(MultipleLocator(0.1))
     ax1.xaxis.set_minor_locator(MultipleLocator(0.1))
     ax1.set_yticks(np.arange(0,1.01, 0.2))
@@ -310,21 +311,23 @@ def plot_extensive(model, ideal, w_acq = 4, save = None, proba = None, best = Fa
     #ax2.set_yticklabels([], visible= False)
     ax2.set_yticks(y_bounds2)
     ax2.set_xlim([-0.02, 4.02])
-    
+    if remove_tick:
+        ax1.set_yticklabels([], visible= False)
+        ax2.set_yticklabels([], visible= False)
 
     ## Extra options    
     if subfig is not None:
-        ax1.text(-0.4, 1.1, str(subfig), fontsize=18)
+        ax1.text(-0.4, 1.1, str(subfig), fontsize=font_size)
     if ylabel1 is not None:
-        ax1.set_ylabel(ylabel1, fontsize=18)
+        ax1.set_ylabel(ylabel1, fontsize=font_size+3)
     if ylabel2 is not None:
-        ax2.set_ylabel(ylabel2, fontsize=18)
+        ax2.set_ylabel(ylabel2, fontsize=font_size+3)
     if xlabel is not None:
-        ax2.text(1., -0.8, xlabel, fontsize=18)
+        ax2.text(1., -0.8, xlabel, fontsize=font_size+3)
     #'Control parameter $\theta$'
     x_best = x_test[np.argmax(a)]
     if best:    
-        ax1.vlines(x_best, y_bounds[0],1, colors='g', label = r'$\theta_{best}$')             
+        ax1.vlines(x_best, y_bounds[0],1, colors='g', label = r'$\theta_{best}$', linewidth = weight_lines)             
     if proba is not None:
         pres = proba(x_best)
         print(pres)
