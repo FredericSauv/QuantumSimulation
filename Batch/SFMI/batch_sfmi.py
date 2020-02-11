@@ -46,29 +46,6 @@ class BatchSFMI(BatchBaseParamControl):
         {'maxiter': 100, 'disp': False, 'tol': 1e-8, 'A':0, 'a':0.1, 'b':0.1, 's':1, 't':1/6},
         {'maxiter': 100, 'disp': False, 'tol': 1e-8, 'A':0.01*100, 'a':1, 'b':1, 's':0.602, 't':0.101}]
     OPTIONS_RANDOM = {'maxiter': 100}
-#    # nb_init':10, 'nb_iter':0, 
-#    OPTIONS_BO = {
-#        'type_acq':'EI', # Type of acquisition function
-#        'ARD':False, # if True different correlation length for each of the input dimension
-#        'kernel_type':None, #Will lead to the use of Matern52
-#        'type_lik':None, # Type likelihood
-#        'mo':None, # Multioutput, i.e. has the output a dim>1
-#        'optim_num_anchors':15,
-#        'optim_num_samples':10000,
-#        'acq_weight':4,
-#        'acquisition_weight_lindec':False,
-#        'model_update_interval':1, # how often new observations are incorporated
-#        'hp_update_interval':1, # how often hyperparameters are updated
-#        'num_cores': 1,
-#        'max_iters': 1000, # used when updating the hyper-parameters
-#        'optimize_restarts':3, # for the hyperparameters fitting
-#        'hp_constrains': None,
-#        'switch_to_gauss': None,
-#        'n_meas':1,
-#        'hp_restart':False
-#        }
-    
-
     
     def setup_MOCK_model(self, model_config, test_config):
         """ A simple toy function to test the optimizers 
@@ -122,25 +99,6 @@ class BatchSFMI(BatchBaseParamControl):
         
         return f, f_test, self.x_tgt
     
-#    def _get_nb_meas(self, main_fom):
-#        """ custom (aka not clean) parsing of the fom string"""
-#        n_meas_each = 1
-#        n_meas = 1
-#        n_output = 1
-#        if ('freqAvgOne' in main_fom) and (len(main_fom)>10):
-#            n_meas = int(main_fom[10:])
-#            n_meas_each = self.model.L
-#            n_output = 1
-#        elif ('freqMI' in main_fom) and (len(main_fom)>6):
-#            n_meas = int(main_fom[6:])
-#            n_meas_each = 1
-#            n_output = 1
-#        elif ('freqEachOne' in main_fom) and (len(main_fom)>11):
-#            n_meas = int(main_fom[11:])
-#            n_meas_each = 1
-#            n_output = self.L
-#        return n_meas, n_meas_each, n_output
-#    
     def _setup_nb_meas(self, model_config):    
         main_fom = model_config['fom'][0].split(':')[0]
         n_meas_each = 1

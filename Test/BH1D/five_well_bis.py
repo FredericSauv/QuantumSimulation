@@ -44,30 +44,8 @@ if(False):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 optim_args = {'algo': 'BO2', 'maxiter':200, 'num_cores':4, 'init_obj':100, 'exploit_steps':49,
               'acq':'EI', 'optim_num_anchor':25, 'optim_num_samples':10000}
-
-
-
-
-
-
-
-
-
-
 
 
 import matplotlib.pylab as plt
@@ -76,18 +54,19 @@ cf = model_linear.adiab_cf # txcf
 #[0,0] control function
 f, axarr = plt.subplots(1,1, sharex=True)
 for i in range(16):
-    axarr.plot(cf, en[:, i], color = 'black')
-axarr.set_ylabel(r"$E$", fontsize=16)
-axarr.set_xlabel(r"$\Gamma(t)$", fontsize=16)
+    axarr.plot(cf, en[:, i], color = 'black', linewidth=3)
+axarr.set_ylabel(r"$Energy$", fontsize=23)
+axarr.set_xlabel(r"$\Gamma(t)$", fontsize=23)
 
 diff_01 = en[:, 1] - en[:, 0]
 index_min = np.argmin(diff_01)
 E0_min = en[index_min, 0]
 cf_min = cf[index_min]
 y_min= diff_01[index_min]
-axarr.arrow(cf_min, E0_min, 0, y_min)
-axarr.text(cf_min, E0_min - 1, r"$\Delta = %.2f$"%(y_min), fontsize=12)
-f.savefig('spectrum_LN5_2.pdf', bbox_inches='tight', transparent=True, pad_inches=0)
+#axarr.arrow(cf_min, E0_min, 0, y_min)
+#axarr.text(cf_min, E0_min - 1, r"$\Delta = %.2f$"%(y_min), fontsize=12)
+axarr.tick_params(axis='both', which='major', labelsize=20)
+f.savefig('spectrum_SFMI5.pdf', bbox_inches='tight', transparent=True, pad_inches=0)
 
 
 
