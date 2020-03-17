@@ -699,6 +699,7 @@ class BatchSFMI(BatchBaseParamControl):
         acquisition_weight_lindec = optim_config.get('acquisition_weight_lindec', True)
         model_update_interval= optim_config.get('model_update_interval', 1)
         hp_update_interval= optim_config.get('hp_update_interval', 1)
+        mean_function= optim_config.get('mean_function')
         hp_update_first= optim_config.get('hp_update_first', True)
         num_cores = optim_config.get('num_cores', 1)
         max_iters = optim_config.get('max_iters', 1000) # used when updating the hyper-parameters
@@ -800,7 +801,8 @@ class BatchSFMI(BatchBaseParamControl):
                 'nb_iter_bo':nb_iter_bo,'max_time_bo':max_time_bo, 'nb_polish':nb_polish, 
                 'nb_to_keep':nb_to_keep,'nb_more':nb_more, 'nb_exploit':nb_exploit, 
                 'hp_restart':hp_restart, 'nb_iter_polish':nb_iter_polish,'ARD':ARD, 
-                'kernel':kernel,'kernel_list':kernel_list, 'acq_list':acq_list}
+                'kernel':kernel,'kernel_list':kernel_list, 'acq_list':acq_list,
+                'mean_function':mean_function}
         
         if type_acq == 'EI':
             bo_args.update({'acquisition_type':'EI'})
