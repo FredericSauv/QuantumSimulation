@@ -262,7 +262,7 @@ def plot_model(model, ideal, sd=None):
     if is_sparse(model) and model.feature.Z.value.shape != model.X.shape:
         ax1.scatter(model.feature.Z.value, np.zeros(model.feature.Z.value.shape),c='r', marker="|")
 
-def plot_extensive(model, ideal, w_acq = 4, save = None, proba = None, best = False, subfig = None, y_bounds = None,y_bounds2 = None, ylabel1 = None, ylabel2=None, xlabel=None, remove_tick=False, weight_lines = 3, font_size = 20):
+def plot_extensive(model, ideal, w_acq = 4, save = None, proba = None, best = False, subfig = None, y_bounds = None,y_bounds2 = None, ylabel1 = None, ylabel2=None, xlabel=None, remove_tick=False, weight_lines = 3, font_size = 20, size_circle=35, size_square =100):
     """ Plot for nice figures with acauisition function
     """
     version = 'V7'
@@ -281,16 +281,17 @@ def plot_extensive(model, ideal, w_acq = 4, save = None, proba = None, best = Fa
     ax1.plot(x_test, b, color = col_custom, alpha = 0.5, linewidth = 0.5 * weight_lines)
     ax1.plot(x_test, c, color = col_custom, alpha = 0.5, linewidth = 0.5 * weight_lines)
     # plot observations
-    ax1.scatter(model.X, model.Y, label = r'$Observations$', marker = 'o', c='red', s=35)
+    
     # Add underlying landscape
-    ax1.plot(x_test, p_test, 'r--', label='F', linewidth = weight_lines)
-    ax1.scatter(model.X[-1], model.Y[-1], label = r'$New\;Obs$', marker = 's', c='g', s=100)
-    # Add density
     if d is not None:    
         ax1.imshow(np.power(d[np.arange(len(d)-1,-1, -1)]/np.max(d), 1), cmap = 'Blues', 
                    aspect='auto', interpolation='spline16', extent = (x_test[0],  
                     x_test[-1], d_range[0], d_range[1]), alpha=1)
-
+    ax1.plot(x_test, p_test, 'r--', label='F', linewidth = weight_lines)
+    ax1.scatter(model.X[:-1], model.Y[:-1], label = r'$Observations$', marker = 'o', c='red', s=size_circle, zorder=10)
+    ax1.scatter(model.X[-1], model.Y[-1], label = r'$New\;Obs$', marker = 's', c='g', s=size_square, zorder=11, alpha=0.8)
+    # Add density
+    
     ax1.set_ylim(y_bounds)
     ax1.set_xlim([-0.02, 4.02])
     
