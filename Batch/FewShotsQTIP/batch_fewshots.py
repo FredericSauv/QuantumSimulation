@@ -434,8 +434,10 @@ class BatchFS(BatchBase):
 
         elif(model==5):
             self.n_params = 6
-            if model_config.get('reduce_domain', False):
-                self.domain = [(-np.pi/4, 5 * np.pi/4)]*6
+            if model_config.get('reduce_domain') is not None:
+                eps = model_config.get('reduce_domain')
+                x_sol = np.array([1., 3., 2., 3., 1., 3.]) * np.pi/2
+                self.domain = [(xx - eps * np.pi/2, xx + eps * np.pi/2) for xx in x_sol]
             else:
                 self.domain = [(0, 2 * np.pi)]*6
             self.phi_0 = tensor(zero, zero, zero)
