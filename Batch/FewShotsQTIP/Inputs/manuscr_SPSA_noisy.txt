@@ -1,0 +1,14 @@
+# Model three qubits with a GHZ target. 
+# Include noise to SPSA
+model {'model':5,'noise_type':'SHOT2BASIS','noise_n_meas':1,'_FLAG':'1s'} {'noise_gate':0.05,'_FLAG':'1s_ng5pc'} {'noise_gate':0.1,'_FLAG':'1s_ng10pc'} {'noise_gate':0.01,'_FLAG':'1s_ng1pc'} {'noise_readout':0.1,'_FLAG':'1s_ro10pc'} {'noise_readout':0.01,'_FLAG':'1s_ro1pc'} {'noise_n_meas':10,'_FLAG':'10s'} {'noise_n_meas':10,'noise_gate':0.05,'_FLAG':'10s_ng5pc'} {'noise_n_meas':10,'noise_gate':0.1,'_FLAG':'10s_ng10pc'} {'noise_n_meas':10,'noise_gate':0.01,'_FLAG':'10s_ng1pc'} {'noise_n_meas':10,'noise_readout':0.1,'_FLAG':'10s_ro10pc'} {'noise_n_meas':10,'noise_readout':0.01,'_FLAG':'10s_ro1pc'} {'noise_n_meas':100,'_FLAG':'100s'} {'noise_n_meas':100,'noise_gate':0.05,'_FLAG':'100s_ng5pc'} {'noise_n_meas':100,'noise_gate':0.1,'_FLAG':'100s_ng10pc'} {'noise_n_meas':100,'noise_gate':0.01,'_FLAG':'100s_ng1pc'} {'noise_n_meas':100,'noise_readout':0.1,'_FLAG':'100s_ro10pc'} {'noise_n_meas':100,'noise_readout':0.01,'_FLAG':'100s_ro1pc'} {'noise_n_meas':1000,'_FLAG':'1000s'} {'noise_n_meas':1000,'noise_gate':0.05,'_FLAG':'1000s_ng5pc'} {'noise_n_meas':1000,'noise_gate':0.1,'_FLAG':'1000s_ng10pc'} {'noise_n_meas':1000,'noise_gate':0.01,'_FLAG':'1000s_ng1pc'} {'noise_n_meas':1000,'noise_readout':0.1,'_FLAG':'1000s_ro10pc'} {'noise_n_meas':1000,'noise_readout':0.01,'_FLAG':'1000s_ro1pc'}
+
+optim {'type_optim':'SPSA','aggregate':True,'save_extra':True,'maxfev':200000,'max_time':83000,'_FLAG':'SPSA_1000','nb_iter':1000,'config_spsa':0,'s':0.602,'t':0.101,'b':0.628,'tol':0,'nb_init':0} {'_FLAG':'SPSA_10000','nb_iter':10000} {'_FLAG':'SPSA_100000','nb_iter':100000} {'_FLAG':'SPSA_1000000','nb_iter':1000000} {'_FLAG':'SPSA_10000000','nb_iter':10000000}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
