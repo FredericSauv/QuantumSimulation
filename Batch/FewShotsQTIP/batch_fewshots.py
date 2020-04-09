@@ -19,26 +19,24 @@ logger = logging.get_logger()
 from scipy.special import erfinv
 if '/home/fred/Desktop/WORK/GIT/' in os.getcwd():
     sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/GPyOpt/')
-    sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/QuantumSimulation/')
+    #sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/QuantumSimulation/')
 else:
     sys.path.insert(0, '/home/fred/Desktop/GPyOpt/')
-    sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
+    #sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
 import GPyOpt
 import GPy
 import qutip.control.optimconfig as optimconfig
 import qutip.control.dynamics as dynamics
 from fidcompnoisy import FidCompUnitNoisy
 import scipy.optimize 
+if __name__ == '__main__':
+    sys.path.append('../../../QuantumSimulation')
+else:
+    if '/home/fred/Desktop/WORK/GIT/' in os.getcwd():
+        sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/QuantumSimulation/')
+    else:
+        sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
 from QuantumSimulation.Utility.Optim.batch_base import BatchBase
-# if __name__ == '__main__':
-#     sys.path.append('../../../QuantumSimulation')
-#     from QuantumSimulation.Utility.Optim.batch_base import BatchBase
-# else:
-#     if '/home/fred/Desktop/WORK/GIT/' in os.getcwd():
-#         sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/QuantumSimulation/')
-#     else:
-#         sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
-
 
 
 #import GPy
