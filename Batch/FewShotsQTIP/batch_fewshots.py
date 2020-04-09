@@ -4,36 +4,41 @@ Created on Thu Jul 27 13:51:45 2017
 
 @author: fs
 """
-
 import logging 
 logger = logging.getLogger(__name__)
 
-import sys
-import pdb
+import sys, pdb, time, os
 import numpy as np
 from numpy import inf
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import numpy.random as rdm
-import time
 from qutip import sigmax, sigmaz, sigmay, mesolve, Qobj, Options, identity, tensor, basis, cnot, rx, ry, controlled_gate
 import qutip.logging_utils as logging
 logger = logging.get_logger()
 from scipy.special import erfinv
-sys.path.insert(0, '/home/fred/Desktop/GPyOpt/')
+if '/home/fred/Desktop/WORK/GIT/' in os.getcwd():
+    sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/GPyOpt/')
+    sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/QuantumSimulation/')
+else:
+    sys.path.insert(0, '/home/fred/Desktop/GPyOpt/')
+    sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
 import GPyOpt
 import GPy
 import qutip.control.optimconfig as optimconfig
 import qutip.control.dynamics as dynamics
 from fidcompnoisy import FidCompUnitNoisy
 import scipy.optimize 
+from QuantumSimulation.Utility.Optim.batch_base import BatchBase
+# if __name__ == '__main__':
+#     sys.path.append('../../../QuantumSimulation')
+#     from QuantumSimulation.Utility.Optim.batch_base import BatchBase
+# else:
+#     if '/home/fred/Desktop/WORK/GIT/' in os.getcwd():
+#         sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/QuantumSimulation/')
+#     else:
+#         sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
 
-if __name__ == '__main__':
-    sys.path.append('../../../QuantumSimulation')
-    from QuantumSimulation.Utility.Optim.batch_base import BatchBase
-else:
-    sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
-    from QuantumSimulation.Utility.Optim.batch_base import BatchBase
 
 
 #import GPy
@@ -436,8 +441,12 @@ class BatchFS(BatchBase):
             self.n_params = 6
             if model_config.get('reduce_domain') is not None:
                 eps = model_config.get('reduce_domain')
+                # To avoid x_sol to be systematically in the middle: add rdmness
+                # still ensuring the size is constant
+                left = np.random.uniform(0.2, 1.8)
+                right = 2 - left
                 x_sol = np.array([1., 3., 2., 3., 1., 3.]) * np.pi/2
-                self.domain = [(xx - eps * np.pi/2, xx + eps * np.pi/2) for xx in x_sol]
+                self.domain = [(xx - left * eps * np.pi/2, xx + right * eps * np.pi/2) for xx in x_sol]
             else:
                 self.domain = [(0, 2 * np.pi)]*6
             self.phi_0 = tensor(zero, zero, zero)
@@ -665,7 +674,7 @@ class BatchFS(BatchBase):
         time_start = time.time()
         
         if(type_optim == 'RANDOM'):
-            X_init = np.transpose([np.atleast_1d(np.random.uniform(*d, nb_total)) for d in self.domain])    
+            X_init = np.transpose([rdm.uniform(*d, nb_total) for d in self.domain])     
             Y_init = self.f(X_init)
             if(self.p_tgt is not None):
                 assert len(self.p_tgt) == Y_init.shape[1]
@@ -760,7 +769,7 @@ class BatchFS(BatchBase):
         #with no clipping
         elif(type_optim == 'SPSANC'):
             """ Implementation of SPONTANEOUS PERTURBATION STOCHASTIC 
-            APPROXIMATION """
+            APPROXIMATION NO CLIPPING"""
             config_spsa = optim_config.get('config_spsa',0)
             options = self.OPTIONS_SPSA[config_spsa].copy()
             to_update = {k: optim_config[k] for k, v in options.items() if k in optim_config}
@@ -956,7 +965,8 @@ class BatchFS(BatchBase):
         self.BO.evaluator = self.BO._evaluator_chooser()    
         
 
-    def set_up_BO(self, optim_config, nb_restrict_data = None, restrict_domain = False,             adapt_shots=1,ow_kernel=None,ow_acq_weight=None):
+    def set_up_BO(self, optim_config, nb_restrict_data = None, restrict_domain = False,             
+                  adapt_shots=1,ow_kernel=None,ow_acq_weight=None):
         """ set up the BO object. At the end the model is initiated
         Restrict domain // Implement rules for the adaptation of the number of shots // 
         Deal with the fixing of the constraints and the forcing the use of grad
@@ -1054,6 +1064,7 @@ class BatchFS(BatchBase):
         acquisition_weight_lindec = optim_config.get('acquisition_weight_lindec', True)
         model_update_interval= optim_config.get('model_update_interval', 1)
         hp_update_interval= optim_config.get('hp_update_interval', 1)
+        mean_function= optim_config.get('mean_function')
         num_cores = optim_config.get('num_cores', 1)
         max_iters = optim_config.get('max_iters', 1000) # used when updating the hyper-parameters
         optimize_restarts = optim_config.get('optimize_restarts',5) # for the hyperparameters fitting
@@ -1146,7 +1157,7 @@ class BatchFS(BatchBase):
                 'max_time_bo':max_time_bo, 'nb_polish':nb_polish, 'nb_to_keep':nb_to_keep,
                 'nb_more':nb_more, 'nb_exploit':nb_exploit, 'hp_restart':hp_restart, 
                 'nb_iter_polish':nb_iter_polish,'ARD':ARD, 'kernel':kernel, 
-                'kernel_list':kernel_list, 'acq_list':acq_list}
+                'kernel_list':kernel_list, 'acq_list':acq_list,'mean_function': mean_function}
         
         if type_acq == 'EI':
             bo_args.update({'acquisition_type':'EI'})
