@@ -19,10 +19,8 @@ logger = logging.get_logger()
 from scipy.special import erfinv
 if '/home/fred/Desktop/WORK/GIT/' in os.getcwd():
     sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/GPyOpt/')
-    #sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/QuantumSimulation/')
 else:
     sys.path.insert(0, '/home/fred/Desktop/GPyOpt/')
-    #sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
 import GPyOpt
 import GPy
 import qutip.control.optimconfig as optimconfig
@@ -671,6 +669,7 @@ class BatchFS(BatchBase):
         nb_total = nb_init + nb_iter
         time_start = time.time()
         
+        
         if(type_optim == 'RANDOM'):
             X_init = np.transpose([rdm.uniform(*d, nb_total) for d in self.domain])     
             Y_init = self.f(X_init)
@@ -844,17 +843,23 @@ class BatchFS(BatchBase):
         # 'BO_NOOPTIM' all the x are randomly generated and GP is fitted 
         #              x_best is decided based on this model
         elif 'BO' in type_optim: 
+            self.scaledX = False
             ### Main
             dico_res, self.time_all_bo, self.time_fit_bo, self.time_suggest_bo = {}, 0, 0, 0
             self.set_up_BO(optim_config)
             self.max_time_bo = self.bo_args['max_time_bo'] 
             if(save_extra):
-                    dico_res.update(self.get_info_BO(i_beg = None, i_end = None, tag='init0_'))
+                dico_res.update(self.get_info_BO(i_beg = None, i_end = None, tag='init0_'))
+                if self.scaledX: 
+                    dico_res.update({'init0_scaling_m':self.scaleX_m,
+                                     'init0_scaling_alp':self.scaleX_alp})
             self.BO.run_optimization(max_iter = self.bo_args['nb_iter_bo'], eps = 0, max_time = self.max_time_bo)
             self.update_BO_time()
             if(save_extra):
                 dico_res.update(self.get_info_BO(i_beg = None, i_end = None, tag='explor0_'))
-    
+                if self.scaledX: 
+                        dico_res.update({'explor0_scaling_m':self.scaleX_m,
+                                         'explor0_scaling_alp':self.scaleX_alp})
             nb_exploit = self.bo_args['nb_exploit']
             if nb_exploit>0:
                 self.set_up_BO_exploit()
@@ -863,7 +868,9 @@ class BatchFS(BatchBase):
                 self.update_BO_time()
                 if(save_extra):
                     dico_res.update(self.get_info_BO(i_beg = None, i_end = None, tag='exploit0_'))
-            
+                    if self.scaledX: 
+                        dico_res.update({'exploit0_scaling_m':self.scaleX_m,
+                                         'exploit0_scaling_alp':self.scaleX_alp})
             ### Extra steps
             nb_polish = self.bo_args['nb_polish']
             nb_to_keep = self.bo_args['nb_to_keep']
@@ -887,17 +894,30 @@ class BatchFS(BatchBase):
                 self.set_up_BO(optim_config, nb_restrict_data = keep, restrict_domain = True
                                , adapt_shots=more, ow_kernel= kern, ow_acq_weight = aw)   
                 if(save_extra):
-                    dico_res.update(self.get_info_BO(tag='init' + str(polish_step) + '_'))
+                    tag = 'init' + str(polish_step) + '_'
+                    dico_res.update(self.get_info_BO(tag=tag))
+                    if self.scaledX: 
+                        dico_res.update({tag + 'scaling_m':self.scaleX_m,
+                                         tag + 'scaling_alp':self.scaleX_alp})
                 self.BO.run_optimization(max_iter = new_iter, eps = 0, max_time = self.max_time_bo)
                 if(save_extra):
-                    dico_res.update(self.get_info_BO(tag='explor' + str(polish_step) + '_'))
+                    tag = 'explor' + str(polish_step) + '_'
+                    dico_res.update(self.get_info_BO(tag=tag))
+                    if self.scaledX: 
+                        dico_res.update({tag + 'scaling_m':self.scaleX_m,
+                                         tag + 'scaling_alp':self.scaleX_alp})
+
                 if nb_exploit>0:
                     self.set_up_BO_exploit()
                     logger.info('Exploitation (i.e. ucb with k=0) for {}'.format(nb_exploit))
                     self.BO.run_optimization(nb_exploit, max_time=self.max_time_bo)
                     self.update_BO_time()
                     if(save_extra):
-                        dico_res.update(self.get_info_BO(tag='exploit' + str(polish_step) + '_'))
+                        tag = 'exploit' + str(polish_step) + '_'
+                        dico_res.update(self.get_info_BO(tag=tag))
+                        if self.scaledX: 
+                            dico_res.update({tag + 'scaling_m':self.scaleX_m,
+                                         tag + 'scaling_alp':self.scaleX_alp})
 
                                 
                 X_keep_track = np.r_[(X_keep_track, np.c_[(self.BO.X, polish_step*np.ones(len(self.BO.X)))])]
@@ -916,7 +936,9 @@ class BatchFS(BatchBase):
                         'time_suggest':self.time_suggest_bo, 'fid_zero_field':self.fid_zero,'phi_0':   
                         Qobj2array(self.phi_0), 'phi_tgt':Qobj2array(self.phi_tgt), 'polish_step':polish_step, 
                         'nb_polish':nb_polish, 'nb_more':nb_more, 'nb_to_keep':nb_to_keep})
-                         
+            if self.scaledX: 
+                dico_res.update({'scaling_m':self.scaleX_m, 
+                                 'scaling_alp':self.scaleX_alp})
         cum_time = time.time() - time_start        
         dico_res.update({'time_all':cum_time,'x_tgt':self.x_tgt, 'call_f':self.call_f, 
                          'call_f_single':self.call_f_single,'call_f_test': self.call_f_test})
@@ -1044,8 +1066,6 @@ class BatchFS(BatchBase):
 
 
 
-
-
     def get_BO_args(self, optim_config):
         nb_init = optim_config['nb_init']
         nb_iter = optim_config['nb_iter']
@@ -1068,6 +1088,7 @@ class BatchFS(BatchBase):
         optimize_restarts = optim_config.get('optimize_restarts',5) # for the hyperparameters fitting
         self.hp_constrains = optim_config.get('hp_constrains', None)
         switch_to_gauss = optim_config.get('switch_to_gauss', None)
+        scaledX = optim_config.get('scaledX', False)
         n_meas = self.n_meas
                 
         # some redundancy here 
@@ -1106,27 +1127,44 @@ class BatchFS(BatchBase):
             nb_init_bo = nb_init
             nb_iter_bo = nb_iter
             max_time_bo = optim_config.get('max_time', 23.5*3600)
-            
+        
+        if scaledX:
+            # X' = (X + m)/alpha such that X' in [-1, 1]
+            self.scaledX = True
+            self.scaleX_m = np.array([- (d[0] + d[1]) / 2 for d in self.domain])
+            self.scaleX_alp = np.array([(d[1] - d[0]) / 2 for d in self.domain])
+            #scaleX = lambda x : np.array([(xx + self.scaleX_m)/self.scaleX_alp for xx in x])
+            self.descaleX = lambda x : np.array([xx * self.scaleX_alp - self.scaleX_m for xx in np.atleast_2d(x)])
+            domain_scaled =np.array([(np.array(d) + m) / a for d, m, a 
+                            in zip(self.domain, self.scaleX_m, self.scaleX_alp)])            
+            assert np.allclose(domain_scaled, [-1., 1.]), "Scaling of the domain failed"
+        else:
+            self.scaledX = False
+            self.descaleX = lambda x : x
+            domain_scaled = self.domain
+        bounds_bo = [{'name': str(i), 'type': 'continuous', 'domain': [d[0], d[1]]} 
+                         for i, d in enumerate(domain_scaled)]
+
+
         f_fact = self.n_meas if type_lik == 'binomial' else 1
         if is_acq_target:
-            f_wrap = lambda x: self.f(x, N=self.n_meas, aggregate=aggregate) 
+            f_wrap = lambda x: self.f(self.descaleX(x), N=self.n_meas, aggregate=aggregate) 
             self.warp_f = lambda x:x
         else: 
-            f_wrap = lambda x: 1-self.f(x, N=self.n_meas, aggregate=aggregate)
+            f_wrap = lambda x: 1-self.f(self.descaleX(x), N=self.n_meas, aggregate=aggregate)
             self.warp_f = lambda x:1-x
         f_BO = lambda x: f_fact * f_wrap(x)
         
         
         if optim_config.get('X_init', None) is not None:
-            X_init = optim_config['X_init']            
+            X_init = self.descaleX(optim_config['X_init'])            
         else:
-            X_init = np.transpose([rdm.uniform(*d, nb_init_bo) for d in self.domain]) 
+            X_init = np.transpose([rdm.uniform(*d, nb_init_bo) for d in domain_scaled]) 
 
         if optim_config.get('Y_init', None) is not None:
             Y_init = optim_config['Y_init']
         else:
             Y_init = f_BO(X_init)
-        bounds_bo = [{'name': str(i), 'type': 'continuous', 'domain': d} for i, d in enumerate(self.domain)]
 
         if 'polish' not in optim_config:
             nb_polish = 0
@@ -1202,6 +1240,10 @@ class BatchFS(BatchBase):
     
     def get_info_BO(self, i_beg = None, i_end = None, tag=''):
         """ Extract domain""" 
+        if self.scaledX:
+            ftest = lambda x: self.f_test(self.descaleX(x))
+        else:
+            ftest = self.f_test
         res = {}
         (x_seen, _), (x_exp,_) = self.BO.get_best()
         x = self.BO.X
@@ -1228,13 +1270,13 @@ class BatchFS(BatchBase):
         res[tag + 'norm_std'] = norm_std
         res[tag + 'bo_acq'] = bo_acq
         res[tag + 'bo_acq_std'] = bo_acq_std
-        res[tag + 'bo_tgt'] = self.f_test(x)
+        res[tag + 'bo_tgt'] = ftest(x)
         res[tag + 'bo_args'] = np.copy(self.BO.model.model.param_array), 
         res[tag + 'bo_args_names'] = self.BO.model.model.parameter_names()
         res[tag + 'domain'] = np.array([d['domain'] for d in self.BO.domain])
         res[tag + 'x_exp'] = x_exp
         res[tag + 'x_seen'] = x_seen
-        res[tag + 'test'] = self.f_test(x_exp)
+        res[tag + 'test'] = ftest(x_exp)
         res[tag + 'nb_s'] = self.n_meas
         res[tag + 'call_f'] = self.call_f
         res[tag + 'call_f_single'] = self.call_f_single
@@ -1517,12 +1559,11 @@ if __name__ == '__main__':
     # Just for testing purposes
     testing = False 
     if(testing):
-        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/test_adapt_Exp.txt', output_folder = '_tmp/_configs/_test_adapt_Exp', update_rules = True)
+        BatchFS.parse_and_save_meta_config(input_file = '_tmp/_Inputs/test_mf.txt', output_folder = '_tmp/_configs/_test_mf', update_rules = True)
         #batch = BatchFS(['_tmp/_configs/_mo5gradient/config_res'+str(i)+'.txt' for i in range(100)])
-        batch = BatchFS('_tmp/_configs/_test_adapt_Exp/config_res1.txt')
-        batch.run_procedures(save_freq = 1)
-        batch = BatchFS('_tmp/_configs/_test_sampling1/config_res1.txt')
-        batch.run_procedures(save_freq = 1)
+        for i in list(range(3,5)):
+            batch = BatchFS('_tmp/_configs/_test_mf/config_res{}.txt'.format(i))
+            batch.run_procedures(save_freq = 1)
 
         #pulse_grape = np.array([[-1.50799058, -1.76929128, -4.21880315,  0.5965928 ], [-0.56623617,  2.2411309 ,  5.        , -2.8472072 ]])        
         #keys_collect = [['config', 'model', '_FLAG'], ['config', 'optim', '_FLAG']]
