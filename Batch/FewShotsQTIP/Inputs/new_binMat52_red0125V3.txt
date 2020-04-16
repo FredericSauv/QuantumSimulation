@@ -1,0 +1,14 @@
+# Model three qubits with a GHZ target. 
+# First use of ARD=True
+model {'model':5,'noise_type':'SHOT2BASIS','noise_n_meas':1,'_FLAG':'1s','reduce_domain':0.125} {'model':5,'noise_type':'SHOT2BASIS','noise_n_meas':2,'_FLAG':'2s'} {'model':5,'noise_type':'SHOT2BASIS','noise_n_meas':3,'_FLAG':'3s'} {'noise_n_meas':5,'_FLAG':'5s'} {'noise_n_meas':10,'_FLAG':'10s'} {'noise_n_meas':25,'_FLAG':'25s'} {'noise_n_meas':50,'_FLAG':'50s'} {'noise_n_meas':100,'_FLAG':'100s'} {'noise_n_meas':500,'_FLAG':'500s'} {'noise_n_meas':1000,'_FLAG':'1000s'} {'noise_n_meas':10000,'_FLAG':'10000s'} {'noise_n_meas':100000,'_FLAG':'100000s'}
+
+optim {'save_extra':True,'nb_anchors':5,'type_acq':'LCB_target_oneq','acq_nbq':3,'type_lik':'binomial','nb_init':50,'nb_iter':100,'num_cores':4,'mo':{'output_dim':7,'rank':0,'missing':False,'kappa_fix':True},'optimize_restarts':1,'max_iters':500,'acquisition_weight_lindec':False,'acq_weight':4,'model_update_interval':1,'hp_update_interval':5,'_FLAG':'lcb1q_bin_100','exploitation_steps':10,'hp_constrains':{'Mat52.lengthscale':[0.01,5.],'Mat52.variance':[0.01,5.0],'white.variance':[1e-09,0.1.]},'ARD':False,'scaledX':True} {'nb_iter':50,'_FLAG':'lcb1q_bin_50'} {'nb_iter':200,'_FLAG':'lcb1q_bin_200'} {'nb_iter':300,'_FLAG':'lcb1q_bin_300'} {'nb_iter':400,'_FLAG':'lcb1q_bin_400'} {'nb_iter':500,'_FLAG':'lcb1q_bin_500'} {'nb_iter':1,'_FLAG':'lcb1q_bin_1'} {'nb_iter':10,'_FLAG':'lcb1q_bin_10'} {'nb_iter':25,'_FLAG':'lcb1q_bin_25'} {'nb_iter':0,'exploitation_steps':0,'_FLAG':'lcb1q_bin_0'} {'aggregate':True,'type_lik':None,'mo':None,'type_acq':'LCB','nb_iter':100,'_FLAG':'gaussian_100'} {'aggregate':True,'type_lik':None,'mo':None,'type_acq':'LCB','nb_iter':50,'_FLAG':'gaussian_50'} {'aggregate':True,'type_lik':None,'mo':None,'type_acq':'LCB','nb_iter':200,'_FLAG':'gaussian_200'} {'aggregate':True,'type_lik':None,'mo':None,'type_acq':'LCB','nb_iter':500,'_FLAG':'gaussian_500'} {'aggregate':True,'type_lik':None,'mo':None,'type_acq':'LCB','nb_iter':400,'_FLAG':'gaussian_400'} {'aggregate':True,'type_lik':None,'mo':None,'type_acq':'LCB','nb_iter':300,'_FLAG':'gaussian_300'} {'aggregate':True,'type_lik':None,'mo':None,'type_acq':'LCB','nb_iter':1,'_FLAG':'gaussian_1'} {'aggregate':True,'type_lik':None,'mo':None,'type_acq':'LCB','nb_iter':25,'_FLAG':'gaussian_25'} {'aggregate':True,'type_lik':None,'mo':None,'type_acq':'LCB','nb_iter':10,'_FLAG':'gaussian_10'} {'aggregate':True,'type_lik':None,'mo':None,'type_acq':'LCB','nb_iter':0,'exploitation_steps':0,'_FLAG':'gaussian_0'} {'type_optim':'RANDOM','aggregate':True,'nb_iter':0,'_FLAG':'gaussian_00'}
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
