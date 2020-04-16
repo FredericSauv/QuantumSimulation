@@ -4,8 +4,7 @@ Created on Thu Jul 27 13:51:45 2017
 
 @author: fs
 """
-
-import logging, time, sys, pdb, copy
+import logging, time, sys, pdb, copy, os
 logger = logging.getLogger(__name__)
 
 import numpy as np
@@ -13,21 +12,22 @@ from numpy import inf
 import numpy.random as rdm
 from scipy.special import erfinv
 import scipy.optimize 
-
-sys.path.insert(0, '/home/fred/Desktop/GPyOpt/')
+if '/home/fred/Desktop/WORK/GIT/' in os.getcwd():
+    sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/GPyOpt/')
+else:
+    sys.path.insert(0, '/home/fred/Desktop/GPyOpt/')
 import GPyOpt
 import GPy
-#import BH1D
-
 
 if __name__ == '__main__':
     sys.path.append('../../../QuantumSimulation')
 else:
-    sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
+    if '/home/fred/Desktop/WORK/GIT/' in os.getcwd():
+        sys.path.insert(0, '/home/fred/Desktop/WORK/GIT/QuantumSimulation/')
+    else:
+        sys.path.append('/home/fred/OneDrive/Quantum/Projects/Python/Dynamic1.3/QuantumSimulation/')
 from QuantumSimulation.Utility.Optim.batch_base import BatchBaseParamControl
 from QuantumSimulation.ToyModels.BH import BH1D
-
-
 
 class BatchSFMI(BatchBaseParamControl):
     """Implement few shots simulations for batching.
@@ -177,6 +177,24 @@ class BatchSFMI(BatchBaseParamControl):
         self._setup_nb_meas(model_config)
 
         self.domain = self.model.params_bounds
+        domain_array = np.array(self.domain)
+        if model_config.get('reduce_domain') is not None:
+            x_sol_dict = {5:np.array([0.5613, 0.8307, 0.8238, 0.9371, 0.9083])}
+            x_sol = x_sol_dict.get(self.n_params)
+            if (x_sol is None):
+                logger.info('Domain has not been restricted as no known solution for {} params'.format(self.n_params))
+            else:               
+                # For each parameter the size of its domain is 2*eps around 
+                # x_sol (with some randomness introduced s.t. x_sol not exactly
+                # in the middel) within the initial domain
+                eps = model_config.get('reduce_domain')
+                right = [x + np.random.uniform(0.75, 1.25) * eps for x in x_sol]
+                right = np.clip(right, domain_array[:,0], domain_array[:,1])
+                left = right - 2 * eps
+                left = np.clip(left, domain_array[:,0], domain_array[:,1])
+                self.domain = np.stack((left, right), axis=1)
+        else:
+            self.domain = self.domain
         self.phi_0 = self.model.state_init
         self.phi_tgt = self.model.state_tgt
         self.T = self.model.T        
@@ -425,19 +443,26 @@ class BatchSFMI(BatchBaseParamControl):
             #              x_best is decided based on this model
             elif 'BO' in type_optim: 
                 ### Main
+                self.scaledX = False
                 self.time_all_bo, self.time_fit_bo, self.time_suggest_bo = 0, 0, 0
                 self.set_up_BO(optim_config)
                 self.max_time_bo = self.bo_args['max_time_bo']  #Need to be done here as it shouldnot been reset
     
                 if(self.save_extra_bo):
                     dico_res.update(tag='init0_', save_full = self.save_extra_full)
+                    if self.scaledX: 
+                        dico_res.update({'init0_scaling_m':self.scaleX_m,
+                                         'init0_scaling_alp':self.scaleX_alp})
+                        
                 self.BO.run_optimization(max_iter = self.bo_args['nb_iter_bo'], 
                                          eps = 0, max_time = self.max_time_bo)
                 self.update_BO_time()
                 if(self.save_extra_bo):
                     dico_res.update(self.get_info_BO(i_beg = None, i_end = None, 
                                 tag='explor0_', save_full = self.save_extra_full))
-        
+                    if self.scaledX: 
+                        dico_res.update({'explor0_scaling_m':self.scaleX_m,
+                                         'explor0_scaling_alp':self.scaleX_alp})
                 nb_exploit = self.bo_args['nb_exploit']
                 if nb_exploit>0:
                     self.set_up_BO_exploit()
@@ -446,7 +471,9 @@ class BatchSFMI(BatchBaseParamControl):
                     self.update_BO_time()
                     if(self.save_extra_bo):
                         dico_res.update(self.get_info_BO(tag='exploit0_', save_full = self.save_extra_full))
-                
+                        if self.scaledX: 
+                            dico_res.update({'exploit0_scaling_m':self.scaleX_m,
+                                         'exploit0_scaling_alp':self.scaleX_alp})
                 ### Extra steps
                 nb_polish = self.bo_args['nb_polish']
                 nb_to_keep = self.bo_args['nb_to_keep']
@@ -474,20 +501,34 @@ class BatchSFMI(BatchBaseParamControl):
                     #change BO
                     self.set_up_BO(optim_config, nb_restrict_data = keep, restrict_domain = True, adapt_shots=more, ow_kernel= kern, ow_acq_weight = aw)   
                     if(self.save_extra_bo):
-                        dico_res.update(self.get_info_BO(save_full = self.save_extra_full))
+                        tag = 'init' + str(polish_step) + '_'
+                        dico_res.update(self.get_info_BO(tag=tag, 
+                                                         save_full = self.save_extra_full))
+                        if self.scaledX: 
+                            dico_res.update({tag + 'scaling_m':self.scaleX_m,
+                                             tag + 'scaling_alp':self.scaleX_alp})
+        
                     self.BO.run_optimization(max_iter = new_iter, eps = 0, max_time = self.max_time_bo)
                     if(self.save_extra_bo):
-                        dico_res.update(self.get_info_BO(tag='explor' + str(polish_step) + '_', 
+                        tag = 'explor' + str(polish_step) + '_'
+                        dico_res.update(self.get_info_BO(tag=tag, 
                                                          save_full = self.save_extra_full))
+                        if self.scaledX: 
+                            dico_res.update({tag + 'scaling_m':self.scaleX_m,
+                                             tag + 'scaling_alp':self.scaleX_alp})
                     if nb_exploit>0:
                         self.set_up_BO_exploit()
                         logger.info('Exploitation (i.e. ucb with k=0) for {}'.format(nb_exploit))
                         self.BO.run_optimization(nb_exploit, max_time=self.max_time_bo)
                         self.update_BO_time()
                         if(self.save_extra_bo):
-                            dico_res.update(self.get_info_BO(tag='exploit' + str(polish_step) + '_', 
+                            tag = 'exploit' + str(polish_step) + '_'
+                            dico_res.update(self.get_info_BO(tag=tag, 
                                                              save_full = self.save_extra_full))
-    
+                            if self.scaledX: 
+                                dico_res.update({tag + 'scaling_m':self.scaleX_m,
+                                                 tag + 'scaling_alp':self.scaleX_alp})
+ 
                                     
                     X_keep_track = np.r_[(X_keep_track, np.c_[(self.BO.X, polish_step*np.ones(len(self.BO.X)))])]
                     if(self.BO.Y.shape[1] == (Y_keep_track.shape[1]-1)):
@@ -709,7 +750,9 @@ class BatchSFMI(BatchBaseParamControl):
         # distinction between n_meas and n_meas_total in some cases
         n_meas = self.n_meas if hasattr(self, 'n_meas') else 1
         n_meas_total = self.n_meas_total if hasattr(self, 'n_meas_total') else n_meas
-                
+        
+        scaledX = optim_config.get('scaledX', False)
+        
         # some redundancy here 
         aggregate = optim_config.get('aggregate', 'no')
         aggregate = 'fid' if(aggregate == True) else aggregate
@@ -745,12 +788,29 @@ class BatchSFMI(BatchBaseParamControl):
             nb_iter_bo = nb_iter
             max_time_bo = optim_config.get('max_time', 23.5*3600)
         
+        if scaledX:
+            # X' = (X + m)/alpha such that X' in [-1, 1]
+            self.scaledX = True
+            self.scaleX_m = np.array([- (d[0] + d[1]) / 2 for d in self.domain])
+            self.scaleX_alp = np.array([(d[1] - d[0]) / 2 for d in self.domain])
+            #scaleX = lambda x : np.array([(xx + self.scaleX_m)/self.scaleX_alp for xx in x])
+            self.descaleX = lambda x : np.array([xx * self.scaleX_alp - self.scaleX_m for xx in np.atleast_2d(x)])
+            domain_scaled =np.array([(np.array(d) + m) / a for d, m, a 
+                            in zip(self.domain, self.scaleX_m, self.scaleX_alp)])            
+            assert np.allclose(domain_scaled, [-1., 1.]), "Scaling of the domain failed"
+        else:
+            self.scaledX = False
+            self.descaleX = lambda x : x
+            domain_scaled = self.domain
+        bounds_bo = [{'name': str(i), 'type': 'continuous', 'domain': [d[0], d[1]]} 
+                         for i, d in enumerate(domain_scaled)]
+
 
         if(type_lik=='binomial'):
-            f_BO = lambda x, **kw : (n_meas_total * self.f(x, **kw)).astype(int)
+            f_BO = lambda x, **kw : (n_meas_total * self.f(self.descaleX(x), **kw)).astype(int)
             #f_fact = n_meas 
         else:
-            f_BO = self.f            
+            f_BO = lambda x: self.f(self.descaleX(x))            
             #f_fact = 1
         
         #if is_acq_target:
@@ -766,13 +826,13 @@ class BatchSFMI(BatchBaseParamControl):
         if optim_config.get('X_init', None) is not None:
             X_init = optim_config['X_init']            
         else:
-            X_init = np.transpose([rdm.uniform(*d, nb_init_bo) for d in self.domain]) 
+            X_init = np.transpose([rdm.uniform(*d, nb_init_bo) for d in domain_scaled]) 
 
         if optim_config.get('Y_init', None) is not None:
             Y_init = optim_config['Y_init']
         else:
             Y_init = f_BO(X_init)
-        bounds_bo = [{'name': str(i), 'type': 'continuous', 'domain': d} for i, d in enumerate(self.domain)]
+        
 
         if 'polish' not in optim_config:
             nb_polish = 0
@@ -851,6 +911,10 @@ class BatchSFMI(BatchBaseParamControl):
         """ Extract information about the optimization performed so far:
             best according to the model, etc.""" 
         res = {}
+        if self.scaledX:
+            ftest = lambda x: self.f_test(self.descaleX(x))
+        else:
+            ftest = self.f_test
         (x_seen, _), (x_exp,_) = self.BO.get_best()
         x = self.BO.X
         y = self.BO.Y
@@ -877,7 +941,7 @@ class BatchSFMI(BatchBaseParamControl):
         res[tag + 'bo_acq'] = bo_acq
         res[tag + 'bo_acq_std'] = bo_acq_std
         if(save_full):
-            res[tag + 'bo_tgt'] = self.f_test(x)
+            res[tag + 'bo_tgt'] = ftest(x)
         else:
             res[tag + 'bo_tgt'] = None
         res[tag + 'bo_args'] = np.copy(self.BO.model.model.param_array), 
@@ -885,7 +949,7 @@ class BatchSFMI(BatchBaseParamControl):
         res[tag + 'domain'] = np.array([d['domain'] for d in self.BO.domain])
         res[tag + 'x_exp'] = x_exp
         res[tag + 'x_seen'] = x_seen
-        res[tag + 'test'] = self.f_test(x_exp)
+        res[tag + 'test'] = ftest(x_exp)
         res[tag + 'nb_s'] = self.n_meas
         res[tag + 'call_f'] = self.call_f
         res[tag + 'call_f_single'] = self.call_f_single
