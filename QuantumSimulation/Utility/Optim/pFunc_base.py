@@ -1060,6 +1060,44 @@ class InterpCub(pFunc_base):
         """ use the interpolator"""
         res = self._interpolator(X)
         return res
+    
+class InterpFourth(pFunc_base):
+    """ Quadratic interpolator as implemented in scipy
+    TODO: generalize to other interpolators
+    """     
+    _LIST_PARAMETERS = ['F', 'T']
+    _NB_ELEM_PER_PARAMS = ['a', 'a']
+
+    def _check_integrity(self):
+        """ Additional feature: build and maintain the underlying scipy interpolator"""
+        pFunc_base._check_integrity(self)
+        F, T = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
+        self._interpolator = interp1d(x=T, y=F, kind=4, fill_value="extrapolate")
+        
+    @ut.extend_dim_method(0, True)
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """ use the interpolator"""
+        res = self._interpolator(X)
+        return res
+    
+class InterpFifth(pFunc_base):
+    """ Quadratic interpolator as implemented in scipy
+    TODO: generalize to other interpolators
+    """     
+    _LIST_PARAMETERS = ['F', 'T']
+    _NB_ELEM_PER_PARAMS = ['a', 'a']
+
+    def _check_integrity(self):
+        """ Additional feature: build and maintain the underlying scipy interpolator"""
+        pFunc_base._check_integrity(self)
+        F, T = (self._get_one_param(p) for p in self._LIST_PARAMETERS)
+        self._interpolator = interp1d(x=T, y=F, kind=5, fill_value="extrapolate")
+        
+    @ut.extend_dim_method(0, True)
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """ use the interpolator"""
+        res = self._interpolator(X)
+        return res
 
 class ExpRampFunc(pFunc_base):
     """ params : {'a' = ymax, 'T':T, 'l' = l}

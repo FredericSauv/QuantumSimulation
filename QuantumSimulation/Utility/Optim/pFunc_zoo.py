@@ -50,6 +50,8 @@ class pFunc_factory():
     _LIST_CUSTOM_FUNC['PWL'] = ('StepFunction', pf.PWL, [['Tstep'],['T', 'nb_steps']], ['F', 'F0', 'T0', 'TLast'])
     _LIST_CUSTOM_FUNC['InterpQuad'] = ('IntegratorQuadratic', pf.InterpQuad, [['Tstep'],['T', 'nb_steps']], ['F', 'F0', 'T0', 'TLast','FLast'])
     _LIST_CUSTOM_FUNC['InterpCub'] = ('IntegratorCub', pf.InterpCub, [['Tstep'],['T', 'nb_steps']], ['F', 'F0', 'T0', 'TLast','FLast'])    
+    _LIST_CUSTOM_FUNC['InterpFourth'] = ('IntegratorFourth', pf.InterpFourth, [['Tstep'],['T', 'nb_steps']], ['F', 'F0', 'T0', 'TLast','FLast'])    
+    _LIST_CUSTOM_FUNC['InterpFifth'] = ('IntegratorFifth', pf.InterpFifth, [['Tstep'],['T', 'nb_steps']], ['F', 'F0', 'T0', 'TLast','FLast'])    
     _LIST_CUSTOM_FUNC['FourierFunc'] = ('Fourier basis', pf.FourierFunc, [['Om'], ['T', 'nb_H']],['c0', 'phi', 'A', 'B', 'freq_type'])
     _LIST_CUSTOM_FUNC['ConstantFunc'] = ('Constant function', pf.ConstantFunc, [['c0']],[])
     _LIST_CUSTOM_FUNC['OwriterYWrap']= ('wrapper: overwritting', pf.OwriterYWrap, ['ow'], [])
@@ -83,6 +85,8 @@ class pFunc_factory():
     _LIST_SHORTCUT['omsinfour'] = ("{'name_func':'FourierFunc','T':T,'freq_type':'CRAB_FREEOM','B_bounds':%s,'nb_H':%s}", ['B_bounds', 'nb_H'])
     _LIST_SHORTCUT['pwc'] = ("{'name_func':'StepFunc','T':T,'F_bounds':%s,'nb_steps':%s}", ['F_bounds', 'nb_steps'])
     _LIST_SHORTCUT['pwl'] = ("{'name_func':'PWL','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}", ['F_bounds', 'nb_steps'])
+    _LIST_SHORTCUT['intfourth'] = ("{'name_func':'InterpFourth','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}", ['F_bounds', 'nb_steps'])
+    _LIST_SHORTCUT['intfifth'] = ("{'name_func':'InterpFifth','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}", ['F_bounds', 'nb_steps'])
     _LIST_SHORTCUT['intcub'] = ("{'name_func':'InterpCub','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}", ['F_bounds', 'nb_steps'])
     _LIST_SHORTCUT['intquad'] = ("{'name_func':'InterpQuad','TLast':T,'T0':0,'F0':0,'FLast':1,'F_bounds':%s,'nb_steps':%s}", ['F_bounds', 'nb_steps'])
     _LIST_SHORTCUT['pwlr'] = ("{'name_func':'PWL','TLast':T,'T0':0,'F0':1,'FLast':0,'F_bounds':%s,'nb_steps':%s}", ['F_bounds', 'nb_steps'])
@@ -580,7 +584,7 @@ class pFunc_factory():
         name_func = dico_fun['name_func']
         if(name_func == 'StepFunc'):
             func = self._build_custom_StepFunc(dico_fun)
-        elif(name_func in ['PWL','InterpQuad', 'InterpCub']):
+        elif(name_func in ['PWL','InterpQuad', 'InterpCub', 'InterpFourth', 'InterpFifth']):
             func = self._build_custom_PWL(name_func, dico_fun)
         elif(name_func == 'FourierFunc'):
             func = self._build_custom_FourierFunc(dico_fun)
