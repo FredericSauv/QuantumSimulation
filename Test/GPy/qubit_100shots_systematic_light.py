@@ -224,12 +224,12 @@ list_to_simul_f0_50 = [(c_model(m=50), 50, f0_perfect, 16, 84, 'f0_bin50')]
 model, nb_measures, model_test, nb_init, nb_iter, name = list_to_simul_f1_1[0]
 #nb_init = 30
 #nb_iter = 70
-x_init, y_init = get_init(nb_init, model, eps=0.3)
+x_init, y_init = get_init(nb_init, model)
 x_plotting = np.linspace(0, np.pi, 200)
 y_plotting = model_test(x_plotting)
 # plt.scatter(x_init, y_init)
 #BEFORE OPTIM
-test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='gaussian', 
+test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='binomial', 
         X_init = x_init, Y_init = y_init, cost = model, cost_test = model_test, 
         x_range = (0, np.pi), nb_iter = 0, nb_measures = nb_measures)
 
@@ -244,7 +244,7 @@ plt.legend(loc = 4)
 
 
 #OPTIM
-test, test_exp, BO = do_one_BO_optim(type_acq = 'LCB', type_gp='binomial', 
+test, test_exp, BO = do_one_BO_optim(type_acq = 'EI', type_gp='binomial', 
         X_init = x_init, Y_init = y_init, cost = model, cost_test = model_test, 
         x_range = (0, np.pi), nb_iter = nb_iter, nb_measures = nb_measures)
 
