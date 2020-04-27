@@ -11,6 +11,18 @@ rc('text', usetex=True)
 from scipy import optimize as optim
 #import pdb
 
+
+
+# TODO:
+# a. compute effective Hamiltonian under polychromatic drive
+# b. analytic formulas for PHO with bichromatic drive
+# c. Verif with more oscillators the heating rate
+# d. optim 6/6 really closer IN PROGRESS
+# e. optim 4/4 really closer IN PROGRESS
+# f. Analytic formulas A(t) cos(w * t) 
+# g. Can it be deal with Adiabatic treatment of Heff (cf. Viktor)
+# h. be able to simulate GPE and see
+# i. 
 class param_ho:
     """ Parametric harmonic oscillator
     d^2/dt^2 x(t) + w0^2 * (1 + f(t)) x(t) = 0
@@ -135,8 +147,22 @@ def rough_exp(data, time, strobo_ind):
     print(exp_rough)
     return exp_rough
 
+#Optimization
+def costfunction_nH(params, model, time, x0=0.05, dx0=0):
+    n = int(len(params)/2)
+    model.drive_a[1:1+n] = params[0:n]
+    model.drive_p[1:1+n] = params[n:2*n]
+    ev = model.evol_to_t(t=time, x0=x0, dx0=dx0, energy = True)
+    return ev[2]
 
-if __name__ == '__main__':
+def costfunction_multi_nHh(params, list_pho, time, x0=0.05, dx0=0):
+    en_list = [costfunction_nH(params, pho, time, x0, dx0) for pho in list_pho]
+    en_total = np.sum(en_list, 0)
+    cost = np.max(en_total)
+    print(cost/1000000)
+    return cost
+
+if False:
     w_int = 10
     t_fin = 20.2
     t_strobo = 2 * np.pi / w_int 
@@ -144,7 +170,11 @@ if __name__ == '__main__':
     time = np.arange(0, t_fin, t_strobo / nt_period)
     strobo_ind = np.arange(int(nt_period/6), len(time), nt_period)
 
-    ####### Look at the dynamics with a monochromatic driving
+    
+    # ------------- #
+    # STUDY 1
+    # Dynamic with a monochromatic drive
+    # ------------- #
     drive_f = [2*w_int]
     drive_a = [0.2]
     drive_p = [0]
@@ -160,7 +190,10 @@ if __name__ == '__main__':
     plt.plot(time, np.exp(exp_rough * time) * toplot[strobo_ind][0])
             
     
-    ####### 3 harmonics 
+    # ------------- #
+    # STUDY 2
+    # Play with one pho with 3 harmonics
+    # ------------- #
     drive_f = [20, 19.5, 20.5]
     drive_a = [0.2, 0.25, 0.25]
     drive_p = [0, -0.65, 0.65]
@@ -172,8 +205,12 @@ if __name__ == '__main__':
     plt.scatter(time[strobo_ind], toplot[strobo_ind])
 
 
-
-    ####### Optimization 3 harmonics (1 fixed on resonance )
+    # ------------- #
+    # STUDY 3
+    # Optim of one pho drive on resonance and 3 harmonics
+    # Doesn't work when run on longer periods (i.e. T = 40)
+    # 
+    # ------------- #
     #Model initial
     drive_f = [20, 19.5, 20.5]
     drive_a = [0.2, 0., 0.]
@@ -182,8 +219,7 @@ if __name__ == '__main__':
     evol_ref = pho_ref.evol_to_t(t=time, x0=0.05, dx0 = 0, energy = True)
     cf_ref = np.max(evol_ref[2])
     
-    
-    #Cost function to minimize
+    #Optimization
     def costfunction_3h(params, model, time, x0=0.05, dx0=0):
         model.drive_a[1:3] = params[0:2]
         model.drive_p[1:3] = params[2:4]
@@ -201,7 +237,7 @@ if __name__ == '__main__':
     drive_a = [0.2, 3.38324186e-03, -2.98121466e-01]
     drive_p = [0., 3.93031947e+00, 4.64560877]
     pho_optim = param_ho(drive_f, drive_a, drive_p, m=1, w0 = w_int)
-    evol_optim = pho_optim.evol_to_t(t=time, x0=0.05, dx0 = 0, energy = True)
+    evol_optim = pho_optim.evol_to_t(t=time, x0=-0.55, dx0 = 0, energy = True)
     cf_optim = np.max(evol_optim[2])
     print(cf_optim)
     
@@ -222,57 +258,293 @@ if __name__ == '__main__':
     drive_ref = pho_ref.get_drive(time)
     plt.plot(time, drive_ref)
     plt.plot(time, drive_optim)
-    
-    
-    
+
     
     # Try with another init
     
     
     
-#    def optim_drive(self, omega, h_ref = 10.0, noise_h0 = 0.1, nb_repeat = 10, 
-#                          s = 40, nb_period = 1, verbose = False, return_to_init = False):
-#        """ For a given h_0 and omega how close do we get to href after one cycle
-#        i.e. return h(T) - href
-#        
-#        Parameters
-#        ----------
-#        h_ref: float 
-#            the ideal initial height
-#        omega: float
-#            driving of the miror
-#        noise_h0: float
-#            noise in the preparation of the initial position 
-#            x0_i ~ N(h_ref, noise_h0^2)
-#        nb_repeat: int
-#            number of repetition of the experiment
-#        nb_period: int
-#            number of period (T) after which we measure the height of the
-#            atom - with T = s * 2 Pi / omega
-#        s: int
-#            number of cycles
-#        verbose: bool
-#            if True print the result
-#        return_to_init: <boolean>
-#            instead of using h_ref as the reference we use the real h_0 
-#            (i.e. h_ref + some noise)
-#        
-#        Output
-#        ------
-#            res 
-#            = 1/nb_repeat * sum |h(nb_period * T) - h_ref|
-#            shape = (len(nb_period), )
-#        """
-#        big_omega = omega / s
-#        T_ref =  2 * np.pi/ big_omega
-#        T = nb_period * T_ref if(np.ndim(nb_period) == 0) else T_ref * np.array(nb_period)
-#        noise = np.random.normal(0.0, scale = noise_h0, size = nb_repeat)
-#        if(return_to_init):
-#            res = [np.abs(self.simulate_to_t(omega, T, h_ref*(1+n))[0] - h_ref*(1+n)) for n in noise]
-#        else:
-#            res = [np.abs(self.simulate_to_t(omega, T, h_ref*(1+n))[0] - h_ref) for n in noise]
-#        avg = np.average(res, axis = 0)
-#        if(verbose):
-#            print(avg)
-#        return avg
+    # ------------- #
+    # STUDY 4
+    # Optim 3 phos and 3 harmonics
+    # ------------- #
+    
+    #Model initial
+    drive_f = [20, 19.5, 20.5]
+    drive_a = [0.2, 0., 0.]
+    drive_p = [0., 0., 0.]
+    phoS_ref = [param_ho(drive_f, drive_a, drive_p, m=1, w0 = w/2) for w in drive_f]
+    evolS_ref = [p.evol_to_t(t=time, x0 = 0.05, dx0 = 0, energy=True) for p in phoS_ref]
+    
+    en_main = evolS_ref[0][2]
+    en_total = np.sum([e[2] for e in evolS_ref], 0)
+    plt.plot(time, en_main)
+    plt.plot(time, en_total)    
+    cfS_ref = np.max(en_total)
+    print(cfS_ref)
+    
+    
+
+
+    bounds = [(-0.5, 0.5), (-0.5, 0.5), (0, 2 * np.pi),(0, 2*np.pi)]
+    f_multi = functools.partial(costfunction_multi_nHh, list_pho=phoS_ref,time=time)
+    de_optim = optim.differential_evolution(f_multi, bounds)
+
+    #Optimized 2 extra harmonics
+    drive_f = [20, 19.5, 20.5]
+    drive_a = [0.2,  0.14569457, -0.15768501]
+    drive_p = [0., 3.82713268,  4.80639031]
+    phoS_optim = [param_ho(drive_f, drive_a, drive_p, m=1, w0 = w/2) for w in drive_f]
+    evol_optim = [p.evol_to_t(t=time, x0=0.05, dx0 = 0, energy = True) for p in phoS_optim]
+
+    for er, eo, d in zip(evolS_ref, evol_optim, drive_f):
+        plt.figure()
+        plt.plot(time, er[2]/1000000)
+        plt.plot(time, eo[2]/1000000)
+        plt.title(str(d))
+        
+    plt.figure()
+    plt.bar(drive_f, drive_a, width=0.1)
+
+
+    # ------------- #
+    # STUDY 5
+    # Optim 5 phos and 5 harmonics
+    # ------------- #
+    
+    #Model initial
+    drive_f = [20, 19.5, 20.5, 19, 21]
+    drive_a = [0.2, 0., 0., 0., 0.]
+    drive_p = [0., 0., 0., 0., 0.]
+    phoS5_ref = [param_ho(drive_f, drive_a, drive_p, m=1, w0 = w/2) for w in drive_f]
+    evolS5_ref = [p.evol_to_t(t=time, x0 = 0.05, dx0 = 0, energy=True) for p in phoS5_ref]
+    
+    en_main5 = evolS5_ref[0][2]
+    en_total5 = np.sum([e[2] for e in evolS5_ref], 0)
+    plt.plot(time, en_main5)
+    plt.plot(time, en_total5)    
+    cfS5_ref = np.max(en_total5)
+    print(cfS5_ref)
+    
+    bounds = [(-0.5, 0.5), (-0.5, 0.5),(-0.5, 0.5), (-0.5, 0.5), (0, 2 * np.pi),(0, 2*np.pi),(0, 2 * np.pi),(0, 2*np.pi)]
+    f_multi5 = functools.partial(costfunction_multi_nHh, list_pho=phoS5_ref,time=time)
+    de_optim = optim.differential_evolution(f_multi5, bounds)
+
+
+    #Optimized 2 extra harmonics
+    drive_a = [0.2,  -0.11739779,  0.14380509, -0.11182537,  0.11389427]
+    drive_p = [0., 1.42137842, 1.11651784,  0.56955107,  2.08057063]
+    phoS_optim5 = [param_ho(drive_f, drive_a, drive_p, m=1, w0 = w/2) for w in drive_f]
+    evol_optim5 = [p.evol_to_t(t=time, x0=0.05, dx0 = 0, energy = True) for p in phoS_optim5]
+
+    for er, eo, d in zip(evolS5_ref, evol_optim5, drive_f):
+        plt.figure()
+        plt.plot(time, er[2]/1000000)
+        plt.plot(time, eo[2]/1000000)
+        plt.title(str(d))
+        
+    plt.figure()
+    plt.bar(drive_f, drive_a, width=0.1)
+    
+    
+    drive_optim = phoS_optim5[0].get_drive(time)
+    drive_ref = pho_ref.get_drive(time)
+    plt.plot(time, drive_ref)
+    plt.plot(time, drive_optim)
+#    #Optimized
+#    drive_f = [20, 19.5, 20.5]
+#    drive_a = [0.2, 3.38324186e-03, -2.98121466e-01]
+#    drive_p = [0., 3.93031947e+00, 4.64560877]
+#    pho_optim = param_ho(drive_f, drive_a, drive_p, m=1, w0 = w_int)
+#    evol_optim = pho_optim.evol_to_t(t=time, x0=0.25, dx0 = 0, energy = True)
+#    cf_optim = np.max(evol_optim[2])
+#    print(cf_optim)
 #    
+#    toplot_optim = evol_optim[2]
+#    plt.plot(time, toplot_optim)
+#    plt.scatter(time[strobo_ind], toplot_optim[strobo_ind])
+#    
+#    toplot_ref = evol_ref[2]
+#    plt.plot(time, toplot_ref)
+#    plt.scatter(time[strobo_ind], toplot_ref[strobo_ind])
+#    plt.xlim([0,10.])
+#    plt.ylim([0,1000])
+#    
+#    
+#    # New questiojns
+#    # Plot dynamically the drive
+#    drive_optim = pho_optim.get_drive(time)
+#    drive_ref = pho_ref.get_drive(time)
+#    plt.plot(time, drive_ref)
+#    plt.plot(time, drive_optim)
+#
+#    
+#    # Try with another init
+#    
+#    
+#    
+##    
+#
+#    
+##    
+
+
+    # ------------- #
+    # STUDY 9
+    # Optim 5 phos and 5 harmonics
+    # ------------- #
+    
+    #Model initial
+    drive_f = [20, 19.75, 20.25, 19.5, 20.5]
+    drive_a = [0.2, 0., 0., 0., 0.]
+    drive_p = [0., 0., 0., 0., 0.]
+    phoS5_ref = [param_ho(drive_f, drive_a, drive_p, m=1, w0 = w/2) for w in drive_f]
+    evolS5_ref = [p.evol_to_t(t=time, x0 = 0.05, dx0 = 0, energy=True) for p in phoS5_ref]
+    
+    en_main5 = evolS5_ref[0][2]
+    en_total5 = np.sum([e[2] for e in evolS5_ref], 0)
+    plt.plot(time, en_main5)
+    plt.plot(time, en_total5)    
+    cfS5_ref = np.max(en_total5)
+    print(cfS5_ref)
+    0.71043255
+    bounds = [(-0.5, 0.5), (-0.5, 0.5),(-0.5, 0.5), (-0.5, 0.5), (0, 2 * np.pi),(0, 2*np.pi),(0, 2 * np.pi),(0, 2*np.pi)]
+    f_multi5 = functools.partial(costfunction_multi_nHh, list_pho=phoS5_ref,time=time)
+    de_optim5 = optim.differential_evolution(f_multi5, bounds)
+
+
+    #Optimized 2 extra harmonics
+    drive_a = [0.2,  -0.1556261 ,  0.15473844,  0.11013981, -0.10598907]
+    drive_p = [0., 2.61750446, 0.71043255,  4.91648615,  4.29076598]
+    phoS_optim5 = [param_ho(drive_f, drive_a, drive_p, m=1, w0 = w/2) for w in drive_f]
+    evol_optim5 = [p.evol_to_t(t=time, x0=0.05, dx0 = 0, energy = True) for p in phoS_optim5]
+
+    en_main5 = evolS5_ref[0][2]
+    en_total5 = np.sum([e[2] for e in evolS5_ref], 0)
+    plt.plot(time, en_main5)
+    plt.plot(time, en_total5)    
+    cfS5_ref = np.max(en_total5)
+    print(cfS5_ref)
+
+    for er, eo, d in zip(evolS5_ref, evol_optim5, drive_f):
+        plt.figure()
+        plt.plot(time, er[2]/1000000)
+        plt.plot(time, eo[2]/1000000)
+        plt.title(str(d))
+        plt.ylim([0, 0.001])
+        
+    plt.figure()
+    plt.bar(drive_f, drive_a, width=0.1)
+    
+    drive_optim = phoS_optim5[0].get_drive(time)
+    drive_ref = phoS5_ref[0].get_drive(time)
+    plt.figure()
+    plt.plot(time, drive_ref)
+    plt.plot(time, drive_optim)
+    
+    # ------------- #
+    # STUDY 10
+    # Optim 5 phos and 5 harmonics
+    # ------------- #
+    
+    #Model initial
+    drive_f = [20, 19.95, 20.05, 19.9, 20.1]
+    drive_a = [0.2, 0., 0., 0., 0.]
+    drive_p = [0., 0., 0., 0., 0.]
+    phoS5_ref = [param_ho(drive_f, drive_a, drive_p, m=1, w0 = w/2) for w in drive_f]
+    evolS5_ref = [p.evol_to_t(t=time, x0 = 0.05, dx0 = 0, energy=True) for p in phoS5_ref]
+    
+    en_main5 = evolS5_ref[0][2]
+    en_total5 = np.sum([e[2] for e in evolS5_ref], 0)
+    plt.plot(time, en_main5)
+    plt.plot(time, en_total5)    
+    cfS5_ref = np.max(en_total5)
+    print(cfS5_ref)
+    0.71043255
+    bounds = [(-0.5, 0.5), (-0.5, 0.5),(-0.5, 0.5), (-0.5, 0.5), (0, 2 * np.pi),(0, 2*np.pi),(0, 2 * np.pi),(0, 2*np.pi)]
+    f_multi5 = functools.partial(costfunction_multi_nHh, list_pho=phoS5_ref,time=time)
+    de_optim5 = optim.differential_evolution(f_multi5, bounds)
+
+
+    #Optimized 2 extra harmonics
+    drive_a = [0.2,  -0.1556261 ,  0.15473844,  0.11013981, -0.10598907]
+    drive_p = [0., 2.61750446, 0.71043255,  4.91648615,  4.29076598]
+    phoS_optim5 = [param_ho(drive_f, drive_a, drive_p, m=1, w0 = w/2) for w in drive_f]
+    evol_optim5 = [p.evol_to_t(t=time, x0=0.05, dx0 = 0, energy = True) for p in phoS_optim5]
+
+    for er, eo, d in zip(evolS5_ref, evol_optim5, drive_f):
+        plt.figure()
+        plt.plot(time, er[2]/1000000)
+        plt.plot(time, eo[2]/1000000)
+        plt.title(str(d))
+        plt.ylim([0, 0.001])
+        
+    plt.figure()
+    plt.bar(drive_f, drive_a, width=0.1)
+    
+    drive_optim = phoS_optim5[0].get_drive(time)
+    drive_ref = phoS5_ref[0].get_drive(time)
+    plt.figure()
+    plt.plot(time, drive_ref)
+    plt.plot(time, drive_optim)
+        
+    
+
+import scipy.integrate as integrate
+drive = lambda x: phoS_optim5[0].get_drive(time)
+H0_f = lambda x: 
+
+result = integrate.quad(lambda x: special.jv(2.5,x), 0, 4.5)
+
+
+
+
+
+
+
+
+ # ------------- #
+    # STUDY 10
+    # Optim 5 phos and 5 harmonics
+    # ------------- #
+    
+    #Model initial
+    drive_f = [20, 19.95, 20.05, 19.9, 20.1, 20.15,19.85]
+    drive_a = [0.2, 0., 0., 0., 0., 0., 0.]
+    drive_p = [0., 0., 0., 0., 0., 0., 0.]
+    phoS5_ref = [param_ho(drive_f, drive_a, drive_p, m=1, w0 = w/2) for w in drive_f]
+    evolS5_ref = [p.evol_to_t(t=time, x0 = 0.05, dx0 = 0, energy=True) for p in phoS5_ref]
+    
+    en_main5 = evolS5_ref[0][2]
+    en_total5 = np.sum([e[2] for e in evolS5_ref], 0)
+    plt.plot(time, en_main5)
+    plt.plot(time, en_total5)    
+    cfS5_ref = np.max(en_total5)
+    print(cfS5_ref)
+    bounds = [(-0.5, 0.5), (-0.5, 0.5),(-0.5, 0.5), (-0.5, 0.5),(-0.5, 0.5), (-0.5, 0.5), (0, 2 * np.pi),(0, 2*np.pi), (0, 2 * np.pi),(0, 2*np.pi),(0, 2 * np.pi),(0, 2*np.pi)]
+    f_multi5 = functools.partial(costfunction_multi_nHh, list_pho=phoS5_ref,time=time)
+    de_optim5 = optim.differential_evolution(f_multi5, bounds)
+
+
+    #Optimized 2 extra harmonics
+    drive_a = [0.2,  -0.1556261 ,  0.15473844,  0.11013981, -0.10598907]
+    drive_p = [0., 2.61750446, 0.71043255,  4.91648615,  4.29076598]
+    phoS_optim5 = [param_ho(drive_f, drive_a, drive_p, m=1, w0 = w/2) for w in drive_f]
+    evol_optim5 = [p.evol_to_t(t=time, x0=0.05, dx0 = 0, energy = True) for p in phoS_optim5]
+
+    for er, eo, d in zip(evolS5_ref, evol_optim5, drive_f):
+        plt.figure()
+        plt.plot(time, er[2]/1000000)
+        plt.plot(time, eo[2]/1000000)
+        plt.title(str(d))
+        plt.ylim([0, 0.001])
+        
+    plt.figure()
+    plt.bar(drive_f, drive_a, width=0.1)
+    
+    drive_optim = phoS_optim5[0].get_drive(time)
+    drive_ref = phoS5_ref[0].get_drive(time)
+    plt.figure()
+    plt.plot(time, drive_ref)
+    plt.plot(time, drive_optim)
+        
