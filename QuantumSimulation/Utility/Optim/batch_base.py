@@ -562,8 +562,16 @@ class BatchBase:
             key
         """
         listFileName = ut.findFile(nameFile, allPrefix, folderName)
-        results = [(f, cls.get_keys_from_onefile(f, key_path, replace_func = replace_func))
-                    for f in listFileName]
+        
+        
+        
+        results = [(f, cls.get_keys_from_onefile_safe(f, key_path, 
+                       replace_func = replace_func)) for f in listFileName]
+        
+        nb_errors = np.sum([r[1] is None for r in results])
+        if (nb_errors > 0):
+            print("{} files couldn't be read".format(nb_errors))
+            results = [r for r in results if r[1] is not None]
         
         groupped_res = collections.defaultdict(list)
         for k, v in results:
@@ -577,10 +585,23 @@ class BatchBase:
         """ Get concatenated keys from one res (passed as the name of the file)"""
         res = ut.eval_from_file(name_file, evfunc = pFunc_base.eval_with_pFunc,
                                 replace_func = replace_func)
+        
+        
+        
         res_keys = "_".join([ut.extract_from_nested(res, k) for k in path_keys]) 
         return res_keys
 
-
+    @classmethod
+    def get_keys_from_onefile_safe(cls, name_file, path_keys, replace_func = None):
+        """ Get concatenated keys from one res (passed as the name of the file)"""
+        try:
+            res = ut.eval_from_file(name_file, evfunc = pFunc_base.eval_with_pFunc,
+                                    replace_func = replace_func)
+            res_keys = "_".join([ut.extract_from_nested(res, k) for k in path_keys]) 
+        except:
+            print("Error reading file {}".format(name_file))
+            res_keys = None
+        return res_keys
 
 #==============================================================================
 #                   BATCH CLASS
