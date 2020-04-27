@@ -1061,7 +1061,7 @@ def real_with_test(x):
 
 def _get_some_res(field, list_res, criterion = np.max):
     """ Pick some res amongst a list of res according to some criterion"""
-    field_values = np.array([np.atleast_1d(res.get(field))[0] for res in list_res])
+    field_values = np.array([np.atleast_1d(np.squeeze(res.get(field)))[0] for res in list_res])
     mask_none = np.array([f is not None for f in field_values])
     f_mask = field_values[mask_none]
     if (len(f_mask) > 0):
