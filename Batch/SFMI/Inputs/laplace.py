@@ -130,8 +130,10 @@ class Laplace(LatentFunctionInference):
         K = kern.K(X)
         if mean_function is not None:
             mu = mean_function.f(X)
+            #Ki_mu = np.dot(np.linalg.inv(K),mu)
         else:
             mu=None
+            #Ki_mu=0
         #Find mode
         if self.bad_fhat or self.first_run:
             Ki_f_init = np.zeros_like(Y)
@@ -145,8 +147,9 @@ class Laplace(LatentFunctionInference):
 
         #Compute hessian and other variables at mode
         log_marginal, woodbury_inv, dL_dK, dL_dthetaL = self.mode_computations(f_hat, Ki_fhat, K, Y, likelihood, kern, Y_metadata)
-
+        
         self._previous_Ki_fhat = Ki_fhat.copy()
+        Ki_fhat = Ki_fhat
         return Posterior(woodbury_vector=Ki_fhat, woodbury_inv=woodbury_inv, K=K), log_marginal, {'dL_dK':dL_dK, 'dL_dthetaL':dL_dthetaL,'dL_dm':None}
 
     def rasm_mode(self, K, Y, likelihood, Ki_f_init, Y_metadata=None, *args, **kwargs):
@@ -170,17 +173,18 @@ class Laplace(LatentFunctionInference):
         """
         if kwargs.get('mu', None) is not None:
             mu = kwargs.get('mu', 0)
-            Ki_mu = np.dot(np.linalg.inv(K),mu)
+            #print(np.dot(np.linalg.inv(K),mu))
+            #Ki_mu = 0
         else:
             mu=0
-            Ki_mu=0
+            #Ki_mu=0
         Ki_f = Ki_f_init.copy()
         f = np.dot(K, Ki_f)
         
 
         #define the objective function (to be maximised)
-        def obj(Ki_f, f):
-            ll = -0.5*np.sum(np.dot(Ki_f.T, f)) + np.sum(likelihood.logpdf(f, Y, Y_metadata=Y_metadata))
+        def obj(Ki_f, f,mu=0):
+            ll = -0.5*np.sum(np.dot(Ki_f.T, (f-mu))) + np.sum(likelihood.logpdf(f, Y, Y_metadata=Y_metadata))
             if np.isnan(ll):
                 import ipdb; ipdb.set_trace()  # XXX BREAKPOINT
                 return -np.inf
@@ -200,9 +204,9 @@ class Laplace(LatentFunctionInference):
 
             W_f = W*f
 
-            b = W_f + grad + Ki_mu# R+W p46 line 6.
+            b = W_f + grad # R+W p46 line 6.
             W12BiW12, _, _, _ = self._compute_B_statistics(K, W, likelihood.log_concave, *args, **kwargs)
-            W12BiW12Kb = np.dot(W12BiW12, np.dot(K, b))
+            W12BiW12Kb = np.dot(W12BiW12, np.dot(K, b)+mu) #FS
 
             #Work out the DIRECTION that we want to move in, but don't choose the stepsize yet
             full_step_Ki_f = b - W12BiW12Kb # full_step_Ki_f = a in R&W p46 line 6.
@@ -211,16 +215,16 @@ class Laplace(LatentFunctionInference):
             #define an objective for the line search (minimize this one)
             def inner_obj(step_size):
                 Ki_f_trial = Ki_f + step_size*dKi_f
-                f_trial = np.dot(K, Ki_f_trial)
-                return -obj(Ki_f_trial - Ki_mu, f_trial-mu)
+                f_trial = np.dot(K, Ki_f_trial) + mu
+                return -obj(Ki_f_trial, f_trial, mu)
 
             #use scipy for the line search, the compute new values of f, Ki_f
             step = optimize.brent(inner_obj, tol=1e-4, maxiter=12)
             Ki_f_new = Ki_f + step*dKi_f
-            f_new = np.dot(K, Ki_f_new)
+            f_new = np.dot(K, Ki_f_new) + mu
             #print "new {} vs old {}".format(obj(Ki_f_new, f_new), obj(Ki_f, f))
-            old_obj = obj(Ki_f- Ki_mu, f-mu)
-            new_obj = obj(Ki_f_new- Ki_mu, f_new-mu)
+            old_obj = obj(Ki_f, f, mu)
+            new_obj = obj(Ki_f_new, f_new, mu)
             if new_obj < old_obj:
                 raise ValueError("Shouldn't happen, brent optimization failing, {}".format(new_obj-old_obj))
             difference = np.abs(new_obj - old_obj)
@@ -238,6 +242,9 @@ class Laplace(LatentFunctionInference):
             self.bad_fhat = False
             warnings.warn("f_hat now fine again. difference: {}, iteration: {} out of max {}".format(difference, iteration, self._mode_finding_max_iter))
 
+
+        #FS
+        #Ki_f = Ki_f - Ki_mu
         return f, Ki_f
 
     def mode_computations(self, f_hat, Ki_f, K, Y, likelihood, kern, Y_metadata):
