@@ -4,7 +4,7 @@ model {'L':5,'Nb':5,'reduce_domain':0.25,'sps':None,'mu':0,'dt':0.01,'flag_inter
 
 test_update {'fom':['f2t2','freqAvgOne:neg','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False,'gradients':True}
 
-optim {'type_optim':'BO','save_extra_bo':True,'nb_anchors':5,'type_acq':'LCB','type_lik':None,'nb_init':100,'nb_iter':500,'num_cores':4,'optimize_restarts':1,'acquisition_weight_lindec':False,'acq_weight':5,'exploitation_steps':100,'_FLAG':'BO_LCB5_500','hp_update_interval':10} {'nb_iter':1000,'_FLAG':'BO_LCB5_1000'} {'nb_iter':1500,'_FLAG':'BO_LCB5_1500'} {'nb_iter':10,'_FLAG':'BO_LCB5_10'} {'nb_iter':100,'_FLAG':'BO_LCB5_100'} {'nb_iter':250,'_FLAG':'BO_LCB5_250'} {'nb_iter':250,'_FLAG':'BO_LCB5_50'}
+optim {'type_optim':'BO','save_extra_bo':True,'nb_anchors':5,'type_acq':'LCB','type_lik':None,'nb_init':100,'nb_iter':500,'num_cores':4,'optimize_restarts':1,'acquisition_weight_lindec':False,'acq_weight':5,'exploitation_steps':100,'_FLAG':'BO_LCB5_500','hp_update_interval':10} {'nb_iter':1000,'_FLAG':'BO_LCB5_1000'} {'nb_iter':1500,'_FLAG':'BO_LCB5_1500'} {'nb_iter':10,'_FLAG':'BO_LCB5_10'} {'nb_iter':100,'_FLAG':'BO_LCB5_100'} {'nb_iter':250,'_FLAG':'BO_LCB5_250'} {'nb_iter':50,'_FLAG':'BO_LCB5_50'}
 
 _RDM_RUNS 30
 _RDM_FIXSEED True
