@@ -1,0 +1,19 @@
+# New simulations of a 1D BH chain
+# Play with the number of params
+model {'L':5,'reduce_domain':0.25,'Nb':5,'sps':None,'mu':0,'dt':0.01,'flag_intermediate':False,'setup':'1','state_init':'GS_i','state_tgt':'GS_inf','fom_print':True,'track_callf':True,'track_freq':100,'track_callf_index':1,'track_freq':25,'ctl_shortcut':'owbds01_intcub5','fom':['freqAvgOne1:neg','f2t2:neg','freqAvgOne:neg'],'T':7.704767601530182,'_FLAG':'freqAvgOne1'} {'fom':['freqAvgOne3:neg','f2t2:neg','freqAvgOne:neg'],'_FLAG':'freqAvgOne3'} {'fom':['freqAvgOne5:neg','f2t2:neg','freqAvgOne:neg'],'_FLAG':'freqAvgOne5'} {'fom':['freqAvgOne10:neg','f2t2:neg','freqAvgOne:neg'],'_FLAG':'freqAvgOne10'} {'fom':['freqAvgOne25:neg','f2t2:neg','freqAvgOne:neg'],'_FLAG':'freqAvgOne25'}
+
+test_update {'fom':['f2t2','freqAvgOne:neg','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False,'gradients':True}
+
+optim {'type_optim':'SPSA','maxfev':2000000,'max_time':83000,'_FLAG':'SPSA_100','maxiter':100,'config_spsa':0,'s':0.602,'t':0.101,'a':0.15,'b':0.03,'tol':0} {'_FLAG':'SPSA_500','maxiter':500} {'_FLAG':'SPSA_200','maxiter':200} {'_FLAG':'SPSA_300','maxiter':300} {'_FLAG':'SPSA_400','maxiter':400} {'_FLAG':'SPSA_1000','maxiter':1000} {'_FLAG':'SPSA_5000','maxiter':5000} {'_FLAG':'SPSA_10000','maxiter':10000} {'_FLAG':'SPSA_50000','maxiter':50000}
+
+
+
+_RDM_RUNS 30
+_RDM_FIXSEED True
+_OUT_PREFIX 'res'
+_OUT_FOLDER 'Output/Test'
+_OUT_COUNTER 0
+_OUT_NAME None
+_OUT_STORE_CONFIG True
+_MP_FLAG False
+
