@@ -4,7 +4,7 @@ model {'L':5,'reduce_domain':0.25,'Nb':5,'sps':None,'mu':0,'dt':0.01,'flag_inter
 
 test_update {'fom':['f2t2','freqAvgOne:neg','f2t2','fluence','smooth','energyinf','f2t2:neg_fluence:0.0001_smooth:0.05'],'track_callf':False,'gradients':True}
 
-optim {'type_optim':'SPSA','maxfev':2000000,'max_time':83000,'_FLAG':'SPSA_100','maxiter':100,'config_spsa':0,'s':0.602,'t':0.101,'a':0.5,'b':0.05,'tol':0} {'_FLAG':'SPSA_500','maxiter':500} {'_FLAG':'SPSA_200','maxiter':200} {'_FLAG':'SPSA_300','maxiter':300} {'_FLAG':'SPSA_400','maxiter':400} {'_FLAG':'SPSA_1000','maxiter':1000} {'_FLAG':'SPSA_5000,'maxiter':5000} {'_FLAG':'SPSA_10000','maxiter':10000} {'_FLAG':'SPSA_50000','maxiter':50000}
+optim {'type_optim':'SPSA','maxfev':2000000,'max_time':83000,'_FLAG':'SPSA_100','maxiter':100,'config_spsa':0,'s':0.602,'t':0.101,'a':0.5,'b':0.05,'tol':0} {'_FLAG':'SPSA_500','maxiter':500} {'_FLAG':'SPSA_200','maxiter':200} {'_FLAG':'SPSA_300','maxiter':300} {'_FLAG':'SPSA_400','maxiter':400} {'_FLAG':'SPSA_1000','maxiter':1000} {'_FLAG':'SPSA_5000','maxiter':5000} {'_FLAG':'SPSA_10000','maxiter':10000} {'_FLAG':'SPSA_50000','maxiter':50000}
 
 
 
