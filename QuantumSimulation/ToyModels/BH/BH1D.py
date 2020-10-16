@@ -264,6 +264,7 @@ class BH1D(mod.pcModel_qspin):
             else:
                 self._index_basis_allone = -1
             self._index_basis_oneone = [np.where([b[i] == 1. for b in self._basis_fock])[0] for i in range(L)]
+
         
     def _create_wag_to_bloch_matrix(self):
         """ Transformation from wagnier function to bloch functions
@@ -280,6 +281,76 @@ class BH1D(mod.pcModel_qspin):
             for a in range(w):
                 l.append(self._w2b[n])
         return l
+
+    def EvolutionOccupNumber(self, time = None, H = None, state_init = None, **args_evolve):
+        """ Evolve the state according to SE and project it on the instantaneous 
+        eigen vectors of the hamiltonian. 
+        
+        Note
+        ----
+        * Pop_adiab is stored by default and state_t is returned 
+        """
+        time = self.t_array if time is None else time 
+        state_t = self.EvolutionSE(time = time, H = H, state_init = state_init, **args_evolve)
+
+        n_t = len(time)
+        if  state_t.shape[1] != n_t:
+            logger.exception("EvolutionPopAdiab: state_t has dim {0}".format(state_t.shape))
+        
+        occup_evol = [[op.expt_value(state_t[:, t]) for op in self._op_n_sites] for t in range(n_t)]
+        return occup_evol
+    
+    def EvolutionOccupVariance(self, time = None, H = None, state_init = None, **args_evolve):
+        """ Evolve the state according to SE and project it on the instantaneous 
+        eigen vectors of the hamiltonian. 
+        
+        Note
+        ----
+        * Pop_adiab is stored by default and state_t is returned 
+        """
+        time = self.t_array if time is None else time 
+        state_t = self.EvolutionSE(time = time, H = H, state_init = state_init, **args_evolve)
+
+        n_t = len(time)
+        if  state_t.shape[1] != n_t:
+            logger.exception("EvolutionPopAdiab: state_t has dim {0}".format(state_t.shape))
+        
+        occup_evol = [[mod.pcModel_qspin._h_variance(op, state_t[:, t]) for op in self._op_n_sites] for t in range(n_t)]
+        return occup_evol
+    
+    def EvolutionProbaN(self, time = None, H = None, state_init = None, **args_evolve):
+        """ Evolve the state according to SE and project it on the instantaneous 
+        eigen vectors of the hamiltonian. 
+        
+        Note
+        ----
+        * Pop_adiab is stored by default and state_t is returned 
+        """
+        if not(hasattr(self, '_index_basis_nparticle')):
+            self._index_basis_nparticle = [
+                [np.where([b[i] == j for b in self._basis_fock])[0] for i in range(self.L)] 
+                for j in range(self.Nb)] # Particle/site
+            
+            def proba_Nparticles(V):
+                """ probas associated to seing exactly one particle per site 
+                i.e. p = [p(n_1 = 1),...,p(n_1 = L)]"""
+                proba = np.square(np.abs(np.squeeze(V)))
+                proba_Npart = np.array([[np.sum(proba[self._index_basis_nparticle[npart][nsite]]) 
+                                         for npart in range(self.Nb)] for nsite in range(self.L)])
+                assert np.all(proba_Npart < 1+1e-6) and np.all(proba_Npart > -1e-6)
+                proba_Npart = np.clip(proba_Npart, 0., 1.)
+                return proba_Npart
+            self._proba_Nparticles = proba_Nparticles
+    
+        time = self.t_array if time is None else time 
+        state_t = self.EvolutionSE(time = time, H = H, state_init = state_init, **args_evolve)
+
+        n_t = len(time)
+        if  state_t.shape[1] != n_t:
+            logger.exception("EvolutionPopAdiab: state_t has dim {0}".format(state_t.shape))
+        
+        proba_evol = [self._proba_Nparticles(state_t[:, t]) for t in range(n_t)]
+        return proba_evol
 
     def _create_wag_to_bloch_basis(self):
         self._create_wag_to_bloch_matrix(self)
@@ -431,6 +502,8 @@ class BH1D(mod.pcModel_qspin):
                 assert np.all(proba_each_one < 1+1e-6) and np.all(proba_each_one > -1e-6)
                 proba_each_one = np.clip(proba_each_one, 0., 1.)
                 return proba_each_one
+            
+
             
             def eachone_frequency(V, nb):
                 """ frequency (for each site) of seing ecatly one particle"""
